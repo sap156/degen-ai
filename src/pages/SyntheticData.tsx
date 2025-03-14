@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -34,6 +33,13 @@ import {
   Copy,
   BarChart3
 } from 'lucide-react';
+import { 
+  generateSyntheticData, 
+  downloadSyntheticData, 
+  saveSyntheticDataToDatabase,
+  type DataField,
+  type SyntheticDataOptions 
+} from '@/services/syntheticDataService';
 
 const dataTypes = [
   { value: 'personal', label: 'Personal Information' },
@@ -63,7 +69,7 @@ const SyntheticData: React.FC = () => {
   const [outputFormat, setOutputFormat] = useState('csv');
   
   // Using a simple form state example - would expand in a real implementation
-  const [fields, setFields] = useState([
+  const [fields, setFields] = useState<DataField[]>([
     { name: 'id', type: 'id', included: true },
     { name: 'full_name', type: 'name', included: true },
     { name: 'email', type: 'email', included: true },
@@ -93,24 +99,33 @@ const SyntheticData: React.FC = () => {
     setFields(updatedFields);
   };
 
-  const handleGenerateData = () => {
+  const handleGenerateData = async () => {
     setIsGenerating(true);
     
-    // Simulate generation process
-    setTimeout(() => {
-      setIsGenerating(false);
-      setGeneratedSample(`id,full_name,email,age,address,phone_number
-1,John Doe,john.doe@example.com,32,"123 Main St, Anytown, USA",555-123-4567
-2,Jane Smith,jane.smith@example.com,28,"456 Oak Ave, Somewhere, USA",555-987-6543
-3,Alex Johnson,alex.j@example.com,45,"789 Pine Rd, Nowhere, USA",555-456-7890
-...
-997,Emma Wilson,e.wilson@example.com,31,"505 Cedar Ln, Anystate, USA",555-222-3333
-998,Michael Brown,m.brown@example.com,42,"606 Maple Dr, Somewhere, USA",555-444-5555
-999,Sarah Davis,s.davis@example.com,36,"707 Birch St, Nowhere, USA",555-666-7777
-1000,Robert Miller,r.miller@example.com,29,"808 Elm Blvd, Anytown, USA",555-888-9999`);
+    try {
+      // Build options object for data generation
+      const options: SyntheticDataOptions = {
+        dataType: selectedDataType,
+        fields,
+        rowCount,
+        distributionType: selectedDistribution,
+        includeNulls,
+        nullPercentage,
+        outputFormat,
+        customSchema: selectedDataType === 'custom' ? customSchema : undefined
+      };
+      
+      // Call service to generate data
+      const generatedData = await generateSyntheticData(options);
+      setGeneratedSample(generatedData);
       
       toast.success(`Successfully generated ${rowCount} rows of synthetic data`);
-    }, 2000);
+    } catch (error) {
+      console.error('Error generating data:', error);
+      toast.error('Failed to generate data');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleCopyToClipboard = () => {
@@ -122,16 +137,18 @@ const SyntheticData: React.FC = () => {
 
   const handleDownload = () => {
     if (!generatedSample) return;
+    downloadSyntheticData(generatedSample, outputFormat);
+  };
+
+  const handleSaveToDatabase = async () => {
+    if (!generatedSample) return;
     
-    const blob = new Blob([generatedSample], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `synthetic_data_${Date.now()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Download started');
+    try {
+      await saveSyntheticDataToDatabase(generatedSample);
+    } catch (error) {
+      console.error('Error saving to database:', error);
+      toast.error('Failed to save data to database');
+    }
   };
 
   return (
@@ -454,7 +471,12 @@ const SyntheticData: React.FC = () => {
               )}
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline" className="gap-2">
+              <Button 
+                variant="outline" 
+                className="gap-2"
+                onClick={handleSaveToDatabase}
+                disabled={!generatedSample}
+              >
                 <Database className="h-4 w-4" />
                 Save to Database
               </Button>
@@ -473,3 +495,4 @@ const SyntheticData: React.FC = () => {
 };
 
 export default SyntheticData;
+
