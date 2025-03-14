@@ -10,6 +10,7 @@ import SyntheticData from "./pages/SyntheticData";
 import DataAugmentation from "./pages/DataAugmentation";
 import TimeSeries from "./pages/TimeSeries";
 import PiiHandling from "./pages/PiiHandling";
+import ImbalancedData from "./pages/ImbalancedData";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,8 +28,8 @@ const App = () => (
             <Route path="/data-augmentation" element={<DataAugmentation />} />
             <Route path="/time-series" element={<TimeSeries />} />
             <Route path="/pii-handling" element={<PiiHandling />} />
+            <Route path="/imbalanced-data" element={<ImbalancedData />} />
             {/* Add other routes here as they get implemented */}
-            <Route path="/imbalanced-data" element={<NotFound />} />
             <Route path="/data-parsing" element={<NotFound />} />
             <Route path="/extraction" element={<NotFound />} />
             <Route path="/entity-recognition" element={<NotFound />} />
