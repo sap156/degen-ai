@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 import { SchemaFieldType } from './fileUploadUtils';
 
@@ -247,4 +248,177 @@ export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean, dateFiel
     isTimeSeries: possibleDateFields.length > 0 && hasNumericField,
     dateField: possibleDateFields.length > 0 ? possibleDateFields[0] : undefined
   };
+};
+
+// NEW FUNCTIONS FOR TIME SERIES SPECIFIC OPERATIONS
+
+// Generate time series data within a specific date range
+export const generateTimeSeriesInRange = (
+  sourceData: any[], 
+  dateField: string,
+  schema: Record<string, SchemaFieldType>,
+  startDate: Date,
+  endDate: Date,
+  pointCount: number,
+  noiseLevel: number
+): any[] => {
+  // Filter source data to only include items within the date range
+  const filteredData = sourceData.filter(item => {
+    const itemDate = new Date(item[dateField]);
+    return itemDate >= startDate && itemDate <= endDate;
+  });
+  
+  // If no data in range, use all source data as reference
+  const baseData = filteredData.length > 0 ? filteredData : sourceData;
+  
+  const result: any[] = [];
+  
+  // Generate evenly spaced timestamps
+  const timeStep = (endDate.getTime() - startDate.getTime()) / (pointCount + 1);
+  
+  for (let i = 0; i < pointCount; i++) {
+    const newDate = new Date(startDate.getTime() + timeStep * (i + 1));
+    const newPoint = generateTimeSeriesPoint(baseData, dateField, schema, noiseLevel, newDate);
+    result.push(newPoint);
+  }
+  
+  // Sort by date
+  result.sort((a, b) => new Date(a[dateField]).getTime() - new Date(b[dateField]).getTime());
+  
+  return result;
+};
+
+// Add noise to existing time series data
+export const addNoiseToTimeSeries = (
+  data: any[],
+  schema: Record<string, SchemaFieldType>,
+  noiseLevel: number,
+  dateField?: string,
+  startDate?: Date,
+  endDate?: Date
+): any[] => {
+  // Create a deep copy to avoid modifying original data
+  const result = JSON.parse(JSON.stringify(data));
+  
+  // Apply date range filter if provided
+  const filteredIndices = dateField && startDate && endDate 
+    ? result.map((item, index) => {
+        const itemDate = new Date(item[dateField]);
+        return itemDate >= startDate && itemDate <= endDate ? index : -1;
+      }).filter(index => index !== -1)
+    : result.map((_, index) => index); // Otherwise use all indices
+  
+  // For each field that's numeric, add noise
+  Object.entries(schema).forEach(([field, type]) => {
+    if (field === dateField) return; // Skip date field
+    
+    if (type === 'integer' || type === 'float' || type === 'number') {
+      // Get range for this field from the original data
+      const fieldValues = data.map(item => Number(item[field]));
+      const min = Math.min(...fieldValues);
+      const max = Math.max(...fieldValues);
+      const range = max - min;
+      
+      // Add noise to each selected data point
+      for (const index of filteredIndices) {
+        const originalValue = Number(result[index][field]);
+        const noise = (Math.random() * 2 - 1) * noiseLevel * range;
+        
+        if (type === 'integer') {
+          result[index][field] = Math.round(originalValue + noise);
+        } else {
+          result[index][field] = Number((originalValue + noise).toFixed(4));
+        }
+      }
+    }
+  });
+  
+  return result;
+};
+
+// Generate PII data based on sample data
+export const generatePiiData = (
+  sampleData: any[],
+  schema: Record<string, SchemaFieldType>,
+  count: number
+): any[] => {
+  const result = [];
+  
+  for (let i = 0; i < count; i++) {
+    const newItem: any = {};
+    
+    // For each field in the schema
+    Object.entries(schema).forEach(([field, type]) => {
+      switch (type) {
+        case 'name':
+          // Generate a random name based on sample data
+          const firstNames = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica'];
+          const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia'];
+          newItem[field] = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+          break;
+          
+        case 'email':
+          // Generate a random email
+          const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'example.com'];
+          const username = Math.random().toString(36).substring(2, 10);
+          const domain = domains[Math.floor(Math.random() * domains.length)];
+          newItem[field] = `${username}@${domain}`;
+          break;
+          
+        case 'phone':
+          // Generate a random phone number
+          const areaCode = Math.floor(Math.random() * 900) + 100;
+          const prefix = Math.floor(Math.random() * 900) + 100;
+          const lineNum = Math.floor(Math.random() * 9000) + 1000;
+          newItem[field] = `(${areaCode}) ${prefix}-${lineNum}`;
+          break;
+          
+        case 'address':
+          // Generate a random address
+          const streetNum = Math.floor(Math.random() * 9000) + 1000;
+          const streetNames = ['Main St', 'Oak Ave', 'Maple Rd', 'Washington Blvd', 'Park Lane'];
+          const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'];
+          const states = ['NY', 'CA', 'IL', 'TX', 'AZ', 'PA'];
+          const zipCodes = ['10001', '90001', '60601', '77001', '85001', '19101'];
+          const streetName = streetNames[Math.floor(Math.random() * streetNames.length)];
+          const cityIndex = Math.floor(Math.random() * cities.length);
+          
+          newItem[field] = `${streetNum} ${streetName}, ${cities[cityIndex]}, ${states[cityIndex]} ${zipCodes[cityIndex]}`;
+          break;
+          
+        case 'ssn':
+          // Generate a random SSN
+          const part1 = Math.floor(Math.random() * 900) + 100;
+          const part2 = Math.floor(Math.random() * 90) + 10;
+          const part3 = Math.floor(Math.random() * 9000) + 1000;
+          newItem[field] = `${part1}-${part2}-${part3}`;
+          break;
+          
+        case 'creditcard':
+          // Generate a random credit card number (simplified)
+          const groups = Array.from({length: 4}, () => Math.floor(Math.random() * 9000) + 1000);
+          newItem[field] = groups.join('-');
+          break;
+          
+        case 'date':
+          // Generate a random date in the past 50 years
+          const now = new Date();
+          const pastDate = new Date(
+            now.getFullYear() - Math.floor(Math.random() * 50),
+            Math.floor(Math.random() * 12),
+            Math.floor(Math.random() * 28) + 1
+          );
+          newItem[field] = pastDate.toISOString().split('T')[0];
+          break;
+          
+        default:
+          // For other types, use the general generateValueForField function
+          newItem[field] = generateValueForField(field, type, sampleData, 0.2);
+      }
+    });
+    
+    result.push(newItem);
+  }
+  
+  return result;
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -25,7 +24,8 @@ import {
   Brackets,
   FileText,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Search
 } from 'lucide-react';
 
 const DataExtraction: React.FC = () => {
@@ -36,6 +36,8 @@ const DataExtraction: React.FC = () => {
   const [extractedFormat, setExtractedFormat] = useState<'text' | 'json' | 'html'>('text');
   const [images, setImages] = useState<{ file: File, preview: string }[]>([]);
   const [activeTab, setActiveTab] = useState<string>('web');
+  const [question, setQuestion] = useState<string>('');
+  const [imageQuestion, setImageQuestion] = useState<string>('');
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,65 +50,73 @@ const DataExtraction: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Simulate web scraping with a timeout
+      // In a real implementation, this would call an API to extract data
+      // For now, we'll simulate with a timeout
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock extracted data based on extraction type
+      // Generate relevant mock data based on extraction type and question
       let mockData = '';
       
-      switch (extractionType) {
-        case 'tables':
-          mockData = JSON.stringify([
-            {
-              "header": ["Product", "Price", "Rating"],
-              "rows": [
-                ["Product A", "$19.99", "4.5/5"],
-                ["Product B", "$24.99", "4.2/5"],
-                ["Product C", "$15.99", "4.8/5"]
-              ]
-            }
-          ], null, 2);
-          setExtractedFormat('json');
-          break;
-        case 'lists':
-          mockData = JSON.stringify({
-            "lists": [
+      if (question) {
+        // If there's a specific question, generate an answer
+        mockData = generateQuestionAnswer(url, question, extractionType);
+        setExtractedFormat('text');
+      } else {
+        // Otherwise, extract based on the selected type
+        switch (extractionType) {
+          case "tables":
+            mockData = JSON.stringify([
               {
-                "title": "Top Features",
-                "items": ["Feature 1", "Feature 2", "Feature 3"]
-              },
-              {
-                "title": "Benefits",
-                "items": ["Benefit 1", "Benefit 2", "Benefit 3"]
+                "header": ["Product", "Price", "Rating"],
+                "rows": [
+                  ["Product A", "$19.99", "4.5/5"],
+                  ["Product B", "$24.99", "4.2/5"],
+                  ["Product C", "$15.99", "4.8/5"]
+                ]
               }
-            ]
-          }, null, 2);
-          setExtractedFormat('json');
-          break;
-        case 'text':
-          mockData = `Main Content from ${url}\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget aliquam nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget aliquam nisl nisl eget nisl.`;
-          setExtractedFormat('text');
-          break;
-        case 'json':
-          mockData = JSON.stringify({
-            "title": "Page Title",
-            "meta": {
-              "description": "Page description",
-              "keywords": "keyword1, keyword2"
-            },
-            "content": {
-              "heading": "Main Heading",
-              "paragraphs": [
-                "Paragraph 1 content",
-                "Paragraph 2 content"
+            ], null, 2);
+            setExtractedFormat('json');
+            break;
+          case "lists":
+            mockData = JSON.stringify({
+              "lists": [
+                {
+                  "title": "Top Features",
+                  "items": ["Feature 1", "Feature 2", "Feature 3"]
+                },
+                {
+                  "title": "Benefits",
+                  "items": ["Benefit 1", "Benefit 2", "Benefit 3"]
+                }
               ]
-            }
-          }, null, 2);
-          setExtractedFormat('json');
-          break;
-        default:
-          mockData = `Extracted content from ${url}`;
-          setExtractedFormat('text');
+            }, null, 2);
+            setExtractedFormat('json');
+            break;
+          case "text":
+            mockData = `Main Content from ${url}\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget aliquam nisl nisl eget nisl.`;
+            setExtractedFormat('text');
+            break;
+          case "json":
+            mockData = JSON.stringify({
+              "title": "Page Title",
+              "meta": {
+                "description": "Page description",
+                "keywords": "keyword1, keyword2"
+              },
+              "content": {
+                "heading": "Main Heading",
+                "paragraphs": [
+                  "Paragraph 1 content",
+                  "Paragraph 2 content"
+                ]
+              }
+            }, null, 2);
+            setExtractedFormat('json');
+            break;
+          default:
+            mockData = `Extracted content from ${url}`;
+            setExtractedFormat('text');
+        }
       }
       
       setExtractedData(mockData);
@@ -116,6 +126,25 @@ const DataExtraction: React.FC = () => {
       toast.error('Failed to extract data from URL');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateQuestionAnswer = (url: string, question: string, dataType: string): string => {
+    // Simulate generating an answer based on the question and URL
+    // In a real implementation, this would use an API or model
+    
+    const questionLower = question.toLowerCase();
+    
+    if (questionLower.includes('price') || questionLower.includes('cost')) {
+      return `Based on the data from ${url}, the prices range from $15.99 to $24.99 with an average price of $20.32.`;
+    } else if (questionLower.includes('rating') || questionLower.includes('review')) {
+      return `The products on ${url} have an average rating of 4.5 out of 5 stars based on 128 customer reviews.`;
+    } else if (questionLower.includes('feature') || questionLower.includes('benefit')) {
+      return `The main features mentioned on ${url} are:\n1. Easy to use interface\n2. Fast processing capabilities\n3. Cloud integration\n4. Mobile compatibility`;
+    } else if (questionLower.includes('contact') || questionLower.includes('support')) {
+      return `Contact information found on ${url}:\nEmail: support@example.com\nPhone: (555) 123-4567\nHours: Monday-Friday, 9AM-5PM EST`;
+    } else {
+      return `Based on the analysis of ${url}, here's what I found regarding your question about "${question}":\n\nThe website contains information that appears to be relevant to your query. The main section discusses this topic and provides several examples and explanations.`;
     }
   };
 
@@ -141,19 +170,48 @@ const DataExtraction: React.FC = () => {
       // Simulate image processing with a timeout
       await new Promise(resolve => setTimeout(resolve, 2500));
       
-      // Mock extracted data
-      const mockExtractedText = images.map((_, index) => 
-        `Image ${index + 1} Text Content:\n\nExtracted text from the image. This is simulated text that would be extracted using OCR technology. The actual implementation would use an OCR service or library to extract real text from the images.`
-      ).join('\n\n');
+      // Generate mock extracted data based on whether there's a specific question
+      let mockExtractedText = '';
+      
+      if (imageQuestion) {
+        // Generate response based on the question
+        mockExtractedText = generateImageQuestionAnswer(imageQuestion);
+      } else {
+        // General extraction from images
+        mockExtractedText = images.map((_, index) => 
+          `Image ${index + 1} Text Content:\n\nExtracted text from the image. This is simulated text that would be extracted using OCR technology. The actual implementation would use an OCR service or library to extract real text from the images.`
+        ).join('\n\n');
+      }
       
       setExtractedData(mockExtractedText);
       setExtractedFormat('text');
-      toast.success('Text extracted from images');
+      toast.success('Analysis completed successfully');
     } catch (error) {
       console.error('Error extracting from images:', error);
-      toast.error('Failed to extract text from images');
+      toast.error('Failed to extract information from images');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateImageQuestionAnswer = (question: string): string => {
+    // Simulate answers to specific questions about the images
+    // In a real implementation, this would use computer vision APIs
+    
+    const questionLower = question.toLowerCase();
+    
+    if (questionLower.includes('text') || questionLower.includes('ocr')) {
+      return "Text Extraction Results:\n\nThe image contains the following text:\n\"EXAMPLE CORPORATION\nAnnual Report 2023\nRevenue: $12.5M\nGrowth: 27%\nNew Customers: 1,542\"";
+    } else if (questionLower.includes('face') || questionLower.includes('person')) {
+      return "Person Detection Results:\n\n2 people detected in the image.\nPerson 1: Adult, positioned in center-frame\nPerson 2: Adult, positioned on the right side\n\nNote: For privacy reasons, detailed facial recognition is not performed.";
+    } else if (questionLower.includes('object') || questionLower.includes('item')) {
+      return "Object Detection Results:\n\nObjects identified in the image:\n- Laptop computer (confidence: 98%)\n- Coffee mug (confidence: 95%)\n- Notebook (confidence: 92%)\n- Pen (confidence: 89%)\n- Smartphone (confidence: 97%)";
+    } else if (questionLower.includes('color') || questionLower.includes('palette')) {
+      return "Color Analysis Results:\n\nDominant colors in the image:\n- Navy blue (38%)\n- White (25%)\n- Light gray (18%)\n- Black (12%)\n- Red accent (7%)";
+    } else if (questionLower.includes('table') || questionLower.includes('data')) {
+      return "Table Extraction Results:\n\nDetected table with the following data:\n\nMonth | Revenue | Growth\n------|---------|-------\nJan | $1.2M | 5%\nFeb | $1.3M | 8%\nMar | $1.5M | 15%\nApr | $1.7M | 13%";
+    } else {
+      return `Image Analysis Results for query "${question}":\n\nThe image contains content that appears to be relevant to your query. I can detect several elements that may answer your question, including text, objects, and visual information that corresponds to your interest.`;
     }
   };
 
@@ -289,6 +347,17 @@ const DataExtraction: React.FC = () => {
                       </div>
                       
                       <div>
+                        <Label htmlFor="question">Ask a specific question (optional)</Label>
+                        <Textarea
+                          id="question"
+                          placeholder="E.g., What are the product prices? What features are mentioned?"
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      
+                      <div>
                         <Label htmlFor="extractionType">Extraction Type</Label>
                         <select
                           id="extractionType"
@@ -320,6 +389,17 @@ const DataExtraction: React.FC = () => {
                   
                   {images.length > 0 && (
                     <div className="space-y-4 mt-4">
+                      <div>
+                        <Label htmlFor="imageQuestion">Ask a specific question (optional)</Label>
+                        <Textarea
+                          id="imageQuestion"
+                          placeholder="E.g., Extract text from this image. What objects are in this image?"
+                          value={imageQuestion}
+                          onChange={(e) => setImageQuestion(e.target.value)}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-2">
                         {images.map((image, index) => (
                           <div key={index} className="relative group">
@@ -349,7 +429,10 @@ const DataExtraction: React.FC = () => {
                               Processing...
                             </>
                           ) : (
-                            <>Extract Text</>
+                            <>
+                              <Search className="h-4 w-4 mr-2" />
+                              Analyze Images
+                            </>
                           )}
                         </Button>
                         
