@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Card, 
@@ -24,8 +24,12 @@ import {
   Search,
   ArrowRight,
   Upload,
-  Download
+  Download,
+  KeyRound,
+  Sparkles
 } from 'lucide-react';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ApiKeyDialog from '@/components/ApiKeyDialog';
 
 const container = {
   hidden: { opacity: 0 },
@@ -132,6 +136,9 @@ const FeatureCard = ({ feature }: { feature: typeof features[0] }) => (
 );
 
 const Index: React.FC = () => {
+  const { isKeySet } = useApiKey();
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  
   return (
     <div className="container px-4 mx-auto py-8 max-w-7xl">
       <div className="flex flex-col items-center text-center mb-16 space-y-3">
@@ -178,6 +185,39 @@ const Index: React.FC = () => {
             Connect Database
           </Button>
         </motion.div>
+        
+        {/* API Key Status Card */}
+        <motion.div
+          className="w-full max-w-md mt-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <Card className="border-dashed border-2 bg-background/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-500" />
+                AI Integration
+              </CardTitle>
+              <CardDescription>
+                {isKeySet 
+                  ? "Your OpenAI API key is set. All AI-powered features are enabled!"
+                  : "Set up your OpenAI API key to unlock AI-powered features across all tools."
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="pt-2">
+              <Button 
+                onClick={() => setApiKeyDialogOpen(true)}
+                variant={isKeySet ? "outline" : "default"}
+                className="w-full gap-2"
+              >
+                <KeyRound className="h-4 w-4" />
+                {isKeySet ? "Manage API Key" : "Set Up API Key"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </motion.div>
       </div>
 
       <motion.div 
@@ -190,6 +230,8 @@ const Index: React.FC = () => {
           <FeatureCard key={index} feature={feature} />
         ))}
       </motion.div>
+      
+      <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
     </div>
   );
 };

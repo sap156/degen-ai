@@ -1,3 +1,4 @@
+import { analyzePiiWithAI } from "./openAiService";
 
 export interface PiiData {
   id: string;
@@ -18,6 +19,11 @@ export type PiiDataMasked = {
 export type MaskingOptions = {
   [K in keyof Omit<PiiData, 'id'>]: boolean;
 };
+
+export interface PiiAnalysisResult {
+  identifiedPii: string[];
+  suggestions: string;
+}
 
 // Generate sample PII data for demonstration
 export const generateSamplePiiData = (count: number = 10): PiiData[] => {
@@ -77,6 +83,31 @@ export const maskPiiData = (data: PiiData[], options: MaskingOptions): PiiDataMa
     
     return maskedItem as PiiDataMasked;
   });
+};
+
+// Analyze PII data using AI
+export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Promise<PiiAnalysisResult> => {
+  if (!apiKey) {
+    return {
+      identifiedPii: ["Unable to analyze - API key not set"],
+      suggestions: "Please set up your OpenAI API key to use AI-powered PII analysis."
+    };
+  }
+  
+  try {
+    // Convert a sample of data to JSON string for analysis
+    const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
+    
+    // Use OpenAI to analyze the data
+    return await analyzePiiWithAI(apiKey, sampleData);
+    
+  } catch (error) {
+    console.error("Error analyzing PII data:", error);
+    return {
+      identifiedPii: ["Error during analysis"],
+      suggestions: "An error occurred while analyzing the data. Please try again later."
+    };
+  }
 };
 
 // Export data as JSON

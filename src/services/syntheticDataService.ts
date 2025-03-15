@@ -1,5 +1,6 @@
 
 import { toast } from "sonner";
+import { generateSyntheticDataWithAI } from "./openAiService";
 
 // Types for our service
 export type DataField = {
@@ -17,6 +18,8 @@ export type SyntheticDataOptions = {
   nullPercentage: number;
   outputFormat: string;
   customSchema?: string;
+  useAI?: boolean;
+  aiPrompt?: string;
 };
 
 // Helper functions to generate different types of synthetic data
@@ -91,100 +94,127 @@ const generateString = (length = 10) => {
 };
 
 // Main function to generate synthetic data
-export const generateSyntheticData = async (options: SyntheticDataOptions): Promise<string> => {
+export const generateSyntheticData = async (options: SyntheticDataOptions, apiKey: string | null = null): Promise<string> => {
   return new Promise((resolve, reject) => {
     try {
-      // Simulate an API call or processing time
-      setTimeout(() => {
-        const { fields, rowCount, outputFormat } = options;
-        
-        // Filter only included fields
-        const includedFields = fields.filter(field => field.included);
-        
-        // Generate header row
-        const headers = includedFields.map(field => field.name);
-        
-        // Generate data rows
-        const rows = Array.from({ length: rowCount }, (_, rowIndex) => {
-          const row: Record<string, any> = {};
-          
-          includedFields.forEach(field => {
-            // Check if we should include null value based on settings
-            if (options.includeNulls && Math.random() * 100 < options.nullPercentage) {
-              row[field.name] = null;
-              return;
-            }
-            
-            // Generate value based on field type
-            switch (field.type) {
-              case 'id':
-                row[field.name] = generateId(rowIndex);
-                break;
-              case 'name':
-                row[field.name] = generateName();
-                break;
-              case 'email':
-                row[field.name] = generateEmail(row['full_name'] as string);
-                break;
-              case 'number':
-                row[field.name] = generateNumber();
-                break;
-              case 'date':
-                row[field.name] = generateDate();
-                break;
-              case 'address':
-                row[field.name] = generateAddress();
-                break;
-              case 'phone':
-                row[field.name] = generatePhoneNumber();
-                break;
-              case 'boolean':
-                row[field.name] = generateBoolean();
-                break;
-              case 'string':
-              default:
-                row[field.name] = generateString();
-                break;
-            }
+      // If AI generation is enabled and we have an API key, use OpenAI
+      if (options.useAI && apiKey && options.aiPrompt) {
+        generateSyntheticDataWithAI(
+          apiKey, 
+          options.aiPrompt, 
+          options.outputFormat, 
+          options.rowCount
+        )
+          .then(result => resolve(result))
+          .catch(error => {
+            console.error("AI generation failed, falling back to standard generation:", error);
+            toast.error("AI generation failed, falling back to standard data generation");
+            // Fall back to standard generation
+            generateStandardData(options).then(resolve).catch(reject);
           });
-          
-          return row;
-        });
-        
-        // Format output based on selected format
-        let result = '';
-        
-        switch (outputFormat) {
-          case 'json':
-            result = JSON.stringify(rows, null, 2);
-            break;
-          case 'csv':
-          default:
-            // Add headers
-            result = headers.join(',') + '\n';
-            
-            // Add data rows
-            rows.forEach(row => {
-              const rowValues = headers.map(header => {
-                const value = row[header];
-                // Properly format values for CSV
-                if (value === null) return '';
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                  return `"${value.replace(/"/g, '""')}"`;
-                }
-                return value;
-              });
-              result += rowValues.join(',') + '\n';
-            });
-            break;
-        }
-        
-        resolve(result);
-      }, 1500); // Simulate processing time
+        return;
+      }
+      
+      // Standard generation path
+      generateStandardData(options).then(resolve).catch(reject);
+      
     } catch (error) {
       console.error('Error generating synthetic data:', error);
       reject(error);
     }
+  });
+};
+
+// Extract the standard generation logic to its own function
+const generateStandardData = async (options: SyntheticDataOptions): Promise<string> => {
+  return new Promise((resolve) => {
+    // Simulate an API call or processing time
+    setTimeout(() => {
+      const { fields, rowCount, outputFormat } = options;
+      
+      // Filter only included fields
+      const includedFields = fields.filter(field => field.included);
+      
+      // Generate header row
+      const headers = includedFields.map(field => field.name);
+      
+      // Generate data rows
+      const rows = Array.from({ length: rowCount }, (_, rowIndex) => {
+        const row: Record<string, any> = {};
+        
+        includedFields.forEach(field => {
+          // Check if we should include null value based on settings
+          if (options.includeNulls && Math.random() * 100 < options.nullPercentage) {
+            row[field.name] = null;
+            return;
+          }
+          
+          // Generate value based on field type
+          switch (field.type) {
+            case 'id':
+              row[field.name] = generateId(rowIndex);
+              break;
+            case 'name':
+              row[field.name] = generateName();
+              break;
+            case 'email':
+              row[field.name] = generateEmail(row['full_name'] as string);
+              break;
+            case 'number':
+              row[field.name] = generateNumber();
+              break;
+            case 'date':
+              row[field.name] = generateDate();
+              break;
+            case 'address':
+              row[field.name] = generateAddress();
+              break;
+            case 'phone':
+              row[field.name] = generatePhoneNumber();
+              break;
+            case 'boolean':
+              row[field.name] = generateBoolean();
+              break;
+            case 'string':
+            default:
+              row[field.name] = generateString();
+              break;
+          }
+        });
+        
+        return row;
+      });
+      
+      // Format output based on selected format
+      let result = '';
+      
+      switch (outputFormat) {
+        case 'json':
+          result = JSON.stringify(rows, null, 2);
+          break;
+        case 'csv':
+        default:
+          // Add headers
+          result = headers.join(',') + '\n';
+          
+          // Add data rows
+          rows.forEach(row => {
+            const rowValues = headers.map(header => {
+              const value = row[header];
+              // Properly format values for CSV
+              if (value === null) return '';
+              if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                return `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            });
+            result += rowValues.join(',') + '\n';
+          });
+          break;
+      }
+      
+      resolve(result);
+    }, 1500); // Simulate processing time
   });
 };
 

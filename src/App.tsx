@@ -15,32 +15,35 @@ import DataParsing from "./pages/DataParsing";
 import DataExtraction from "./pages/DataExtraction";
 import EntityRecognition from "./pages/EntityRecognition";
 import NotFound from "./pages/NotFound";
+import { ApiKeyProvider } from "./contexts/ApiKeyContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/synthetic-data" element={<SyntheticData />} />
-            <Route path="/data-augmentation" element={<DataAugmentation />} />
-            <Route path="/time-series" element={<TimeSeries />} />
-            <Route path="/pii-handling" element={<PiiHandling />} />
-            <Route path="/imbalanced-data" element={<ImbalancedData />} />
-            <Route path="/data-parsing" element={<DataParsing />} />
-            <Route path="/extraction" element={<DataExtraction />} />
-            <Route path="/entity-recognition" element={<EntityRecognition />} />
-            <Route path="/data-query" element={<NotFound />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ApiKeyProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/synthetic-data" element={<SyntheticData />} />
+              <Route path="/data-augmentation" element={<DataAugmentation />} />
+              <Route path="/time-series" element={<TimeSeries />} />
+              <Route path="/pii-handling" element={<PiiHandling />} />
+              <Route path="/imbalanced-data" element={<ImbalancedData />} />
+              <Route path="/data-parsing" element={<DataParsing />} />
+              <Route path="/extraction" element={<DataExtraction />} />
+              <Route path="/entity-recognition" element={<EntityRecognition />} />
+              <Route path="/data-query" element={<NotFound />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ApiKeyProvider>
   </QueryClientProvider>
 );
 

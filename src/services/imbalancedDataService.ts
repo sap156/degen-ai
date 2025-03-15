@@ -1,3 +1,4 @@
+import { getCompletion } from "./openAiService";
 
 // Interfaces for imbalanced data operations
 export interface ClassDistribution {
@@ -177,6 +178,48 @@ export const balanceDataset = (
     isImbalanced: newImbalanceRatio > 1.5,
     imbalanceRatio: newImbalanceRatio,
   };
+};
+
+// Get AI recommendations for handling imbalanced data
+export const getAIRecommendations = async (
+  dataset: DatasetInfo,
+  apiKey: string | null
+): Promise<string> => {
+  if (!apiKey) {
+    return "AI recommendations require an OpenAI API key. Please set up your API key to use this feature.";
+  }
+  
+  try {
+    const messages = [
+      {
+        role: "system",
+        content: "You are an expert in machine learning and data science specializing in handling imbalanced datasets. Provide practical recommendations for the given dataset."
+      },
+      {
+        role: "user",
+        content: `I have a dataset with the following class distribution:
+        
+        ${dataset.classes.map(c => `${c.className}: ${c.count} samples (${c.percentage}%)`).join('\n')}
+        
+        Total samples: ${dataset.totalSamples}
+        Imbalance ratio: ${dataset.imbalanceRatio}
+        
+        Please provide specific recommendations for handling this imbalanced dataset, including:
+        1. Which sampling techniques might work best
+        2. Algorithm recommendations
+        3. Evaluation metrics to use
+        4. Any other best practices`
+      }
+    ];
+    
+    return await getCompletion(apiKey, messages, {
+      temperature: 0.7,
+      max_tokens: 800
+    });
+  } catch (error) {
+    console.error("Error getting AI recommendations:", error);
+    return "An error occurred while fetching AI recommendations. Please try again later.";
+  }
 };
 
 // Export data as JSON
