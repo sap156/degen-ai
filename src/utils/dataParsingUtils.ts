@@ -1,9 +1,9 @@
-
 import { toast } from 'sonner';
+import { SchemaFieldType } from './fileUploadUtils';
 
 interface GenerateDataOptions {
   sourceData: any[];
-  schema: Record<string, string>;
+  schema: Record<string, SchemaFieldType>;
   count: number;
   noiseLevel: number;
   dateField?: string;
@@ -36,7 +36,7 @@ const getDateRange = (data: any[], field: string): { min: Date; max: Date } => {
 // Generate a random value based on the field type and existing data distribution
 const generateValueForField = (
   field: string,
-  type: string,
+  type: SchemaFieldType,
   sourceData: any[],
   noiseLevel: number,
   dateRange?: { min: Date; max: Date }
@@ -46,6 +46,8 @@ const generateValueForField = (
   
   switch (type) {
     case 'string':
+    case 'email':
+    case 'phone':
       // For strings, sample from existing values
       return existingValues[Math.floor(Math.random() * existingValues.length)];
       
@@ -97,7 +99,7 @@ const generateValueForField = (
 const generateTimeSeriesPoint = (
   baseData: any[],
   dateField: string,
-  fieldSchema: Record<string, string>,
+  fieldSchema: Record<string, SchemaFieldType>,
   noiseLevel: number,
   newDate: Date
 ): any => {

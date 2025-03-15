@@ -1,4 +1,3 @@
-
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -171,15 +170,15 @@ export const detectDataType = (data: any[]): {
  * @param data The parsed data
  * @returns Schema object describing the data structure
  */
-export const generateSchema = (data: any[]): Record<string, string> => {
+export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
   if (!data || !data.length) return {};
   
-  const schema: Record<string, string> = {};
+  const schema: Record<string, SchemaFieldType> = {};
   const sampleItem = data[0];
   
   Object.keys(sampleItem).forEach(key => {
     const value = sampleItem[key];
-    let type = typeof value;
+    let type = typeof value as SchemaFieldType;
     
     // Enhanced type detection
     if (type === 'string') {
@@ -268,4 +267,3 @@ export const downloadData = (data: string, fileName: string, format: 'csv' | 'js
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
-

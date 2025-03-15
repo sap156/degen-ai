@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -25,7 +24,7 @@ import { Slider } from '@/components/ui/slider';
 import FileUploader from '@/components/FileUploader';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
+import { parseCSV, parseJSON, readFileContent, SchemaFieldType } from '@/utils/fileUploadUtils';
 import { generateAdditionalData } from '@/utils/dataParsingUtils';
 import { 
   Download,
@@ -40,7 +39,7 @@ import {
 
 const DataParsing: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
-  const [schema, setSchema] = useState<any>({});
+  const [schema, setSchema] = useState<Record<string, SchemaFieldType>>({});
   const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [fileType, setFileType] = useState<'csv' | 'json' | ''>('');
@@ -58,7 +57,6 @@ const DataParsing: React.FC = () => {
       setIsLoading(true);
       setFileName(file.name);
       
-      // Determine file type
       if (file.name.endsWith('.csv')) {
         setFileType('csv');
       } else if (file.name.endsWith('.json')) {
@@ -69,11 +67,9 @@ const DataParsing: React.FC = () => {
         return;
       }
 
-      // Read file content
       const content = await readFileContent(file);
       setFileContent(content);
       
-      // Parse data based on file type
       let parsedData;
       if (fileType === 'csv' || file.name.endsWith('.csv')) {
         parsedData = parseCSV(content);
@@ -83,11 +79,9 @@ const DataParsing: React.FC = () => {
       
       if (!Array.isArray(parsedData)) {
         if (typeof parsedData === 'object' && parsedData !== null) {
-          // If it's an object with a data property that's an array, use that
           if (Array.isArray(parsedData.data)) {
             parsedData = parsedData.data;
           } else {
-            // Convert object to array if possible
             parsedData = [parsedData];
           }
         } else {
@@ -97,12 +91,10 @@ const DataParsing: React.FC = () => {
         }
       }
       
-      // Detect schema
       if (parsedData.length > 0) {
         const detectedSchema = detectSchema(parsedData);
         setSchema(detectedSchema);
         
-        // Try to find date fields for range selection
         const possibleDateFields = Object.keys(detectedSchema).filter(
           key => detectedSchema[key] === 'date' || key.toLowerCase().includes('date') || key.toLowerCase().includes('time')
         );
@@ -123,34 +115,29 @@ const DataParsing: React.FC = () => {
     }
   };
 
-  const detectSchema = (data: any[]): Record<string, string> => {
+  const detectSchema = (data: any[]): Record<string, SchemaFieldType> => {
     if (!data.length) return {};
     
-    const schema: Record<string, string> = {};
+    const schema: Record<string, SchemaFieldType> = {};
     const sampleItem = data[0];
     
-    // Detect type for each field
     Object.keys(sampleItem).forEach(key => {
       const value = sampleItem[key];
-      let type = typeof value;
+      let type = typeof value as SchemaFieldType;
       
-      // Enhanced type detection
       if (type === 'string') {
-        // Check for date format
         if (/^\d{4}-\d{2}-\d{2}/.test(value) || // ISO date format
             /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || // MM/DD/YYYY
             /^\d{1,2}-\d{1,2}-\d{4}/.test(value) || // MM-DD-YYYY
-            !isNaN(Date.parse(value))) { // Parsable as date
+            !isNaN(Date.parse(value))) {
           type = 'date';
         }
-        // Check for time series
         else if (key.toLowerCase().includes('time') || 
                 key.toLowerCase().includes('date') ||
                 key.toLowerCase() === 'timestamp') {
           type = 'date';
         }
       } else if (type === 'number') {
-        // Check if it's an integer or float
         type = Number.isInteger(value) ? 'integer' : 'float';
       }
       
@@ -177,7 +164,6 @@ const DataParsing: React.FC = () => {
         return;
       }
       
-      // Generate additional data based on existing data
       const additionalData = generateAdditionalData({
         sourceData: data,
         schema,
@@ -211,7 +197,6 @@ const DataParsing: React.FC = () => {
       const filename = `generated_${fileName || 'data'}`;
       
       if (fileType === 'csv') {
-        // Generate CSV
         const headers = Object.keys(generatedData[0]).join(',');
         const rows = generatedData.map(item => 
           Object.values(item).map(value => 
@@ -229,7 +214,6 @@ const DataParsing: React.FC = () => {
         a.click();
         document.body.removeChild(a);
       } else {
-        // Generate JSON
         content = JSON.stringify(generatedData, null, 2);
         
         const blob = new Blob([content], { type: 'application/json' });
