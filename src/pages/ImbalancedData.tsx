@@ -1,485 +1,623 @@
 
 import { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel 
-} from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Download, BarChart, Clipboard, PieChart, RefreshCcw } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { PieChart, BarChart, Save, RefreshCw, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend
-} from 'recharts';
+import { useForm } from 'react-hook-form';
+import FileUploader from '@/components/FileUploader';
+import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
+
 import {
+  ClassDistribution,
+  DatasetInfo,
+  BalancingOptions,
   generateSampleDataset,
   balanceDataset,
-  downloadData,
   exportAsJson,
   exportAsCsv,
-  type DatasetInfo,
-  type BalancingOptions
+  downloadData,
 } from '@/services/imbalancedDataService';
 
-const formSchema = z.object({
-  classCount: z.number().min(2).max(10),
-  totalSamples: z.number().min(100).max(10000),
-  maxImbalanceRatio: z.number().min(1).max(50),
-  balancingMethod: z.enum(['none', 'undersample', 'oversample', 'smote']),
-  targetRatio: z.number().min(1).max(5).optional(),
-});
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+} from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
+
+// Register Chart.js components
+ChartJS.register(
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement
+);
+
+type FormValues = {
+  classes: number;
+  imbalanceRatio: number;
+  totalSamples: number;
+  balancingMethod: 'undersample' | 'oversample' | 'smote' | 'none';
+  targetRatio: number;
+};
 
 const ImbalancedData = () => {
   const [originalDataset, setOriginalDataset] = useState<DatasetInfo | null>(null);
   const [balancedDataset, setBalancedDataset] = useState<DatasetInfo | null>(null);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
-  
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+
+  const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
     defaultValues: {
-      classCount: 4,
+      classes: 4,
+      imbalanceRatio: 5,
       totalSamples: 1000,
-      maxImbalanceRatio: 10,
       balancingMethod: 'none',
-      targetRatio: 1.5,
+      targetRatio: 1.2,
     },
   });
-  
-  const watchClassCount = form.watch('classCount');
-  const watchTotalSamples = form.watch('totalSamples');
-  const watchMaxImbalanceRatio = form.watch('maxImbalanceRatio');
-  const watchBalancingMethod = form.watch('balancingMethod');
-  const watchTargetRatio = form.watch('targetRatio');
-  
-  // Generate dataset on first load and when parameters change
+
+  // Generate sample dataset on mount
   useEffect(() => {
-    generateNewDataset();
-  }, [watchClassCount, watchTotalSamples, watchMaxImbalanceRatio]);
-  
-  // Apply balancing when balancing parameters change
-  useEffect(() => {
-    if (originalDataset) {
-      applyBalancing();
-    }
-  }, [watchBalancingMethod, watchTargetRatio, originalDataset]);
-  
-  const generateNewDataset = () => {
-    const dataset = generateSampleDataset(
-      watchClassCount,
-      watchMaxImbalanceRatio,
-      watchTotalSamples
-    );
-    setOriginalDataset(dataset);
-    applyBalancing(dataset);
-  };
-  
-  const applyBalancing = (dataset = originalDataset) => {
-    if (!dataset) return;
-    
-    const options: BalancingOptions = {
-      method: watchBalancingMethod as BalancingOptions['method'],
-      targetRatio: watchTargetRatio,
+    generateDataset();
+  }, []);
+
+  const generateDataset = (customParams?: Partial<FormValues>) => {
+    const params = {
+      classes: customParams?.classes || watch('classes'),
+      imbalanceRatio: customParams?.imbalanceRatio || watch('imbalanceRatio'),
+      totalSamples: customParams?.totalSamples || watch('totalSamples'),
     };
+
+    const dataset = generateSampleDataset(
+      params.classes,
+      params.imbalanceRatio,
+      params.totalSamples
+    );
     
-    const balanced = balanceDataset(dataset, options);
+    setOriginalDataset(dataset);
+    setBalancedDataset(null);
+  };
+
+  const handleBalanceDataset = (data: FormValues) => {
+    if (!originalDataset) return;
+
+    const options: BalancingOptions = {
+      method: data.balancingMethod,
+      targetRatio: data.targetRatio,
+    };
+
+    const balanced = balanceDataset(originalDataset, options);
     setBalancedDataset(balanced);
+
+    toast.success(`Applied ${data.balancingMethod} balancing technique`);
   };
-  
-  const handleCopyToClipboard = (dataset: DatasetInfo) => {
-    navigator.clipboard.writeText(JSON.stringify(dataset, null, 2))
-      .then(() => toast.success('Dataset copied to clipboard'))
-      .catch(() => toast.error('Failed to copy dataset to clipboard'));
-  };
-  
-  const handleDownload = (dataset: DatasetInfo, format: 'json' | 'csv') => {
+
+  const handleExport = (dataset: DatasetInfo, format: 'json' | 'csv') => {
+    const filename = `imbalanced-data-${format === 'json' ? 'json' : 'csv'}`;
     const data = format === 'json' ? exportAsJson(dataset) : exportAsCsv(dataset);
-    const fileName = `imbalanced-data-${format === 'json' ? 'report.json' : 'report.csv'}`;
-    downloadData(data, fileName, format);
-    toast.success(`Downloaded dataset as ${format.toUpperCase()}`);
+    
+    downloadData(data, filename, format);
+    toast.success(`Exported data as ${format.toUpperCase()}`);
   };
-  
+
+  // Function to handle file upload
+  const handleFileUpload = async (file: File) => {
+    try {
+      setUploadedFile(file);
+      setIsProcessingFile(true);
+      
+      const content = await readFileContent(file);
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      
+      let parsedData;
+      
+      if (fileExt === 'csv') {
+        parsedData = parseCSV(content);
+      } else if (fileExt === 'json') {
+        parsedData = parseJSON(content);
+      } else {
+        throw new Error('Unsupported file format. Please upload CSV or JSON.');
+      }
+      
+      // Process data into the format expected by the app
+      const processedData = processUploadedData(parsedData);
+      setOriginalDataset(processedData);
+      setBalancedDataset(null);
+      
+      toast.success('File processed successfully');
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast.error((error as Error).message || 'Failed to process file');
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  // Process uploaded data into the expected format
+  const processUploadedData = (data: any): DatasetInfo => {
+    // Handle array format (most common case)
+    if (Array.isArray(data)) {
+      // Try to detect class distribution from data
+      // Assuming there's a "class" or "label" field in the data
+      const classField = detectClassField(data);
+      
+      if (!classField) {
+        throw new Error('Could not identify class field in the data');
+      }
+      
+      // Count occurrences of each class
+      const classCounts: Record<string, number> = {};
+      data.forEach(item => {
+        const className = String(item[classField]);
+        classCounts[className] = (classCounts[className] || 0) + 1;
+      });
+      
+      // Calculate total samples
+      const totalSamples = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
+      
+      // Create class distribution array
+      const classColors = [
+        '#4f46e5', '#0891b2', '#16a34a', '#ca8a04', 
+        '#dc2626', '#9333ea', '#2563eb', '#059669', 
+        '#d97706', '#db2777'
+      ];
+      
+      const classes: ClassDistribution[] = Object.entries(classCounts).map(([className, count], index) => ({
+        className,
+        count,
+        percentage: parseFloat(((count / totalSamples) * 100).toFixed(1)),
+        color: classColors[index % classColors.length]
+      }));
+      
+      // Sort by count (descending)
+      classes.sort((a, b) => b.count - a.count);
+      
+      // Calculate imbalance ratio
+      const maxClassSize = classes[0].count;
+      const minClassSize = classes[classes.length - 1].count;
+      const imbalanceRatio = parseFloat((maxClassSize / minClassSize).toFixed(2));
+      
+      return {
+        totalSamples,
+        classes,
+        isImbalanced: imbalanceRatio > 1.5,
+        imbalanceRatio
+      };
+    } else if (data && typeof data === 'object' && 'classes' in data && 'totalSamples' in data) {
+      // The uploaded data is already in the expected format
+      return data as DatasetInfo;
+    } else {
+      throw new Error('Unsupported data format. Please check the file structure.');
+    }
+  };
+
+  // Helper to detect which field represents the class label
+  const detectClassField = (data: any[]): string | null => {
+    if (data.length === 0) return null;
+    
+    // Common class field names
+    const possibleClassFields = ['class', 'label', 'category', 'target', 'y', 'Class', 'Label', 'Category', 'Target'];
+    
+    // Check if any of these fields exist in the data
+    const firstItem = data[0];
+    for (const field of possibleClassFields) {
+      if (field in firstItem) {
+        return field;
+      }
+    }
+    
+    // If no common class field is found, look for fields with categorical values
+    // that have a small number of unique values compared to the dataset size
+    const fields = Object.keys(firstItem);
+    
+    for (const field of fields) {
+      const uniqueValues = new Set(data.map(item => item[field])).size;
+      
+      // If the field has a reasonable number of unique values compared to dataset size
+      // it might be a class field (heuristic)
+      if (uniqueValues > 1 && uniqueValues <= Math.min(10, data.length / 5)) {
+        return field;
+      }
+    }
+    
+    return null;
+  };
+
+  // Prepare chart data for visualization
+  const prepareChartData = (dataset: DatasetInfo) => {
+    return {
+      labels: dataset.classes.map(c => c.className),
+      datasets: [
+        {
+          label: 'Class Distribution',
+          data: dataset.classes.map(c => c.count),
+          backgroundColor: dataset.classes.map(c => c.color),
+          borderColor: dataset.classes.map(c => c.color.replace('0.8', '1')),
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
   return (
-    <div className="container mx-auto space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Imbalanced Data</h1>
-        <p className="text-muted-foreground">
-          Generate, visualize, and balance datasets with imbalanced class distributions
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      className="container mx-auto py-6 space-y-8"
+    >
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Imbalanced Data Handling</h1>
+        <p className="text-muted-foreground mt-2">
+          Balance your datasets using various techniques to improve model performance.
         </p>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Controls section */}
+        {/* Left column - Controls */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Dataset Controls</CardTitle>
-            <CardDescription>Configure your dataset and balancing options</CardDescription>
+            <CardDescription>Configure your imbalanced dataset parameters</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium">Dataset Parameters</h3>
+          <CardContent className="space-y-6">
+            <Tabs defaultValue="generate">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="generate">Generate</TabsTrigger>
+                <TabsTrigger value="upload">Upload</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="generate" className="space-y-4">
+                <form id="dataset-form" onSubmit={handleSubmit(generateDataset)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="classes">Number of Classes</Label>
+                    <Input
+                      id="classes"
+                      type="number"
+                      min={2}
+                      max={10}
+                      {...register('classes', { valueAsNumber: true })}
+                    />
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="classCount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Number of Classes: {field.value}</FormLabel>
-                        <FormControl>
-                          <Slider
-                            value={[field.value]}
-                            min={2}
-                            max={10}
-                            step={1}
-                            onValueChange={(val) => field.onChange(val[0])}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Select between 2 and 10 classes
-                        </FormDescription>
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="imbalanceRatio">Imbalance Ratio</Label>
+                      <span className="text-sm text-muted-foreground">{watch('imbalanceRatio')}:1</span>
+                    </div>
+                    <Slider
+                      id="imbalanceRatio"
+                      min={1}
+                      max={20}
+                      step={0.5}
+                      defaultValue={[watch('imbalanceRatio')]}
+                      onValueChange={(values) => setValue('imbalanceRatio', values[0])}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ratio between the majority and minority class
+                    </p>
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="totalSamples"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Total Samples: {field.value}</FormLabel>
-                        <FormControl>
-                          <Slider
-                            value={[field.value]}
-                            min={100}
-                            max={10000}
-                            step={100}
-                            onValueChange={(val) => field.onChange(val[0])}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Number of samples in the dataset
-                        </FormDescription>
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="totalSamples">Total Samples</Label>
+                    <Input
+                      id="totalSamples"
+                      type="number"
+                      min={100}
+                      max={10000}
+                      step={100}
+                      {...register('totalSamples', { valueAsNumber: true })}
+                    />
+                  </div>
                   
-                  <FormField
-                    control={form.control}
-                    name="maxImbalanceRatio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Imbalance Ratio: {field.value}:1</FormLabel>
-                        <FormControl>
-                          <Slider
-                            value={[field.value]}
-                            min={1}
-                            max={50}
-                            step={1}
-                            onValueChange={(val) => field.onChange(val[0])}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Maximum ratio between majority and minority classes
-                        </FormDescription>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={generateNewDataset}
-                  >
-                    <RefreshCcw className="h-4 w-4 mr-2" />
-                    Regenerate Dataset
+                  <Button type="submit" className="w-full">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Generate Dataset
                   </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="upload" className="space-y-4">
+                <FileUploader
+                  onFileUpload={handleFileUpload}
+                  accept=".csv, .json"
+                  title="Upload Dataset"
+                  description="Upload a CSV or JSON file with your imbalanced dataset"
+                />
+                
+                {uploadedFile && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    <p className="font-medium">File: {uploadedFile.name}</p>
+                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+            
+            <div className="pt-4 border-t">
+              <form id="balance-form" onSubmit={handleSubmit(handleBalanceDataset)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Balancing Method</Label>
+                  <RadioGroup
+                    defaultValue={watch('balancingMethod')}
+                    onValueChange={(value) => 
+                      setValue('balancingMethod', value as 'undersample' | 'oversample' | 'smote' | 'none')
+                    }
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="none" id="none" />
+                      <Label htmlFor="none">None</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="undersample" id="undersample" />
+                      <Label htmlFor="undersample">Undersampling</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="oversample" id="oversample" />
+                      <Label htmlFor="oversample">Oversampling</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="smote" id="smote" />
+                      <Label htmlFor="smote">SMOTE</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
                 
-                <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-sm font-medium">Balancing Options</h3>
-                  
-                  <FormField
-                    control={form.control}
-                    name="balancingMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Balancing Method</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select balancing method" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">None (Original)</SelectItem>
-                            <SelectItem value="undersample">Undersampling</SelectItem>
-                            <SelectItem value="oversample">Oversampling</SelectItem>
-                            <SelectItem value="smote">SMOTE (Synthetic)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Choose a technique to handle class imbalance
-                        </FormDescription>
-                      </FormItem>
-                    )}
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="targetRatio">Target Ratio</Label>
+                    <span className="text-sm text-muted-foreground">{watch('targetRatio')}:1</span>
+                  </div>
+                  <Slider
+                    id="targetRatio"
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    defaultValue={[watch('targetRatio')]}
+                    onValueChange={(values) => setValue('targetRatio', values[0])}
                   />
-                  
-                  {watchBalancingMethod !== 'none' && (
-                    <FormField
-                      control={form.control}
-                      name="targetRatio"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Target Imbalance Ratio: {field.value}:1</FormLabel>
-                          <FormControl>
-                            <Slider
-                              value={[field.value || 1.5]}
-                              min={1}
-                              max={5}
-                              step={0.1}
-                              onValueChange={(val) => field.onChange(val[0])}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Desired ratio between majority and minority classes
-                          </FormDescription>
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Target imbalance ratio after balancing
+                  </p>
                 </div>
-              </div>
-            </Form>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={!originalDataset}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Apply Balancing
+                </Button>
+              </form>
+            </div>
           </CardContent>
         </Card>
-        
-        {/* Visualization section */}
+
+        {/* Right column - Visualization */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <CardTitle>Data Visualization</CardTitle>
-              <CardDescription>Visualize class distribution before and after balancing</CardDescription>
+              <CardTitle>Class Distribution</CardTitle>
+              <CardDescription>Visualize the balance between different classes</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
               <Button
-                variant="outline"
+                variant={chartType === 'pie' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setChartType('pie')}
-                className={chartType === 'pie' ? 'bg-muted' : ''}
               >
                 <PieChart className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
+                variant={chartType === 'bar' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setChartType('bar')}
-                className={chartType === 'bar' ? 'bg-muted' : ''}
               >
                 <BarChart className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
+          
           <CardContent>
-            <Tabs defaultValue="original" className="w-full">
-              <TabsList className="w-full grid grid-cols-2">
+            <Tabs defaultValue="original">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="original">Original Dataset</TabsTrigger>
-                <TabsTrigger value="balanced">Balanced Dataset</TabsTrigger>
+                <TabsTrigger value="balanced" disabled={!balancedDataset}>Balanced Dataset</TabsTrigger>
               </TabsList>
               
               <TabsContent value="original" className="pt-4">
-                {originalDataset && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-medium">Class Distribution</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Imbalance Ratio: {originalDataset.imbalanceRatio}:1
-                          {originalDataset.isImbalanced && 
-                            <span className="text-amber-500 ml-2 font-semibold">Imbalanced</span>
-                          }
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyToClipboard(originalDataset)}
-                        >
-                          <Clipboard className="h-4 w-4 mr-2" />
-                          Copy
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(originalDataset, 'json')}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          JSON
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(originalDataset, 'csv')}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          CSV
-                        </Button>
+                {originalDataset ? (
+                  <div className="space-y-6">
+                    <div className="h-[300px] flex items-center justify-center">
+                      {chartType === 'pie' ? (
+                        <Pie data={prepareChartData(originalDataset)} />
+                      ) : (
+                        <Bar
+                          data={prepareChartData(originalDataset)}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                              },
+                            },
+                          }}
+                        />
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium text-lg mb-2">Dataset Summary</h3>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="space-y-1">
+                          <p><span className="font-medium">Total Samples:</span> {originalDataset.totalSamples}</p>
+                          <p><span className="font-medium">Number of Classes:</span> {originalDataset.classes.length}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p><span className="font-medium">Imbalance Ratio:</span> {originalDataset.imbalanceRatio}:1</p>
+                          <p>
+                            <span className="font-medium">Status:</span>{' '}
+                            <span className={originalDataset.isImbalanced ? 'text-orange-500' : 'text-green-500'}>
+                              {originalDataset.isImbalanced ? 'Imbalanced' : 'Balanced'}
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="h-80">
-                      {chartType === 'pie' ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsPieChart>
-                            <Pie
-                              data={originalDataset.classes}
-                              dataKey="count"
-                              nameKey="className"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={80}
-                              label={({name, percent}) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                            >
-                              {originalDataset.classes.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value} samples`, 'Count']} />
-                            <Legend />
-                          </RechartsPieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsBarChart data={originalDataset.classes}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="className" />
-                            <YAxis />
-                            <Tooltip formatter={(value) => [`${value} samples`, 'Count']} />
-                            <Legend />
-                            <Bar dataKey="count" name="Samples" fill="#4f46e5">
-                              {originalDataset.classes.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Bar>
-                          </RechartsBarChart>
-                        </ResponsiveContainer>
-                      )}
+                    <div className="border rounded-md p-3">
+                      <h3 className="font-medium mb-2">Class Distribution</h3>
+                      <div className="grid grid-cols-4 gap-2 text-sm font-medium mb-2">
+                        <div>Class</div>
+                        <div>Count</div>
+                        <div>Percentage</div>
+                        <div></div>
+                      </div>
+                      <div className="space-y-2">
+                        {originalDataset.classes.map((cls) => (
+                          <div key={cls.className} className="grid grid-cols-4 gap-2 text-sm items-center">
+                            <div>{cls.className}</div>
+                            <div>{cls.count}</div>
+                            <div>{cls.percentage}%</div>
+                            <div className="flex items-center">
+                              <div 
+                                className="h-3 rounded" 
+                                style={{
+                                  backgroundColor: cls.color,
+                                  width: `${Math.max(cls.percentage, 5)}%`
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                    
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => handleExport(originalDataset, 'csv')}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export CSV
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleExport(originalDataset, 'json')}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export JSON
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="rounded-full bg-muted p-3 mb-4">
+                      <BarChart className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-medium mb-1">No Dataset Generated</h3>
+                    <p className="text-muted-foreground text-center max-w-md">
+                      Configure the parameters and generate a dataset to visualize the class distribution.
+                    </p>
                   </div>
                 )}
               </TabsContent>
               
               <TabsContent value="balanced" className="pt-4">
-                {balancedDataset && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-medium">Balanced Distribution</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Imbalance Ratio: {balancedDataset.imbalanceRatio}:1
-                          {balancedDataset.isImbalanced ? 
-                            <span className="text-amber-500 ml-2 font-semibold">Still Imbalanced</span> :
-                            <span className="text-green-500 ml-2 font-semibold">Balanced</span>
-                          }
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyToClipboard(balancedDataset)}
-                        >
-                          <Clipboard className="h-4 w-4 mr-2" />
-                          Copy
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(balancedDataset, 'json')}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          JSON
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(balancedDataset, 'csv')}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          CSV
-                        </Button>
+                {balancedDataset ? (
+                  <div className="space-y-6">
+                    <div className="h-[300px] flex items-center justify-center">
+                      {chartType === 'pie' ? (
+                        <Pie data={prepareChartData(balancedDataset)} />
+                      ) : (
+                        <Bar
+                          data={prepareChartData(balancedDataset)}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                              },
+                            },
+                          }}
+                        />
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium text-lg mb-2">Balanced Dataset Summary</h3>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="space-y-1">
+                          <p><span className="font-medium">Total Samples:</span> {balancedDataset.totalSamples}</p>
+                          <p><span className="font-medium">Number of Classes:</span> {balancedDataset.classes.length}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p><span className="font-medium">New Imbalance Ratio:</span> {balancedDataset.imbalanceRatio}:1</p>
+                          <p>
+                            <span className="font-medium">Status:</span>{' '}
+                            <span className={balancedDataset.isImbalanced ? 'text-orange-500' : 'text-green-500'}>
+                              {balancedDataset.isImbalanced ? 'Still Imbalanced' : 'Balanced'}
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="h-80">
-                      {chartType === 'pie' ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsPieChart>
-                            <Pie
-                              data={balancedDataset.classes}
-                              dataKey="count"
-                              nameKey="className"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={80}
-                              label={({name, percent}) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                            >
-                              {balancedDataset.classes.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value} samples`, 'Count']} />
-                            <Legend />
-                          </RechartsPieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsBarChart data={balancedDataset.classes}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="className" />
-                            <YAxis />
-                            <Tooltip formatter={(value) => [`${value} samples`, 'Count']} />
-                            <Legend />
-                            <Bar dataKey="count" name="Samples" fill="#4f46e5">
-                              {balancedDataset.classes.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Bar>
-                          </RechartsBarChart>
-                        </ResponsiveContainer>
-                      )}
+                    <div className="border rounded-md p-3">
+                      <h3 className="font-medium mb-2">Balanced Class Distribution</h3>
+                      <div className="grid grid-cols-4 gap-2 text-sm font-medium mb-2">
+                        <div>Class</div>
+                        <div>Count</div>
+                        <div>Percentage</div>
+                        <div></div>
+                      </div>
+                      <div className="space-y-2">
+                        {balancedDataset.classes.map((cls) => (
+                          <div key={cls.className} className="grid grid-cols-4 gap-2 text-sm items-center">
+                            <div>{cls.className}</div>
+                            <div>{cls.count}</div>
+                            <div>{cls.percentage}%</div>
+                            <div className="flex items-center">
+                              <div 
+                                className="h-3 rounded" 
+                                style={{
+                                  backgroundColor: cls.color,
+                                  width: `${Math.max(cls.percentage, 5)}%`
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                    
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => handleExport(balancedDataset, 'csv')}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export CSV
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleExport(balancedDataset, 'json')}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export JSON
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <p className="text-muted-foreground">Apply balancing to see results</p>
                   </div>
                 )}
               </TabsContent>
@@ -487,72 +625,7 @@ const ImbalancedData = () => {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Data Analysis section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Analysis</CardTitle>
-          <CardDescription>Summary of class distribution before and after balancing</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">Class</th>
-                  <th className="text-right p-2">Original Count</th>
-                  <th className="text-right p-2">Original %</th>
-                  <th className="text-right p-2">Balanced Count</th>
-                  <th className="text-right p-2">Balanced %</th>
-                  <th className="text-right p-2">Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {originalDataset?.classes.map((cls, index) => {
-                  const balancedClass = balancedDataset?.classes.find(
-                    c => c.className === cls.className
-                  );
-                  const countDiff = balancedClass 
-                    ? balancedClass.count - cls.count 
-                    : 0;
-                  return (
-                    <tr key={cls.className} className="border-b hover:bg-muted/50">
-                      <td className="p-2 flex items-center">
-                        <span 
-                          className="h-3 w-3 rounded-full mr-2" 
-                          style={{ backgroundColor: cls.color }}
-                        ></span>
-                        {cls.className}
-                      </td>
-                      <td className="text-right p-2">{cls.count}</td>
-                      <td className="text-right p-2">{cls.percentage}%</td>
-                      <td className="text-right p-2">{balancedClass?.count || 0}</td>
-                      <td className="text-right p-2">{balancedClass?.percentage || 0}%</td>
-                      <td className={`text-right p-2 ${countDiff > 0 ? 'text-green-500' : countDiff < 0 ? 'text-red-500' : ''}`}>
-                        {countDiff > 0 ? `+${countDiff}` : countDiff}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="font-medium">
-                  <td className="p-2">Total</td>
-                  <td className="text-right p-2">{originalDataset?.totalSamples}</td>
-                  <td className="text-right p-2">100%</td>
-                  <td className="text-right p-2">{balancedDataset?.totalSamples}</td>
-                  <td className="text-right p-2">100%</td>
-                  <td className="text-right p-2">
-                    {balancedDataset && originalDataset 
-                      ? (balancedDataset.totalSamples - originalDataset.totalSamples > 0 ? '+' : '') +
-                        (balancedDataset.totalSamples - originalDataset.totalSamples)
-                      : 0}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </motion.div>
   );
 };
 
