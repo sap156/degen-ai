@@ -22,7 +22,7 @@ export interface TimeSeriesOptions {
     type: 'number' | 'boolean' | 'category';
   }>;
   existingData?: TimeSeriesDataPoint[];
-  excludeDefaultValue?: boolean;
+  //excludeDefaultValue?: boolean;
 }
 
 // Helper to generate a random value between min and max
@@ -151,8 +151,8 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       dataPoints,
       additionalFields = [],
       categories = [],
-      seed,
-      excludeDefaultValue = false
+      seed
+      //excludeDefaultValue = false
     } = options;
     
     if (startDate > endDate) {
@@ -182,9 +182,9 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       const dataPoint: TimeSeriesDataPoint = { timestamp: date.toISOString() };
       
       // Add value field if not excluded
-      if (!excludeDefaultValue) {
-        dataPoint.value = value;
-      }
+      //if (!excludeDefaultValue) {
+        //dataPoint.value = value;
+      //}
       
       // Add additional fields if specified
       additionalFields.forEach(field => {
@@ -296,7 +296,7 @@ export interface AITimeSeriesOptions {
     type: 'number' | 'boolean' | 'category';
   }>;
   existingData?: TimeSeriesDataPoint[];
-  excludeDefaultValue?: boolean;
+  //excludeDefaultValue?: boolean;
   onProgressUpdate?: (progress: number) => void;
 }
 
@@ -314,7 +314,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       dataPoints,
       additionalFields,
       existingData,
-      excludeDefaultValue = false,
+      //excludeDefaultValue = false,
       onProgressUpdate
     } = options;
 
@@ -333,14 +333,43 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     // Create a system message explicitly instructing to generate pure JSON
     const systemMessage: OpenAiMessage = {
       role: 'system',
-      content: `You are a time series data generation expert. Generate realistic time series data based on the user's request.
-      YOU MUST RETURN ONLY a valid JSON array with NO explanatory text or markdown formatting.
-      ${!excludeDefaultValue ? 'Each data point must have a "timestamp" (ISO format) and a "value" (numeric) field.' : 'Each data point must have a "timestamp" (ISO format) field.'}
-      If additional fields are requested, include those as well.
-      The data should follow realistic temporal patterns.
-      DO NOT include any explanation, comments, code blocks, or conversation.
-      IMPORTANT: Your entire response must be JUST the raw JSON array and nothing else.`
+      content: `You are an expert in time series data generation. Your task is to generate structured, realistic time series data based on user specifications.
+    
+      **Strict Output Requirements:**
+      - Your response MUST be a **valid JSON array**, containing structured time series data.
+      - DO NOT include any explanations, comments, markdown, or text—ONLY return the raw JSON array.
+      - Each data point MUST include a **"timestamp"** in **ISO 8601 format** (e.g., "2025-03-19T12:00:00Z").
+      - Each data point MUST include at least one numeric value field alongside the timestamp.' 
+      - Each data point MUST contain a timestamp unless additional fields are specified by the user.'}
+      - If the user requests additional fields, include them while maintaining logical coherence.
+    
+      **Data Generation Guidelines:**
+      - **Timestamps:** Ensure consistent time intervals (e.g., hourly, daily, weekly) as per user input.
+      - **Numeric Fields:** If applicable, generate values using appropriate statistical distributions:
+        - **Gaussian (Normal)** for sensor readings or financial data.
+        - **Poisson** for event counts (e.g., transactions per minute).
+        - **Uniform** for randomized values within a defined range.
+      - **Patterns & Trends:** 
+        - Simulate realistic trends (e.g., increasing, decreasing, cyclical).
+        - If seasonality is requested, follow daily, weekly, or yearly cycles.
+        - Add randomness where appropriate to reflect real-world variability.
+      - **Missing Data Handling:** If the user requests missing data simulation, randomly omit some timestamps or values.
+      
+      **Critical Instructions:**
+      - DO NOT return metadata, comments, or explanations.
+      - Your response MUST strictly be a **valid JSON array**, formatted correctly.
+      - If constraints or patterns are unclear, use standard assumptions for realistic time series data.
+    
+      **Expected Output Example (DO NOT include this in your response):**
+      \`\`\`json
+      [
+        {"timestamp": "2025-03-19T12:00:00Z", "temperature": 22.5, "humidity": 60.2},
+        {"timestamp": "2025-03-19T13:00:00Z", "temperature": 22.8, "humidity": 59.8}
+      ]
+      \`\`\`
+      `
     };
+    
     
     onProgressUpdate?.(15);
     
@@ -381,7 +410,6 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       ${prompt}
       ${existingDataInfo}
       ${additionalFieldsInfo}
-      ${excludeDefaultValue ? 'Do not include a default "value" field in the output.' : ''}
       
       IMPORTANT: Respond with ONLY a valid JSON array of data points. DO NOT include ANY explanations, introductions, or code blocks. Your entire response should be JUST the JSON array of data points.`
     };
@@ -496,16 +524,6 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
             validPoint[key] = value;
           }
         });
-        
-        // If we're excluding the default value field and it exists, remove it
-        if (excludeDefaultValue && 'value' in validPoint) {
-          delete validPoint.value;
-        }
-        
-        // Otherwise, ensure the value field exists and is a number if required
-        if (!excludeDefaultValue && (validPoint.value === undefined || validPoint.value === null)) {
-          validPoint.value = 0;
-        }
         
         // Try to parse the timestamp if it's not in ISO format
         if (typeof validPoint.timestamp === 'string' && !validPoint.timestamp.includes('T')) {
@@ -819,7 +837,7 @@ export const extendTimeSeriesData = (
     noiseLevel = 0.3,
     trend = 'extend',
     additionalFields = [],
-    excludeDefaultValue = false,
+    //excludeDefaultValue = false,
   } = options;
 
   // Use the original data to determine the pattern to extend
@@ -841,10 +859,6 @@ export const extendTimeSeriesData = (
       timestamp: timestamp.toISOString(),
     };
     
-    // Add value field if not excluded
-    if (!excludeDefaultValue) {
-      dataPoint.value = predictNextValue(sortedOriginalData, index, analysis, noiseLevel, trend);
-    }
     
     // Add additional fields based on the original data patterns
     additionalFields.forEach(field => {

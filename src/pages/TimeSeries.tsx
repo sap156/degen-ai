@@ -56,7 +56,7 @@ type FormValues = TimeSeriesOptions & {
   additionalFieldCount: number;
   aiPrompt?: string;
   useAi?: boolean;
-  excludeDefaultValue?: boolean;
+  //excludeDefaultValue?: boolean;
   generationMode: 'new' | 'append';
 };
 
@@ -93,7 +93,7 @@ const TimeSeries = () => {
       seed: Math.floor(Math.random() * 10000),
       aiPrompt: '',
       useAi: false,
-      excludeDefaultValue: false,
+      //excludeDefaultValue: false,
       generationMode: 'new'
     }
   });
@@ -101,7 +101,7 @@ const TimeSeries = () => {
   const outputFormat = watch('outputFormat');
   const additionalFields = watch('additionalFields') || [];
   const useAi = watch('useAi');
-  const excludeDefaultValue = watch('excludeDefaultValue');
+  //const excludeDefaultValue = watch('excludeDefaultValue');
   const generationMode = watch('generationMode');
   const startDate = watch('startDate');
   const endDate = watch('endDate');
@@ -133,13 +133,13 @@ const TimeSeries = () => {
           existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
             ? timeSeriesData 
             : undefined,
-          excludeDefaultValue: data.excludeDefaultValue,
+          //excludeDefaultValue: data.excludeDefaultValue,
           onProgressUpdate: setProgressPercentage
         });
       } else {
         generatedData = generateTimeSeriesData({
           ...data,
-          excludeDefaultValue: data.excludeDefaultValue,
+          //excludeDefaultValue: data.excludeDefaultValue,
           existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
             ? timeSeriesData 
             : undefined
@@ -189,9 +189,7 @@ const TimeSeries = () => {
   useEffect(() => {
     if (detectedSchema && Object.keys(detectedSchema).length > 0) {
       const schemaFields = Object.entries(detectedSchema)
-        .filter(([key, type]) => {
-          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
-        })
+        .filter(([key, type]) => key !== 'timestamp')
         .map(([key, type]) => {
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
@@ -206,7 +204,8 @@ const TimeSeries = () => {
       
       setAdditionalFields(schemaFields);
     }
-  }, [detectedSchema, excludeDefaultValue]);
+  }, [detectedSchema]);
+    
   
   const handleSave = async () => {
     if (!timeSeriesData.length) {
@@ -384,9 +383,7 @@ const TimeSeries = () => {
       }
       
       const schemaFields = Object.entries(schema)
-        .filter(([key, type]) => {
-          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
-        })
+        .filter(([key, type]) => key !== 'timestamp')
         .map(([key, type]) => {
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
@@ -400,8 +397,6 @@ const TimeSeries = () => {
         });
       
       setAdditionalFields(schemaFields);
-      
-      setValue('excludeDefaultValue', schema['value'] ? false : true);
       
       setValue('dataPoints', data.length);
       
@@ -580,11 +575,10 @@ const TimeSeries = () => {
       .filter(key => {
         return (
           key !== 'timestamp' && 
-          typeof timeSeriesData[0][key] === 'number' && 
-          (!excludeDefaultValue || key !== 'value')
+          typeof timeSeriesData[0][key] === 'number'
         );
       });
-  }, [timeSeriesData, excludeDefaultValue]);
+  }, [timeSeriesData]);
   
   return (
     <div className="container mx-auto py-6">
@@ -864,23 +858,12 @@ const TimeSeries = () => {
                       </>
                     )}
                     
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="excludeDefaultValue" 
-                        checked={excludeDefaultValue} 
-                        onCheckedChange={(checked) => setValue('excludeDefaultValue', checked)} 
-                      />
-                      <Label htmlFor="excludeDefaultValue" className="font-medium">
-                        Exclude default "value" field
-                      </Label>
-                    </div>
-                    
                     {detectedSchema && (
                       <SchemaEditor
                         schema={detectedSchema}
                         additionalFields={additionalFields}
                         setAdditionalFields={setAdditionalFields}
-                        excludeDefaultValue={excludeDefaultValue}
+                        excludeDefaultValue={false} // or true, depending on your requirement
                       />
                     )}
                     
@@ -1052,7 +1035,7 @@ const TimeSeries = () => {
               data={timeSeriesData} 
               title="Time Series Data Preview" 
               additionalFields={additionalFieldNames}
-              defaultValue={excludeDefaultValue ? undefined : 'value'}
+              //defaultValue={excludeDefaultValue ? undefined : 'value'}
               className="h-[500px]"
             />
           ) : (

@@ -52,11 +52,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const dataTypes = [
-  { value: 'user', label: 'User Data' },
+  { value: 'user', label: 'Personal Data' },
   { value: 'transaction', label: 'Transaction Data' },
   { value: 'product', label: 'Product Data' },
   { value: 'health', label: 'Health Data' },
-  { value: 'custom', label: 'Custom Schema' },
+  { value: 'custom', label: 'Custom Data' },
 ];
 
 function SyntheticData() {

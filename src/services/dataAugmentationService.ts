@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
@@ -134,7 +133,10 @@ export const augmentDataWithAI = async (
 
 // Helper function to create appropriate system messages
 const createSystemMessage = (method: string, interval?: string): string => {
-  const baseMessage = "You are a specialized data augmentation AI assistant. ";
+  const baseMessage = `You are an AI model specialized in data augmentation. Your task is to generate realistic variations of input data while preserving structure, logical consistency, and statistical distributions where applicable. You must:
+                      - Maintain the structure of the original data.
+                      - Ensure that the augmented data is contextually relevant and realistic.
+                      - Introduce meaningful variations in categorical fields.`;
   let timeSeriesAddition = "";
   
   if (interval) {
