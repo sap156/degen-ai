@@ -19,6 +19,7 @@ import {
   isTimeSeriesData 
 } from '@/utils/dataParsingUtils';
 import { SchemaFieldType } from '@/utils/fileUploadUtils';
+import { TimeSeriesDataPoint } from '@/services/timeSeriesService';
 
 interface TimeSeriesAugmentorProps {
   data: any[];
@@ -27,7 +28,7 @@ interface TimeSeriesAugmentorProps {
   onUpdateData?: (newData: any[]) => void;
 }
 
-interface TimeSeriesDataPoint {
+interface ChartDataPoint {
   timestamp: Date;
   value: number;
 }
@@ -56,7 +57,7 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
   const [numericFields, setNumericFields] = useState<string[]>([]);
   const [selectedNumericField, setSelectedNumericField] = useState<string>('');
   
-  const [chartData, setChartData] = useState<TimeSeriesDataPoint[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   
   useEffect(() => {
     if (data.length > 0) {
@@ -262,7 +263,12 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
         <CardContent>
           {chartData.length > 0 ? (
             <div className="h-[300px] w-full">
-              <TimeSeriesChart data={chartData} />
+              <TimeSeriesChart 
+                data={chartData.map(point => ({
+                  timestamp: point.timestamp.toISOString(),
+                  value: point.value
+                }))} 
+              />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
