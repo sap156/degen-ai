@@ -522,4 +522,3 @@ const DataParsing: React.FC = () => {
 };
 
 export default DataParsing;
-

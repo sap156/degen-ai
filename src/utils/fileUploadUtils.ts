@@ -1,6 +1,25 @@
+
 /**
  * Utilities for handling file uploads across different data types
  */
+
+/**
+ * Custom schema field type that extends JavaScript's typeof types
+ */
+export type SchemaFieldType = 
+  | 'string' 
+  | 'number' 
+  | 'bigint' 
+  | 'boolean' 
+  | 'symbol' 
+  | 'undefined' 
+  | 'object' 
+  | 'function'
+  | 'date'
+  | 'integer'
+  | 'float'
+  | 'email'
+  | 'phone';
 
 /**
  * Parse a CSV file into an array of objects
