@@ -33,7 +33,7 @@ const App = () => (
             <Route path="/pii-handling" element={<PiiHandling />} />
             <Route path="/imbalanced-data" element={<ImbalancedData />} />
             <Route path="/data-parsing" element={<DataParsing />} />
-            <Route path="/data-extraction" element={<DataExtraction />} />
+            <Route path="/extraction" element={<DataExtraction />} />
             <Route path="/entity-recognition" element={<EntityRecognition />} />
             <Route path="/data-query" element={<NotFound />} />
           </Route>
