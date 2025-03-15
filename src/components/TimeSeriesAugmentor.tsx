@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,39 +27,38 @@ interface TimeSeriesAugmentorProps {
   onUpdateData?: (newData: any[]) => void;
 }
 
+interface TimeSeriesDataPoint {
+  timestamp: Date;
+  value: number;
+}
+
 const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({ 
   data, 
   schema, 
   dateField: propDateField, 
   onUpdateData 
 }) => {
-  // Detect time series data if dateField is not provided
   const [isTimeSeries, setIsTimeSeries] = useState<boolean>(false);
   const [dateField, setDateField] = useState<string | undefined>(propDateField);
   
-  // State for generating data
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [numPoints, setNumPoints] = useState<number>(20);
   const [noiseLevel, setNoiseLevel] = useState<number>(0.2);
   const [appendData, setAppendData] = useState<boolean>(true);
   
-  // State for adding noise
   const [noiseStartDate, setNoiseStartDate] = useState<Date | undefined>(undefined);
   const [noiseEndDate, setNoiseEndDate] = useState<Date | undefined>(undefined);
   const [noiseLevelExisting, setNoiseLevelExisting] = useState<number>(0.1);
   
-  // Preview data
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>('generate');
   const [numericFields, setNumericFields] = useState<string[]>([]);
   const [selectedNumericField, setSelectedNumericField] = useState<string>('');
   
-  // For chart
-  const [chartData, setChartData] = useState<{ date: Date, value: number }[]>([]);
+  const [chartData, setChartData] = useState<TimeSeriesDataPoint[]>([]);
   
   useEffect(() => {
-    // Initialize data and detect date field if needed
     if (data.length > 0) {
       if (!dateField) {
         const result = isTimeSeriesData(data);
@@ -72,7 +70,6 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
       
       setPreviewData(data);
       
-      // Find numeric fields for charting
       const numFields = Object.entries(schema)
         .filter(([field, type]) => type === 'integer' || type === 'float' || type === 'number')
         .map(([field]) => field);
@@ -82,20 +79,17 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
         setSelectedNumericField(numFields[0]);
       }
       
-      // Initialize date ranges
       if (dateField) {
         try {
           const dates = data.map(item => new Date(item[dateField as string]));
           const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
           const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
           
-          // Set dates for generating new data
           setStartDate(maxDate);
           const oneMonthLater = new Date(maxDate);
           oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
           setEndDate(oneMonthLater);
           
-          // Set dates for adding noise
           setNoiseStartDate(minDate);
           setNoiseEndDate(maxDate);
         } catch (error) {
@@ -117,9 +111,9 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
     
     try {
       const chartData = previewData.map(item => ({
-        date: new Date(item[dateField as string]),
+        timestamp: new Date(item[dateField as string]),
         value: Number(item[selectedNumericField])
-      })).sort((a, b) => a.date.getTime() - b.date.getTime());
+      })).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       
       setChartData(chartData);
     } catch (error) {
@@ -135,7 +129,6 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
     }
     
     try {
-      // Generate new time series data
       const newData = generateTimeSeriesInRange(
         data,
         dateField,
@@ -146,13 +139,10 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
         noiseLevel
       );
       
-      // Combine with existing data if append is enabled
       const combinedData = appendData ? [...data, ...newData] : newData;
       
-      // Update preview
       setPreviewData(combinedData);
       
-      // Call the callback if provided
       if (onUpdateData) {
         onUpdateData(combinedData);
       }
@@ -171,7 +161,6 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
     }
     
     try {
-      // Add noise to the data
       const noisyData = addNoiseToTimeSeries(
         data,
         schema,
@@ -181,10 +170,8 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
         noiseEndDate
       );
       
-      // Update preview
       setPreviewData(noisyData);
       
-      // Call the callback if provided
       if (onUpdateData) {
         onUpdateData(noisyData);
       }

@@ -1,4 +1,3 @@
-
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -19,7 +18,11 @@ export type SchemaFieldType =
   | 'integer'
   | 'float'
   | 'email'
-  | 'phone';
+  | 'phone'
+  | 'address'
+  | 'name'
+  | 'ssn'
+  | 'creditcard';
 
 /**
  * Parse a CSV file into an array of objects
