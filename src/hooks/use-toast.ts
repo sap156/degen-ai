@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -165,7 +166,7 @@ function toast(opts: ToastOptions | string) {
       onOpenChange: (open) => {
         if (!open) dismiss()
       },
-    },
+    } as ToasterToast,
   })
 
   return {
