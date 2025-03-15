@@ -45,13 +45,13 @@ const generateValueForField = (
   const existingValues = sourceData.map(item => item[field]);
   
   switch (type) {
-    case 'string':
-    case 'email':
-    case 'phone':
+    case "string":
+    case "email":
+    case "phone":
       // For strings, sample from existing values
       return existingValues[Math.floor(Math.random() * existingValues.length)];
       
-    case 'integer':
+    case "integer":
       // For integers, calculate range and add noise
       const intRange = getNumericRange(sourceData, field);
       const rangeDiff = intRange.max - intRange.min;
@@ -59,8 +59,8 @@ const generateValueForField = (
       const baseValue = existingValues[Math.floor(Math.random() * existingValues.length)];
       return Math.round(Number(baseValue) + noise);
       
-    case 'float':
-    case 'number':
+    case "float":
+    case "number":
       // For floats, calculate range and add noise
       const floatRange = getNumericRange(sourceData, field);
       const floatRangeDiff = floatRange.max - floatRange.min;
@@ -68,11 +68,11 @@ const generateValueForField = (
       const floatBaseValue = existingValues[Math.floor(Math.random() * existingValues.length)];
       return Number((Number(floatBaseValue) + floatNoise).toFixed(4));
       
-    case 'boolean':
+    case "boolean":
       // For booleans, randomly pick true or false
       return Math.random() > 0.5;
       
-    case 'date':
+    case "date":
       if (dateRange) {
         // Generate a random date within the provided range
         const minTime = dateRange.min.getTime();
@@ -84,9 +84,8 @@ const generateValueForField = (
         return existingValues[Math.floor(Math.random() * existingValues.length)];
       }
       
-    case 'object':
-    case 'array':
-      // For objects and arrays, just copy from existing data
+    case "object":
+      // For objects, just copy from existing data
       return JSON.parse(JSON.stringify(existingValues[Math.floor(Math.random() * existingValues.length)]));
       
     default:
