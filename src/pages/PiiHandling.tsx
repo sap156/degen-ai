@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clipboard, Download, RefreshCw, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
@@ -48,36 +46,30 @@ const PiiHandling = () => {
     dob: true
   });
 
-  // Generate sample data on component mount
   useEffect(() => {
     generateData();
   }, []);
 
-  // Generate new sample data
   const generateData = () => {
     const data = generateSamplePiiData(dataCount);
     setOriginalData(data);
     applyMasking(data);
   };
 
-  // Apply masking based on current options
   const applyMasking = (data: PiiData[] = originalData) => {
     const masked = maskPiiData(data, maskingOptions);
     setMaskedData(masked);
   };
 
-  // Toggle masking option for a field
   const toggleMaskingOption = (field: keyof MaskingOptions) => {
     setMaskingOptions(prev => {
       const newOptions = { ...prev, [field]: !prev[field] };
-      // Apply new masking options
       const masked = maskPiiData(originalData, newOptions);
       setMaskedData(masked);
       return newOptions;
     });
   };
 
-  // Export data
   const handleExport = (dataToExport: PiiData[] | PiiDataMasked[]) => {
     const filename = `pii-data-${exportFormat === 'json' ? 'json' : 'csv'}`;
     const exportedData = exportFormat === 'json' 
@@ -92,7 +84,6 @@ const PiiHandling = () => {
     });
   };
 
-  // Copy data to clipboard
   const copyToClipboard = (dataToExport: PiiData[] | PiiDataMasked[]) => {
     const exportedData = exportFormat === 'json' 
       ? exportAsJson(dataToExport) 
@@ -115,7 +106,6 @@ const PiiHandling = () => {
       });
   };
 
-  // Handle file upload for PII data
   const handleFileUpload = async (file: File) => {
     try {
       setUploadedFile(file);
@@ -134,12 +124,10 @@ const PiiHandling = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      // Detect PII fields and map them to the app's data structure
       const processedData = processUploadedPiiData(parsedData);
       setOriginalData(processedData);
       applyMasking(processedData);
       
-      // Extract schema from the first item to use for custom generation
       if (parsedData && parsedData.length > 0) {
         const schema: Record<string, string> = {};
         const firstItem = parsedData[0];
@@ -152,7 +140,6 @@ const PiiHandling = () => {
           else if (typeof value === 'boolean') type = 'boolean';
           else if (value instanceof Date) type = 'date';
           else if (typeof value === 'string') {
-            // Try to determine if it's a specific PII type
             if (/^\d{3}-\d{2}-\d{4}$/.test(value)) type = 'ssn';
             else if (/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(value)) type = 'creditCard';
             else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) type = 'email';
@@ -165,26 +152,30 @@ const PiiHandling = () => {
         setUploadDataSchema(schema);
       }
       
-      toast.success('File processed successfully');
+      toast({
+        title: "File processed",
+        description: "File processed successfully",
+      });
     } catch (error) {
       console.error('Error processing file:', error);
-      toast.error((error as Error).message || 'Failed to process file');
+      toast({
+        title: "Error processing file",
+        description: (error as Error).message || 'Failed to process file',
+        variant: "destructive"
+      });
     } finally {
       setIsProcessingFile(false);
     }
   };
 
-  // Process uploaded data into the expected PII format
   const processUploadedPiiData = (data: any[]): PiiData[] => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Invalid data format. Expected an array of records.');
     }
     
-    // Try to map fields to our expected PII data structure
     return data.map((item, index) => {
       const piiItem: Partial<PiiData> = { id: String(index + 1) };
       
-      // Try to map common field names to our PII structure
       const fieldMappings: Record<string, keyof PiiData> = {
         firstName: 'firstName',
         first_name: 'firstName',
@@ -238,7 +229,6 @@ const PiiHandling = () => {
         'birth-date': 'dob'
       };
       
-      // Map fields based on name
       Object.keys(item).forEach(key => {
         const normalizedKey = key.toLowerCase();
         
@@ -247,7 +237,6 @@ const PiiHandling = () => {
         } else if (key === 'id') {
           piiItem.id = String(item[key]);
         } else {
-          // For unmapped fields, try to determine if they're PII by content
           const value = String(item[key]);
           
           if (/^\d{3}-\d{2}-\d{4}$/.test(value) && !piiItem.ssn) {
@@ -262,7 +251,6 @@ const PiiHandling = () => {
         }
       });
       
-      // Ensure all required fields exist, fill with placeholder if not found
       const result: PiiData = {
         id: piiItem.id || String(index + 1),
         firstName: piiItem.firstName || 'Unknown',
@@ -279,10 +267,13 @@ const PiiHandling = () => {
     });
   };
 
-  // Add custom field to the schema
   const handleAddField = () => {
     if (!newFieldName.trim()) {
-      toast.error('Field name cannot be empty');
+      toast({
+        title: "Error",
+        description: "Field name cannot be empty",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -295,7 +286,6 @@ const PiiHandling = () => {
     setNewFieldType('text');
   };
 
-  // Remove field from schema
   const handleRemoveField = (fieldName: string) => {
     setUploadDataSchema(prev => {
       const newSchema = { ...prev };
@@ -304,15 +294,11 @@ const PiiHandling = () => {
     });
   };
 
-  // Generate data based on custom schema
   const handleGenerateFromSchema = () => {
-    // In a real app, this would use the schema to generate appropriate data
-    // For this demo, we'll just use our standard generation
     generateData();
     toast.success('Generated data based on schema');
   };
 
-  // UI animations with framer-motion
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -638,3 +624,4 @@ const PiiHandling = () => {
 };
 
 export default PiiHandling;
+

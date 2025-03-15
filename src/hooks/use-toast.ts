@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -139,7 +140,16 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+type ToastOptions = {
+  title?: React.ReactNode
+  description?: React.ReactNode
+  action?: ToastActionElement
+  variant?: "default" | "destructive"
+}
+
+function toast(opts: ToastOptions | string) {
+  const options: Toast = typeof opts === "string" ? { description: opts } : opts;
+  
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -152,7 +162,7 @@ function toast({ ...props }: Toast) {
   dispatch({
     type: "ADD_TOAST",
     toast: {
-      ...props,
+      ...options,
       id,
       open: true,
       onOpenChange: (open) => {
@@ -167,6 +177,23 @@ function toast({ ...props }: Toast) {
     update,
   }
 }
+
+// Add these helper methods to the toast function
+toast.success = (opts: ToastOptions | string) => {
+  const options: Toast = typeof opts === "string" 
+    ? { description: opts, variant: "default", title: "Success" } 
+    : { ...opts, variant: "default", title: opts.title || "Success" };
+  
+  return toast(options);
+};
+
+toast.error = (opts: ToastOptions | string) => {
+  const options: Toast = typeof opts === "string" 
+    ? { description: opts, variant: "destructive", title: "Error" } 
+    : { ...opts, variant: "destructive", title: opts.title || "Error" };
+  
+  return toast(options);
+};
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)

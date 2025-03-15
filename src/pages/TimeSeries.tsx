@@ -64,7 +64,6 @@ const TimeSeries = () => {
   const additionalFieldCount = watch('additionalFieldCount');
   const additionalFields = watch('additionalFields') || [];
   
-  // Effect to update additional fields when count changes
   useEffect(() => {
     const currentCount = additionalFields?.length || 0;
     
@@ -191,7 +190,14 @@ const TimeSeries = () => {
     
     const processedData: TimeSeriesDataPoint[] = data.map(item => {
       const timestamp = parseTimestamp(item[timestampField]);
-      const point: TimeSeriesDataPoint = { timestamp };
+      const point: TimeSeriesDataPoint = { 
+        timestamp,
+        value: 0 // Initialize with a default value
+      };
+      
+      if (valueFields.length > 0) {
+        point.value = parseFloat(item[valueFields[0]]);
+      }
       
       valueFields.forEach(field => {
         const value = parseFloat(item[field]);
