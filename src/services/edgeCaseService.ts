@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 import { getCompletion } from './openAiService';
 
@@ -194,7 +195,20 @@ export const edgeCaseService = {
       5. List of features most impacted by edge cases
       6. 3-5 specific recommendations to improve model robustness
       
-      Return the results as a JSON object with these fields.
+      Return the results as a JSON object with these fields:
+      {
+        "overallAccuracy": "85.5", 
+        "edgeCaseAccuracy": "62.3",
+        "falsePositives": 4,
+        "falseNegatives": 7,
+        "robustnessScore": "6.8",
+        "impactedFeatures": ["feature1", "feature2", "feature3"],
+        "recommendations": [
+          "recommendation1",
+          "recommendation2",
+          "recommendation3"
+        ]
+      }
       
       ONLY return the JSON object without any explanations or other text.
       `;
@@ -211,7 +225,9 @@ export const edgeCaseService = {
         }
       ];
       
+      console.log("Sending test model request to OpenAI...");
       const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      console.log("Received test model response:", responseText);
       
       if (!responseText) {
         throw new Error("Invalid response from OpenAI");
@@ -220,8 +236,16 @@ export const edgeCaseService = {
       // Extract JSON from the response (in case there's additional text)
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       const jsonText = jsonMatch ? jsonMatch[0] : responseText;
+      console.log("Extracted JSON:", jsonText);
       
-      return JSON.parse(jsonText);
+      try {
+        const results = JSON.parse(jsonText);
+        console.log("Parsed results:", results);
+        return results;
+      } catch (parseError) {
+        console.error("Failed to parse JSON response:", parseError);
+        throw new Error("Failed to parse test results");
+      }
     } catch (error) {
       console.error("Error testing model on edge cases:", error);
       toast.error("Failed to test model on edge cases. Please try again.");

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bug, Upload, BarChart3, GitBranch, BrainCircuit, AlertTriangle, FileDown, Settings, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -235,8 +234,9 @@ const EdgeCases = () => {
       if (testResults) {
         setModelTestResults(testResults);
         toast.success('Model testing completed using AI analysis!');
+        console.log("Test results received:", testResults);
       } else {
-        setModelTestResults({
+        const fallbackResults = {
           overallAccuracy: (Math.random() * 30 + 65).toFixed(1),
           edgeCaseAccuracy: (Math.random() * 40 + 40).toFixed(1),
           falsePositives: Math.floor(Math.random() * 10),
@@ -248,14 +248,15 @@ const EdgeCases = () => {
             'Increase regularization to prevent overfitting on common cases',
             'Implement specific data augmentation techniques for rare cases'
           ]
-        });
+        };
+        setModelTestResults(fallbackResults);
         toast.success('Model testing completed (sample data)!');
       }
     } catch (error) {
       console.error('Error testing model:', error);
       toast.error('Error testing model. Using sample data instead.');
       
-      setModelTestResults({
+      const fallbackResults = {
         overallAccuracy: (Math.random() * 30 + 65).toFixed(1),
         edgeCaseAccuracy: (Math.random() * 40 + 40).toFixed(1),
         falsePositives: Math.floor(Math.random() * 10),
@@ -267,7 +268,8 @@ const EdgeCases = () => {
           'Increase regularization to prevent overfitting on common cases',
           'Implement specific data augmentation techniques for rare cases'
         ]
-      });
+      };
+      setModelTestResults(fallbackResults);
     } finally {
       setLoading(false);
     }
@@ -279,7 +281,6 @@ const EdgeCases = () => {
       return;
     }
     
-    // Create an array of report data objects instead of a single object
     const reportData = [
       {
         type: 'metadata',
