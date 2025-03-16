@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -186,11 +185,9 @@ const ImbalancedData = () => {
     const dataToUse = data && data.length > 0 ? data : null;
     
     try {
-      // Get the balanced dataset info (classes, counts, etc.)
       const balanced = balanceDataset(originalDataset, options);
       setBalancedDataset(balanced);
       
-      // If we have the actual parsed data, balance the records
       if (dataToUse && datasetPreferences?.targetColumn) {
         const balancedData = balanceActualRecords(
           dataToUse, 
@@ -216,7 +213,6 @@ const ImbalancedData = () => {
     balancedDataset: DatasetInfo,
     options: BalancingOptions
   ): any[] => {
-    // Group records by class
     const recordsByClass: Record<string, any[]> = {};
     
     data.forEach(record => {
@@ -227,7 +223,6 @@ const ImbalancedData = () => {
       recordsByClass[className].push({...record});
     });
     
-    // Get the original and target counts for each class
     const originalClassCounts = originalDataset.classes.reduce((acc, cls) => {
       acc[cls.className] = cls.count;
       return acc;
@@ -238,7 +233,6 @@ const ImbalancedData = () => {
       return acc;
     }, {} as Record<string, number>);
     
-    // Create the balanced dataset
     const balancedRecords: any[] = [];
     
     Object.entries(recordsByClass).forEach(([className, records]) => {
@@ -246,21 +240,17 @@ const ImbalancedData = () => {
       const targetCount = targetClassCounts[className] || originalCount;
       
       if (targetCount <= originalCount) {
-        // Undersample: randomly select records
         const shuffled = [...records].sort(() => 0.5 - Math.random());
         balancedRecords.push(...shuffled.slice(0, targetCount));
       } else {
-        // Oversample or SMOTE: duplicate or generate synthetic records
-        balancedRecords.push(...records); // Add all original records
+        balancedRecords.push(...records);
         
         const recordsToAdd = targetCount - originalCount;
         
         if (options.method === 'smote' && records.length >= 2) {
-          // Simple SMOTE-like approach: generate records by combining features
           for (let i = 0; i < recordsToAdd; i++) {
             const randomIdx1 = Math.floor(Math.random() * records.length);
             let randomIdx2 = Math.floor(Math.random() * records.length);
-            // Ensure we pick two different records
             while (randomIdx2 === randomIdx1 && records.length > 1) {
               randomIdx2 = Math.floor(Math.random() * records.length);
             }
@@ -268,17 +258,13 @@ const ImbalancedData = () => {
             const record1 = records[randomIdx1];
             const record2 = records[randomIdx2] || records[randomIdx1];
             
-            // Create synthetic record by combining features
             const syntheticRecord: any = {...record1};
             
-            // For each numeric field, interpolate between the two records
             Object.keys(record1).forEach(key => {
               if (key !== targetColumn && typeof record1[key] === 'number' && typeof record2[key] === 'number') {
-                // Random interpolation
                 const alpha = Math.random();
                 syntheticRecord[key] = record1[key] * alpha + record2[key] * (1 - alpha);
                 
-                // Round to same precision as original
                 if (Number.isInteger(record1[key]) && Number.isInteger(record2[key])) {
                   syntheticRecord[key] = Math.round(syntheticRecord[key]);
                 }
@@ -288,7 +274,6 @@ const ImbalancedData = () => {
             balancedRecords.push(syntheticRecord);
           }
         } else {
-          // Simple oversampling: duplicate records randomly
           for (let i = 0; i < recordsToAdd; i++) {
             const randomIdx = Math.floor(Math.random() * records.length);
             balancedRecords.push({...records[randomIdx]});
@@ -307,14 +292,12 @@ const ImbalancedData = () => {
       const filename = `balanced-dataset.${format}`;
       
       if (balancedParsedData.length > 0) {
-        // Download the actual balanced records
         const data = format === 'json' 
           ? JSON.stringify(balancedParsedData, null, 2)
           : convertRecordsToCSV(balancedParsedData);
         
         downloadData(data, filename, format);
       } else {
-        // Fall back to the summary data if we don't have records
         const data = format === 'json' ? exportAsJson(balancedDataset) : exportAsCsv(balancedDataset);
         downloadData(data, filename, format);
       }
@@ -326,7 +309,6 @@ const ImbalancedData = () => {
     }
   };
 
-  // Helper function to convert records to CSV format
   const convertRecordsToCSV = (records: any[]): string => {
     if (!records.length) return '';
     
@@ -336,7 +318,6 @@ const ImbalancedData = () => {
     const rows = records.map(record => {
       return headers.map(header => {
         const value = record[header];
-        // Handle values that might contain commas
         if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
           return `"${value.replace(/"/g, '""')}"`;
         }
@@ -496,6 +477,7 @@ const ImbalancedData = () => {
               onBalanceDataset={handleBalanceDataset}
               onDownloadBalanced={handleDownloadBalanced}
               hasBalancedData={!!balancedDataset}
+              aiRecommendationsAvailable={!!aiRecommendations}
             />
           )}
         </div>
@@ -727,3 +709,4 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
+

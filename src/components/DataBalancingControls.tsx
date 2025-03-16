@@ -15,6 +15,7 @@ interface DataBalancingControlsProps {
   onBalanceDataset: (options: BalancingOptions, data?: any[]) => void;
   onDownloadBalanced: (format: 'json' | 'csv') => void;
   hasBalancedData: boolean;
+  aiRecommendationsAvailable: boolean;
 }
 
 const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
@@ -22,7 +23,8 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   parsedData,
   onBalanceDataset,
   onDownloadBalanced,
-  hasBalancedData
+  hasBalancedData,
+  aiRecommendationsAvailable
 }) => {
   const [balancingMethod, setBalancingMethod] = useState<BalancingOptions['method']>('none');
   const [targetRatio, setTargetRatio] = useState<number>(1.2);
@@ -48,6 +50,22 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   
   if (!originalDataset) {
     return null;
+  }
+  
+  if (!aiRecommendationsAvailable) {
+    return (
+      <Card className="mt-6 border-dashed">
+        <CardContent className="pt-6 pb-6">
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <RefreshCw className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">Balance Your Dataset</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+              Get AI recommendations first to understand the best balancing approach for your dataset.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
   
   const isImbalanced = originalDataset.imbalanceRatio > 1.5;
