@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { 
@@ -915,4 +916,169 @@ const TimeSeries = () => {
                         <Card className="mt-4">
                           <CardHeader className="pb-2">
                             <CardTitle className="text-base">AI Enhancements</CardTitle>
-                            <CardDescription>Enhance uploaded data with
+                            <CardDescription>
+                              Enhance uploaded data with AI-generated patterns
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="aiNoisePrompt">AI Enhancement Instructions</Label>
+                                <Textarea
+                                  id="aiNoisePrompt"
+                                  placeholder="Describe how to modify the data (e.g., 'Add weekly seasonality pattern with 20% higher values on weekends')"
+                                  className="h-24"
+                                  value={aiNoisePrompt}
+                                  onChange={(e) => setAiNoisePrompt(e.target.value)}
+                                />
+                              </div>
+                              
+                              <Button 
+                                onClick={handleApplyAiNoise} 
+                                disabled={isApplyingAiNoise || !apiKey}
+                                className="w-full"
+                              >
+                                {isApplyingAiNoise ? (
+                                  <>
+                                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                    Applying AI Enhancements...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="mr-2 h-4 w-4" />
+                                    Apply AI Enhancements
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </ApiKeyRequirement>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+            
+            <CardFooter className="flex-col space-y-2">
+              {showProgress && (
+                <div className="w-full space-y-1 mb-2">
+                  <Progress value={progressPercentage} />
+                  <p className="text-xs text-right text-muted-foreground">
+                    {Math.round(progressPercentage)}%
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex gap-2 w-full">
+                <Button 
+                  type="submit" 
+                  form="time-series-form" 
+                  className="flex-1" 
+                  disabled={loading || activeTab !== 'generate'}
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : timeSeriesData.length > 0 ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Update
+                    </>
+                  ) : (
+                    <>
+                      <BarChart className="mr-2 h-4 w-4" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={handleDownload}
+                  disabled={!formattedData}
+                >
+                  <DownloadCloud className="h-4 w-4" />
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={handleCopyToClipboard}
+                  disabled={!formattedData}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {timeSeriesData.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Dataset
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
+        </div>
+        
+        <div className="w-full md:w-2/3">
+          {timeSeriesData.length > 0 ? (
+            <TimeSeriesChart 
+              data={timeSeriesData} 
+              title="Time Series Data Preview" 
+              additionalFields={additionalFieldNames}
+              defaultValue={excludeDefaultValue ? undefined : 'value'}
+              className="h-full"
+            />
+          ) : (
+            <Card className="h-full">
+              <CardContent className="flex flex-col items-center justify-center h-full p-6">
+                <div className="text-center space-y-3">
+                  <BarChart className="h-12 w-12 text-muted-foreground mx-auto" />
+                  <h3 className="font-medium text-xl">No Time Series Data</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    Generate a new time series data set using the form or upload an existing CSV/JSON file to visualize and manipulate time series data.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {formattedData && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Generated Data</CardTitle>
+                <CardDescription>Preview of the generated time series data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="bg-secondary/20 p-4 rounded-md overflow-auto max-h-96 text-xs">
+                  {formattedData.length > 10000 
+                    ? formattedData.substring(0, 10000) + "... (truncated)"
+                    : formattedData
+                  }
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TimeSeries;
