@@ -6,16 +6,26 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Clipboard, Download, RefreshCw, Upload } from 'lucide-react';
+import { Clipboard, Download, RefreshCw, Upload, Sparkles, Sliders } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ModelSelector from '@/components/ModelSelector';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 
 import { 
   PiiData, 
   PiiDataMasked, 
-  MaskingOptions, 
+  MaskingOptions,
+  AiMaskingOptions,
   generateSamplePiiData, 
   maskPiiData, 
   exportAsJson, 
@@ -25,6 +35,7 @@ import {
 
 const PiiHandling = () => {
   const { toast } = useToast();
+  const { apiKey } = useApiKey();
   const [originalData, setOriginalData] = useState<PiiData[]>([]);
   const [maskedData, setMaskedData] = useState<PiiDataMasked[]>([]);
   const [dataCount, setDataCount] = useState<number>(10);
@@ -34,6 +45,14 @@ const PiiHandling = () => {
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState<string>('text');
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isMaskingData, setIsMaskingData] = useState(false);
+  
+  const [aiMaskingOptions, setAiMaskingOptions] = useState<AiMaskingOptions>({
+    useAi: false,
+    maskingPrompt: '',
+    preserveFormat: true,
+    randomizationLevel: 'medium'
+  });
   
   const [maskingOptions, setMaskingOptions] = useState<MaskingOptions>({
     firstName: true,
@@ -56,16 +75,22 @@ const PiiHandling = () => {
     applyMasking(data);
   };
 
-  const applyMasking = (data: PiiData[] = originalData) => {
-    const masked = maskPiiData(data, maskingOptions);
-    setMaskedData(masked);
+  const applyMasking = async (data: PiiData[] = originalData) => {
+    try {
+      setIsMaskingData(true);
+      const masked = await maskPiiData(data, maskingOptions, aiMaskingOptions, apiKey);
+      setMaskedData(masked);
+    } catch (error) {
+      console.error("Error applying masking:", error);
+      toast.error("Failed to apply masking to data");
+    } finally {
+      setIsMaskingData(false);
+    }
   };
 
   const toggleMaskingOption = (field: keyof MaskingOptions) => {
     setMaskingOptions(prev => {
       const newOptions = { ...prev, [field]: !prev[field] };
-      const masked = maskPiiData(originalData, newOptions);
-      setMaskedData(masked);
       return newOptions;
     });
   };
@@ -299,6 +324,40 @@ const PiiHandling = () => {
     toast.success('Generated data based on schema');
   };
 
+  const handleAIMaskingToggle = (value: boolean) => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      useAi: value
+    }));
+  };
+
+  const handleAIMaskingPromptChange = (value: string) => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      maskingPrompt: value
+    }));
+  };
+
+  const handleRandomizationLevelChange = (value: 'low' | 'medium' | 'high') => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      randomizationLevel: value
+    }));
+  };
+
+  const handlePreserveFormatToggle = (value: boolean) => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      preserveFormat: value
+    }));
+  };
+
+  useEffect(() => {
+    if (originalData.length > 0) {
+      applyMasking();
+    }
+  }, [maskingOptions, aiMaskingOptions.useAi]);
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -447,7 +506,101 @@ const PiiHandling = () => {
             </Tabs>
 
             <div>
-              <h3 className="text-sm font-medium mb-2">Mask Fields</h3>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-medium">Mask Fields</h3>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-1">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span className="text-xs">AI Options</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>AI-Powered Masking</DialogTitle>
+                      <DialogDescription>
+                        Enhance privacy with AI-generated realistic but fictional data replacements
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-2">
+                      <ApiKeyRequirement>
+                        <div className="flex items-center space-x-2">
+                          <Switch 
+                            id="use-ai" 
+                            checked={aiMaskingOptions.useAi}
+                            onCheckedChange={handleAIMaskingToggle}
+                            disabled={!apiKey}
+                          />
+                          <Label htmlFor="use-ai" className="font-medium">
+                            Enable AI-powered masking
+                          </Label>
+                        </div>
+                        
+                        {aiMaskingOptions.useAi && (
+                          <>
+                            <div className="space-y-2 mt-4">
+                              <div className="mb-2">
+                                <Label htmlFor="ai-model" className="text-sm">AI Model</Label>
+                                <ModelSelector />
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="randomization" className="text-sm">Randomization Level</Label>
+                                <Select 
+                                  defaultValue={aiMaskingOptions.randomizationLevel} 
+                                  onValueChange={(v) => handleRandomizationLevelChange(v as 'low' | 'medium' | 'high')}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select level" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="low">Low - Subtle changes</SelectItem>
+                                    <SelectItem value="medium">Medium - Balanced</SelectItem>
+                                    <SelectItem value="high">High - Completely different</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="flex items-center space-x-2 mt-3">
+                                <Switch 
+                                  id="preserve-format" 
+                                  checked={aiMaskingOptions.preserveFormat}
+                                  onCheckedChange={handlePreserveFormatToggle}
+                                />
+                                <Label htmlFor="preserve-format" className="text-sm">
+                                  Preserve original format and pattern
+                                </Label>
+                              </div>
+                              
+                              <div className="space-y-2 mt-4">
+                                <Label htmlFor="masking-prompt" className="text-sm">Custom Instructions (Optional)</Label>
+                                <Textarea 
+                                  id="masking-prompt"
+                                  placeholder="E.g., 'Keep initials the same' or 'Make all masked names more exotic'"
+                                  className="min-h-[80px]"
+                                  value={aiMaskingOptions.maskingPrompt}
+                                  onChange={(e) => handleAIMaskingPromptChange(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Provide specific instructions for how the AI should mask your data
+                                </p>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </ApiKeyRequirement>
+                    </div>
+                    
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button">Apply</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
               <div className="space-y-2">
                 {Object.keys(maskingOptions).map((field) => (
                   <div className="flex items-center space-x-2" key={field}>
@@ -465,6 +618,15 @@ const PiiHandling = () => {
                   </div>
                 ))}
               </div>
+              
+              {aiMaskingOptions.useAi && (
+                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    AI-powered masking enabled
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -521,19 +683,36 @@ const PiiHandling = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {maskedData.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.id}</TableCell>
-                          <TableCell>{item.firstName}</TableCell>
-                          <TableCell>{item.lastName}</TableCell>
-                          <TableCell>{item.email}</TableCell>
-                          <TableCell>{item.phoneNumber}</TableCell>
-                          <TableCell>{item.ssn}</TableCell>
-                          <TableCell className="max-w-xs truncate">{item.address}</TableCell>
-                          <TableCell>{item.creditCard}</TableCell>
-                          <TableCell>{item.dob}</TableCell>
+                      {isMaskingData ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-8">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
+                              {aiMaskingOptions.useAi && (
+                                <p className="text-sm text-muted-foreground">Generating AI-powered masked data...</p>
+                              )}
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      ) : maskedData.length > 0 ? (
+                        maskedData.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.id}</TableCell>
+                            <TableCell>{item.firstName}</TableCell>
+                            <TableCell>{item.lastName}</TableCell>
+                            <TableCell>{item.email}</TableCell>
+                            <TableCell>{item.phoneNumber}</TableCell>
+                            <TableCell>{item.ssn}</TableCell>
+                            <TableCell className="max-w-xs truncate">{item.address}</TableCell>
+                            <TableCell>{item.creditCard}</TableCell>
+                            <TableCell>{item.dob}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-8">No data available</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -602,19 +781,32 @@ const PiiHandling = () => {
                 Organizations must handle PII with care to comply with privacy regulations such as GDPR, CCPA, and HIPAA.
               </p>
               
-              <h3 className="text-lg font-medium">Common PII Masking Techniques:</h3>
+              <h3 className="text-lg font-medium">PII Masking Techniques:</h3>
               <ul className="list-disc list-inside space-y-2">
-                <li><strong>Character masking:</strong> Replace characters with symbols (e.g., converting "John" to "J***")</li>
-                <li><strong>Truncation:</strong> Remove portions of data (e.g., showing only last 4 digits of credit card)</li>
+                <li>
+                  <strong>Character masking:</strong> Replace characters with symbols (e.g., converting "John" to "J***")
+                  <span className="ml-1 text-blue-600 dark:text-blue-400">- Now enhanced with AI to generate realistic fictional replacements</span>
+                </li>
+                <li>
+                  <strong>Truncation:</strong> Remove portions of data (e.g., showing only last 4 digits of credit card)
+                  <span className="ml-1 text-blue-600 dark:text-blue-400">- AI determines optimal truncation patterns</span>
+                </li>
                 <li><strong>Tokenization:</strong> Replace sensitive data with non-sensitive placeholders</li>
                 <li><strong>Encryption:</strong> Transform data using algorithms that require keys to decrypt</li>
                 <li><strong>Data redaction:</strong> Completely remove sensitive information from view</li>
               </ul>
               
-              <p>
-                This demo showcases basic masking techniques. In production systems, more sophisticated approaches 
-                and comprehensive security measures should be implemented.
-              </p>
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+                <h4 className="font-medium text-blue-800 dark:text-blue-300 flex items-center">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  AI-Enhanced PII Masking
+                </h4>
+                <p className="mt-2 text-sm">
+                  This demo now features AI-powered masking that can generate realistic but completely fictional
+                  replacements for sensitive data. Unlike traditional masking techniques that use obvious patterns
+                  (like asterisks), AI masking maintains the natural look and feel of the data while ensuring privacy.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -624,4 +816,3 @@ const PiiHandling = () => {
 };
 
 export default PiiHandling;
-

@@ -1,4 +1,4 @@
-import { analyzePiiWithAI } from "./openAiService";
+import { analyzePiiWithAI, generateMaskedDataWithAI } from "./openAiService";
 
 export interface PiiData {
   id: string;
@@ -20,6 +20,13 @@ export type MaskingOptions = {
   [K in keyof Omit<PiiData, 'id'>]: boolean;
 };
 
+export interface AiMaskingOptions {
+  useAi: boolean;
+  maskingPrompt?: string;
+  preserveFormat?: boolean;
+  randomizationLevel?: 'low' | 'medium' | 'high';
+}
+
 export interface PiiAnalysisResult {
   identifiedPii: string[];
   suggestions: string;
@@ -40,8 +47,8 @@ export const generateSamplePiiData = (count: number = 10): PiiData[] => {
   }));
 };
 
-// Masking functions for different PII types
-const maskingFunctions = {
+// Standard masking functions for different PII types
+const standardMaskingFunctions = {
   firstName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
   lastName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
   email: (value: string) => {
@@ -69,13 +76,69 @@ const maskingFunctions = {
 };
 
 // Apply masking based on selected options
-export const maskPiiData = (data: PiiData[], options: MaskingOptions): PiiDataMasked[] => {
+export const maskPiiData = async (
+  data: PiiData[], 
+  options: MaskingOptions, 
+  aiOptions?: AiMaskingOptions,
+  apiKey?: string | null
+): Promise<PiiDataMasked[]> => {
+  if (aiOptions?.useAi && apiKey) {
+    try {
+      const fieldsToMask = Object.entries(options)
+        .filter(([_, selected]) => selected)
+        .map(([field]) => field);
+      
+      if (fieldsToMask.length === 0) {
+        return applyStandardMasking(data, options);
+      }
+      
+      const sampleData = data.slice(0, Math.min(5, data.length));
+      
+      const aiMaskedData = await generateMaskedDataWithAI(
+        apiKey,
+        sampleData,
+        fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
+        {
+          preserveFormat: aiOptions.preserveFormat || true,
+          randomizationLevel: aiOptions.randomizationLevel || 'medium',
+          customPrompt: aiOptions.maskingPrompt
+        }
+      );
+      
+      return data.map((item, index) => {
+        const maskedItem: Partial<PiiDataMasked> = { id: item.id };
+        
+        (Object.keys(options) as Array<keyof MaskingOptions>).forEach(key => {
+          if (options[key]) {
+            if (index < aiMaskedData.length) {
+              maskedItem[key] = aiMaskedData[index][key];
+            } else {
+              maskedItem[key] = standardMaskingFunctions[key](item[key]);
+            }
+          } else {
+            maskedItem[key] = item[key];
+          }
+        });
+        
+        return maskedItem as PiiDataMasked;
+      });
+    } catch (error) {
+      console.error("Error applying AI masking:", error);
+      return applyStandardMasking(data, options);
+    }
+  } else {
+    return applyStandardMasking(data, options);
+  }
+};
+
+// Helper function to apply standard masking
+const applyStandardMasking = (data: PiiData[], options: MaskingOptions): PiiDataMasked[] => {
   return data.map(item => {
     const maskedItem: Partial<PiiDataMasked> = { id: item.id };
     
     (Object.keys(options) as Array<keyof MaskingOptions>).forEach(key => {
       if (options[key]) {
-        maskedItem[key] = maskingFunctions[key](item[key]);
+        maskedItem[key] = standardMaskingFunctions[key](item[key]);
       } else {
         maskedItem[key] = item[key];
       }
@@ -95,10 +158,8 @@ export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Pr
   }
   
   try {
-    // Convert a sample of data to JSON string for analysis
     const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
     
-    // Use OpenAI to analyze the data
     return await analyzePiiWithAI(apiKey, sampleData);
     
   } catch (error) {
