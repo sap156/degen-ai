@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { FileText, Download, AlertTriangle, GitBranch, BarChart3, CheckCircle, Loader } from 'lucide-react';
@@ -39,12 +40,30 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
 
+  // Configure marked options for proper header and bold text rendering
+  marked.setOptions({
+    headerIds: true,
+    mangle: false,
+    breaks: true, 
+    gfm: true,
+    smartypants: true
+  });
+
   const renderMarkdown = (content: string | null) => {
     if (!content) return '';
     
     try {
-      const html = marked.parse(content, { breaks: true });
-      const sanitizedHtml = DOMPurify.sanitize(html);
+      // Use marked with proper configuration
+      const html = marked.parse(content, { 
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false,
+      });
+      const sanitizedHtml = DOMPurify.sanitize(html, { 
+        USE_PROFILES: { html: true },
+        ADD_ATTR: ['target'] 
+      });
       return sanitizedHtml;
     } catch (error) {
       console.error("Error rendering markdown:", error);
