@@ -38,8 +38,8 @@ const MaskingFieldControl: React.FC<MaskingFieldControlProps> = ({
   const fieldDisplayName = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
   
   return (
-    <div className="border rounded-md p-3 space-y-2">
-      <div className="flex justify-between items-center">
+    <div className="border rounded-md p-3 mb-2">
+      <div className="flex justify-between items-center mb-2">
         <div className="flex items-center space-x-2">
           <Checkbox 
             id={`mask-${field}`} 
@@ -76,7 +76,7 @@ const MaskingFieldControl: React.FC<MaskingFieldControlProps> = ({
       </div>
       
       {enabled && (
-        <div className="space-y-2 pl-6">
+        <div className="grid grid-cols-3 gap-2 items-end">
           <div>
             <Label htmlFor={`technique-${field}`} className="text-xs">Masking Technique</Label>
             <Select 
@@ -127,27 +127,31 @@ const MaskingFieldControl: React.FC<MaskingFieldControlProps> = ({
             </Select>
           </div>
           
-          <div className="flex items-center justify-between">
-            <Label htmlFor={`custom-prompt-toggle-${field}`} className="text-xs">Custom Instructions</Label>
-            <Switch 
-              id={`custom-prompt-toggle-${field}`}
-              checked={showCustomPrompt}
-              onCheckedChange={setShowCustomPrompt}
-              className="h-4 w-8"
-            />
+          <div className="flex flex-col justify-end h-full">
+            <div className="flex items-center justify-between mb-1">
+              <Label htmlFor={`custom-prompt-toggle-${field}`} className="text-xs">Custom Instructions</Label>
+              <Switch 
+                id={`custom-prompt-toggle-${field}`}
+                checked={showCustomPrompt}
+                onCheckedChange={setShowCustomPrompt}
+                className="h-4 w-8"
+              />
+            </div>
           </div>
           
-          {showCustomPrompt && (
-            <div>
+          <div className="flex-1">
+            {showCustomPrompt ? (
               <Input
                 id={`custom-prompt-${field}`}
                 value={customPrompt}
                 onChange={(e) => onCustomPromptChange(e.target.value)}
-                placeholder={`Custom instructions for masking ${fieldDisplayName.toLowerCase()}`}
-                className="h-7 text-xs"
+                placeholder={`Instructions for ${fieldDisplayName.toLowerCase()}`}
+                className="h-8 text-xs w-full"
               />
-            </div>
-          )}
+            ) : (
+              <div className="h-8"></div> // Spacer when input is hidden
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -10,13 +10,13 @@ import {
   Download, 
   RefreshCw, 
   Sparkles,
-  Key
+  Key,
+  Play
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import ModelSelector from '@/components/ModelSelector';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
@@ -28,14 +28,12 @@ import {
   PiiData, 
   PiiDataMasked, 
   MaskingTechnique,
-  EncryptionMethod,
   generateSamplePiiData, 
   maskPiiData, 
   exportAsJson, 
   exportAsCsv, 
   downloadData,
-  analyzePiiData,
-  FieldMaskingConfig
+  analyzePiiData
 } from '@/services/piiHandlingService';
 
 const PiiHandling = () => {
@@ -52,6 +50,7 @@ const PiiHandling = () => {
   const [isAnalyzingData, setIsAnalyzingData] = useState(false);
   const [piiAnalysisResult, setPiiAnalysisResult] = useState<{identifiedPii: string[], suggestions: string} | null>(null);
   const [activeTab, setActiveTab] = useState<string>('manual');
+  const [dataReady, setDataReady] = useState(false);
   
   const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({
     firstName: { enabled: true, technique: 'character-masking' },
@@ -76,14 +75,27 @@ const PiiHandling = () => {
   const generateData = () => {
     const data = generateSamplePiiData(dataCount);
     setOriginalData(data);
-    applyMasking(data);
+    setDataReady(true);
   };
 
-  const applyMasking = async (data: PiiData[] = originalData) => {
+  const applyMasking = async () => {
+    if (!originalData.length) {
+      toast({
+        title: "No data available",
+        description: "Please generate or upload data first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       setIsMaskingData(true);
-      const masked = await maskPiiData(data, perFieldMaskingOptions, globalMaskingPreferences, apiKey);
+      const masked = await maskPiiData(originalData, perFieldMaskingOptions, globalMaskingPreferences, apiKey);
       setMaskedData(masked);
+      toast({
+        title: "Masking complete",
+        description: "PII data has been masked successfully",
+      });
     } catch (error) {
       console.error("Error applying masking:", error);
       toast({
@@ -189,55 +201,37 @@ const PiiHandling = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      const processedData = processUploadedPiiData(parsedData);
+      // Just detect the fields and structure without applying masking
+      const processedData = detectDataFields(parsedData);
       setOriginalData(processedData);
       
       if (parsedData && parsedData.length > 0) {
-        const schema: Record<string, string> = {};
-        const firstItem = parsedData[0];
-        
         const newPerFieldOptions: PerFieldMaskingOptions = {};
         
-        Object.keys(firstItem).forEach(key => {
-          const value = firstItem[key];
-          let type = 'text';
-          
-          if (typeof value === 'number') type = 'number';
-          else if (typeof value === 'boolean') type = 'boolean';
-          else if (value instanceof Date) type = 'date';
-          else if (typeof value === 'string') {
-            if (/^\d{3}-\d{2}-\d{4}$/.test(value)) type = 'ssn';
-            else if (/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(value)) type = 'creditCard';
-            else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) type = 'email';
-            else if (/^\d{3}-\d{3}-\d{4}$/.test(value)) type = 'phoneNumber';
-          }
-          
-          schema[key] = type;
-          
-          if (key !== 'id') {
-            newPerFieldOptions[key] = {
-              enabled: perFieldMaskingOptions[key]?.enabled ?? true,
-              technique: perFieldMaskingOptions[key]?.technique ?? 'character-masking',
-              customPrompt: perFieldMaskingOptions[key]?.customPrompt
-            };
-          }
+        // Get all keys from the first object
+        const fields = Object.keys(processedData[0]).filter(k => k !== 'id');
+        
+        // Add each field to masking options with default settings
+        fields.forEach(field => {
+          newPerFieldOptions[field] = {
+            enabled: true,
+            technique: 'character-masking'
+          };
         });
         
-        setUploadDataSchema(schema);
         setPerFieldMaskingOptions(newPerFieldOptions);
       }
       
       setActiveTab('manual');
-
-      await applyMasking(processedData);
-
+      setDataReady(true);
+      
       if (apiKey) {
         analyzeDataWithAi(processedData);
       }
       
       toast({
         title: "File processed",
-        description: "File processed successfully",
+        description: "Please configure masking options and click Generate PII Masking",
       });
     } catch (error) {
       console.error('Error processing file:', error);
@@ -282,102 +276,26 @@ const PiiHandling = () => {
     }
   };
 
-  const processUploadedPiiData = (data: any[]): PiiData[] => {
+  // Helper function to detect fields in uploaded data instead of using hardcoded mappings
+  const detectDataFields = (data: any[]): PiiData[] => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Invalid data format. Expected an array of records.');
     }
     
     return data.map((item, index) => {
-      const piiItem: Partial<PiiData> = { id: String(index + 1) };
-      
-      const fieldMappings: Record<string, keyof PiiData> = {
-        firstName: 'firstName',
-        first_name: 'firstName',
-        'first-name': 'firstName',
-        firstname: 'firstName',
-        name: 'firstName',
-        given_name: 'firstName',
-        
-        lastName: 'lastName',
-        last_name: 'lastName',
-        'last-name': 'lastName',
-        lastname: 'lastName',
-        surname: 'lastName',
-        family_name: 'lastName',
-        
-        email: 'email',
-        'email-address': 'email',
-        emailAddress: 'email',
-        
-        phone: 'phoneNumber',
-        phoneNumber: 'phoneNumber',
-        phone_number: 'phoneNumber',
-        'phone-number': 'phoneNumber',
-        cell: 'phoneNumber',
-        mobile: 'phoneNumber',
-        
-        ssn: 'ssn',
-        social_security: 'ssn',
-        'social-security': 'ssn',
-        social_security_number: 'ssn',
-        'social-security-number': 'ssn',
-        
-        address: 'address',
-        street_address: 'address',
-        'street-address': 'address',
-        streetAddress: 'address',
-        home_address: 'address',
-        
-        cc: 'creditCard',
-        credit_card: 'creditCard',
-        'credit-card': 'creditCard',
-        creditCard: 'creditCard',
-        card_number: 'creditCard',
-        'card-number': 'creditCard',
-        
-        dob: 'dob',
-        date_of_birth: 'dob',
-        'date-of-birth': 'dob',
-        birthdate: 'dob',
-        birth_date: 'dob',
-        'birth-date': 'dob'
+      // Create a dynamic object for each record
+      const record: Record<string, string> = {
+        id: item.id || String(index + 1)
       };
       
-      Object.keys(item).forEach(key => {
-        const normalizedKey = key.toLowerCase();
-        
-        if (fieldMappings[normalizedKey]) {
-          piiItem[fieldMappings[normalizedKey]] = String(item[key]);
-        } else if (key === 'id') {
-          piiItem.id = String(item[key]);
-        } else {
-          const value = String(item[key]);
-          
-          if (/^\d{3}-\d{2}-\d{4}$/.test(value) && !piiItem.ssn) {
-            piiItem.ssn = value;
-          } else if (/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(value) && !piiItem.creditCard) {
-            piiItem.creditCard = value;
-          } else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && !piiItem.email) {
-            piiItem.email = value;
-          } else if (/^\d{3}-\d{3}-\d{4}$/.test(value) && !piiItem.phoneNumber) {
-            piiItem.phoneNumber = value;
-          }
+      // Add all fields from the original data
+      Object.entries(item).forEach(([key, value]) => {
+        if (key !== 'id') {
+          record[key] = String(value);
         }
       });
       
-      const result: PiiData = {
-        id: piiItem.id || String(index + 1),
-        firstName: piiItem.firstName || 'Unknown',
-        lastName: piiItem.lastName || 'Unknown',
-        email: piiItem.email || 'unknown@example.com',
-        phoneNumber: piiItem.phoneNumber || '000-000-0000',
-        ssn: piiItem.ssn || '000-00-0000',
-        address: piiItem.address || 'Unknown Address',
-        creditCard: piiItem.creditCard || '0000-0000-0000-0000',
-        dob: piiItem.dob || '01/01/1970'
-      };
-      
-      return result;
+      return record as unknown as PiiData;
     });
   };
 
@@ -391,11 +309,7 @@ const PiiHandling = () => {
       return;
     }
     
-    setUploadDataSchema(prev => ({
-      ...prev,
-      [name]: type
-    }));
-    
+    // Add field to masking options
     setPerFieldMaskingOptions(prev => ({
       ...prev,
       [name]: {
@@ -404,6 +318,21 @@ const PiiHandling = () => {
       }
     }));
     
+    // Add the field to the original data with a default value
+    if (originalData.length > 0) {
+      const defaultValue = type === 'number' ? '0' : 
+                          type === 'email' ? 'example@domain.com' :
+                          type === 'phone' ? '000-000-0000' :
+                          'Sample value';
+      
+      setOriginalData(prev => 
+        prev.map(item => ({
+          ...item,
+          [name]: defaultValue
+        }))
+      );
+    }
+    
     toast({
       title: "Field added",
       description: `Added new field: ${name}`,
@@ -411,29 +340,27 @@ const PiiHandling = () => {
   };
 
   const handleRemoveField = (fieldName: string) => {
-    setUploadDataSchema(prev => {
-      const newSchema = { ...prev };
-      delete newSchema[fieldName];
-      return newSchema;
-    });
-    
+    // Remove from masking options
     setPerFieldMaskingOptions(prev => {
       const newOptions = { ...prev };
       delete newOptions[fieldName];
       return newOptions;
     });
     
+    // Remove from data
+    if (originalData.length > 0) {
+      setOriginalData(prev => 
+        prev.map(item => {
+          const newItem = { ...item };
+          delete newItem[fieldName];
+          return newItem;
+        })
+      );
+    }
+    
     toast({
       title: "Field removed",
       description: `Removed field: ${fieldName}`,
-    });
-  };
-
-  const handleGenerateFromSchema = () => {
-    generateData();
-    toast({
-      title: "Data generated",
-      description: "Generated data based on schema",
     });
   };
 
@@ -450,12 +377,6 @@ const PiiHandling = () => {
       preserveFormat: value
     }));
   };
-
-  useEffect(() => {
-    if (originalData.length > 0) {
-      applyMasking();
-    }
-  }, [perFieldMaskingOptions, globalMaskingPreferences]);
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -571,16 +492,6 @@ const PiiHandling = () => {
               
               <AddFieldForm onAddField={handleAddField} />
               
-              {Object.keys(uploadDataSchema).length > 0 && (
-                <Button 
-                  onClick={handleGenerateFromSchema} 
-                  className="w-full mt-2"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate from Schema
-                </Button>
-              )}
-              
               <div className="border rounded-md p-3 space-y-3 mt-4">
                 <h3 className="text-sm font-medium">Global Masking Preferences</h3>
                 
@@ -619,6 +530,26 @@ const PiiHandling = () => {
                   </ApiKeyRequirement>
                 </div>
               </div>
+              
+              {dataReady && (
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={applyMasking}
+                  disabled={isMaskingData || originalData.length === 0}
+                >
+                  {isMaskingData ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Generate PII Masking
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
           
@@ -688,7 +619,8 @@ const PiiHandling = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Vertical stack of masking field controls */}
+              <div className="space-y-2">
                 {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
                   <MaskingFieldControl 
                     key={field}
@@ -700,7 +632,8 @@ const PiiHandling = () => {
                     onTechniqueChange={(technique) => updateFieldMaskingTechnique(field, technique)}
                     onCustomPromptChange={(prompt) => updateFieldCustomPrompt(field, prompt)}
                     onRemoveField={() => handleRemoveField(field)}
-                    canRemove={!['firstName', 'lastName', 'email', 'phoneNumber', 'ssn', 'address', 'creditCard', 'dob'].includes(field)}
+                    canRemove={!['firstName', 'lastName', 'email', 'phoneNumber', 'ssn', 'address', 'creditCard', 'dob'].includes(field) || 
+                              !Object.keys(originalData[0] || {}).includes(field)}
                   />
                 ))}
               </div>
@@ -722,57 +655,95 @@ const PiiHandling = () => {
                 </TabsList>
                 
                 <TabsContent value="original">
-                  <div className="border rounded-md overflow-hidden">
+                  <div className="border rounded-md overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>ID</TableHead>
-                          {Object.keys(perFieldMaskingOptions).map(field => (
-                            <TableHead key={field}>{field}</TableHead>
-                          ))}
+                          {originalData.length > 0 && 
+                            Object.keys(originalData[0])
+                              .filter(k => k !== 'id')
+                              .map(field => (
+                                <TableHead key={field}>{field}</TableHead>
+                              ))
+                          }
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {originalData.map((item) => (
+                        {originalData.slice(0, 5).map((item) => (
                           <TableRow key={item.id}>
                             <TableCell>{item.id}</TableCell>
-                            {Object.keys(perFieldMaskingOptions).map(field => (
-                              <TableCell key={field} className="max-w-[200px] truncate">
-                                {item[field]}
-                              </TableCell>
-                            ))}
+                            {Object.entries(item)
+                              .filter(([key]) => key !== 'id')
+                              .map(([key, value]) => (
+                                <TableCell key={key} className="max-w-[200px] truncate">
+                                  {value}
+                                </TableCell>
+                              ))
+                            }
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
+                    {originalData.length > 5 && (
+                      <div className="p-2 text-center text-sm text-muted-foreground">
+                        Showing 5 of {originalData.length} records
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
                 
                 <TabsContent value="masked">
-                  <div className="border rounded-md overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>ID</TableHead>
-                          {Object.keys(perFieldMaskingOptions).map(field => (
-                            <TableHead key={field}>{field}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {maskedData.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.id}</TableCell>
-                            {Object.keys(perFieldMaskingOptions).map(field => (
-                              <TableCell key={field} className="max-w-[200px] truncate">
-                                {item[field]}
-                              </TableCell>
-                            ))}
+                  {maskedData.length > 0 ? (
+                    <div className="border rounded-md overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ID</TableHead>
+                            {maskedData.length > 0 && 
+                              Object.keys(maskedData[0])
+                                .filter(k => k !== 'id')
+                                .map(field => (
+                                  <TableHead key={field}>{field}</TableHead>
+                                ))
+                            }
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {maskedData.slice(0, 5).map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell>{item.id}</TableCell>
+                              {Object.entries(item)
+                                .filter(([key]) => key !== 'id')
+                                .map(([key, value]) => (
+                                  <TableCell key={key} className="max-w-[200px] truncate">
+                                    {value}
+                                  </TableCell>
+                                ))
+                              }
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {maskedData.length > 5 && (
+                        <div className="p-2 text-center text-sm text-muted-foreground">
+                          Showing 5 of {maskedData.length} records
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                      <p className="text-muted-foreground mb-2">No masked data available</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={applyMasking}
+                        disabled={isMaskingData || originalData.length === 0}
+                      >
+                        Generate PII Masking
+                      </Button>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </CardContent>
