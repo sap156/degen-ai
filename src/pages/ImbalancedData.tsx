@@ -120,7 +120,52 @@ const ImbalancedData = () => {
 
   const handleDatasetConfigurationComplete = (preferences: DatasetPreferences) => {
     setDatasetPreferences(preferences);
+    
+    if (originalDataset && parsedData.length > 0 && preferences.targetColumn) {
+      const updatedDataset = processDataWithTargetColumn(parsedData, preferences.targetColumn);
+      setOriginalDataset(updatedDataset);
+    }
+    
     toast.success('Dataset configuration saved');
+  };
+
+  const processDataWithTargetColumn = (data: any[], targetColumn: string): DatasetInfo => {
+    const classCounts: Record<string, number> = {};
+    
+    data.forEach(item => {
+      if (targetColumn in item) {
+        const className = String(item[targetColumn]);
+        classCounts[className] = (classCounts[className] || 0) + 1;
+      }
+    });
+    
+    const totalSamples = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
+    
+    const classColors = [
+      '#4f46e5', '#0891b2', '#16a34a', '#ca8a04', 
+      '#dc2626', '#9333ea', '#2563eb', '#059669', 
+      '#d97706', '#db2777'
+    ];
+    
+    const classes: ClassDistribution[] = Object.entries(classCounts).map(([className, count], index) => ({
+      className,
+      count,
+      percentage: parseFloat(((count / totalSamples) * 100).toFixed(1)),
+      color: classColors[index % classColors.length]
+    }));
+    
+    classes.sort((a, b) => b.count - a.count);
+    
+    const maxClassSize = classes.length > 0 ? classes[0].count : 0;
+    const minClassSize = classes.length > 0 ? classes[classes.length - 1].count : 0;
+    const imbalanceRatio = minClassSize > 0 ? parseFloat((maxClassSize / minClassSize).toFixed(2)) : 1;
+    
+    return {
+      totalSamples,
+      classes,
+      isImbalanced: imbalanceRatio > 1.5,
+      imbalanceRatio
+    };
   };
 
   const getAIRecommendations = async (options?: { desiredOutcome: string; modelPreference: string }) => {
@@ -129,6 +174,9 @@ const ImbalancedData = () => {
     setIsLoadingRecommendations(true);
     
     try {
+      const optimizationGoal = options?.desiredOutcome || 'balanced precision and recall';
+      const modelType = options?.modelPreference || 'Auto (AI-recommended)';
+      
       const messages: OpenAiMessage[] = [
         {
           role: "system",
@@ -150,8 +198,8 @@ const ImbalancedData = () => {
           3. Evaluation metrics appropriate for imbalanced data
           4. Any other relevant strategies
           
-          My optimization goal is: ${options?.desiredOutcome || 'balanced precision and recall'}
-          My preferred model type is: ${options?.modelPreference || 'Auto (AI-recommended)'}
+          My optimization goal is: ${optimizationGoal}
+          My preferred model type is: ${modelType}
           
           Make the recommendations specific to this dataset and context, optimizing for my stated goal.`
         }
@@ -333,6 +381,10 @@ const ImbalancedData = () => {
 
   const processUploadedData = (data: any): DatasetInfo => {
     if (Array.isArray(data)) {
+      if (datasetPreferences?.targetColumn) {
+        return processDataWithTargetColumn(data, datasetPreferences.targetColumn);
+      }
+      
       const classField = detectClassField(data);
       
       if (!classField) {
@@ -418,6 +470,13 @@ const ImbalancedData = () => {
       ],
     };
   };
+
+  useEffect(() => {
+    if (datasetPreferences?.targetColumn && parsedData.length > 0) {
+      const updatedDataset = processDataWithTargetColumn(parsedData, datasetPreferences.targetColumn);
+      setOriginalDataset(updatedDataset);
+    }
+  }, [datasetPreferences?.targetColumn, parsedData]);
 
   return (
     <motion.div
@@ -713,4 +772,3 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
-

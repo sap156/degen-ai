@@ -173,7 +173,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                       <div></div>
                     </div>
                     <Separator />
-                    {originalDataset && originalDataset.classes && originalDataset.classes.map((cls: any) => {
+                    {preferences.targetColumn && originalDataset && originalDataset.classes && originalDataset.classes.map((cls: any) => {
                       const isMajority = preferences.majorityClass && cls.className === preferences.majorityClass;
                       const isMinority = preferences.minorityClass && cls.className === preferences.minorityClass;
                       
@@ -240,6 +240,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
         )}
       </CardContent>
       
+      {/* Show the analyze button either when there are no recommendations yet OR when parameters have changed */}
       {(!aiRecommendations || parametersChanged) && !isLoading && (
         <CardFooter className="pt-2">
           <Button 
@@ -248,7 +249,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
             disabled={!apiKeyAvailable || !preferences || isLoading}
           >
             <Brain className="mr-2 h-4 w-4" />
-            Analyze with AI
+            {parametersChanged ? 'Analyze Again with New Parameters' : 'Analyze with AI'}
           </Button>
         </CardFooter>
       )}
