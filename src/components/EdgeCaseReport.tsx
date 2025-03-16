@@ -41,7 +41,6 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
 
   // Configure marked options for proper header and bold text rendering
   marked.setOptions({
-    mangle: false,
     breaks: true, 
     gfm: true,
     smartypants: true
@@ -54,8 +53,7 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
       // Use marked with proper configuration
       const html = marked.parse(content, { 
         breaks: true,
-        gfm: true,
-        mangle: false
+        gfm: true
       });
       const sanitizedHtml = DOMPurify.sanitize(html, { 
         USE_PROFILES: { html: true },
