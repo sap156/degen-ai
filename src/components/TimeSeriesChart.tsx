@@ -11,6 +11,7 @@ interface TimeSeriesChartProps {
   additionalFields?: string[];
   height?: number;
   className?: string;
+  defaultValue?: string; // Set the default value field name, if any
 }
 
 const TimeSeriesChart = ({ 
@@ -18,7 +19,8 @@ const TimeSeriesChart = ({
   title, 
   additionalFields = [], 
   height = 400,
-  className
+  className,
+  defaultValue = 'value' // Default to 'value' for backward compatibility
 }: TimeSeriesChartProps) => {
   // Format data for the chart
   const chartData = useMemo(() => {
@@ -29,7 +31,47 @@ const TimeSeriesChart = ({
     }));
   }, [data]);
   
-  // Generate a different color for each additional field
+  // Check if the default value field exists in the data
+  const hasDefaultValue = useMemo(() => {
+    return data.length > 0 && defaultValue in data[0];
+  }, [data, defaultValue]);
+  
+  // Get all numeric fields from the data for charting
+  const numericFields = useMemo(() => {
+    if (data.length === 0) return [];
+    
+    const fields: string[] = [];
+    const firstPoint = data[0];
+    
+    // Add the default value field if it exists
+    if (hasDefaultValue) {
+      fields.push(defaultValue);
+    }
+    
+    // Add all additional fields that are numeric
+    for (const field of additionalFields) {
+      if (field in firstPoint && typeof firstPoint[field] === 'number' && field !== defaultValue) {
+        fields.push(field);
+      }
+    }
+    
+    // Add any other numeric fields that might exist in the data
+    Object.entries(firstPoint).forEach(([key, value]) => {
+      if (
+        typeof value === 'number' && 
+        key !== defaultValue && 
+        key !== 'timestamp' && 
+        !fields.includes(key) &&
+        !key.includes('formatted')
+      ) {
+        fields.push(key);
+      }
+    });
+    
+    return fields;
+  }, [data, additionalFields, defaultValue, hasDefaultValue]);
+  
+  // Generate a different color for each field
   const getLineColor = (index: number) => {
     const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F', '#FFBB28'];
     return colors[index % colors.length];
@@ -40,6 +82,16 @@ const TimeSeriesChart = ({
       <Card className={className}>
         <CardContent className="flex items-center justify-center" style={{ height }}>
           <p className="text-muted-foreground">No data available to display</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (numericFields.length === 0) {
+    return (
+      <Card className={className}>
+        <CardContent className="flex items-center justify-center" style={{ height }}>
+          <p className="text-muted-foreground">No numeric fields found to display in chart</p>
         </CardContent>
       </Card>
     );
@@ -70,24 +122,19 @@ const TimeSeriesChart = ({
               />
               <YAxis />
               <Tooltip
-                formatter={(value, name) => [value, name === 'value' ? 'Value' : name]}
+                formatter={(value, name) => [value, name === defaultValue ? 'Value' : name]}
                 labelFormatter={(label) => `Time: ${label}`}
               />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#8884d8"
-                activeDot={{ r: 8 }}
-                name="Value"
-              />
-              {additionalFields.map((field, index) => (
+              
+              {numericFields.map((field, index) => (
                 <Line
                   key={field}
                   type="monotone"
                   dataKey={field}
-                  stroke={getLineColor(index + 1)}
-                  name={field}
+                  stroke={getLineColor(index)}
+                  activeDot={{ r: 8 }}
+                  name={field === defaultValue ? 'Value' : field}
                 />
               ))}
             </LineChart>

@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
+import { Progress } from '@/components/ui/progress';
 
 export type TimeSeriesDataPoint = {
   timestamp: string;
@@ -17,6 +18,7 @@ export type TimeSeriesOptions = {
   additionalFields?: { name: string; type: 'number' | 'boolean' | 'category' }[];
   categories?: string[];
   seed?: number;
+  excludeDefaultValue?: boolean; // Add option to exclude default value field
 };
 
 // Helper to generate a random value between min and max
@@ -85,12 +87,16 @@ const generateDates = (start: Date, end: Date, interval: TimeSeriesOptions['inte
   
   // Otherwise, generate based on interval
   let current = new Date(startTime);
+  
+  // Ensure the end date is included
+  // Fix for hourly interval: Check if the current time is less than or equal to the end time
   while (current.getTime() <= endTime) {
     dates.push(new Date(current));
     
     switch (interval) {
       case 'hourly':
-        current = new Date(current.setHours(current.getHours() + 1));
+        // Fix for hourly data - properly add hours
+        current = new Date(current.getTime() + 60 * 60 * 1000);
         break;
       case 'daily':
         current = new Date(current.setDate(current.getDate() + 1));
@@ -141,7 +147,8 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       dataPoints,
       additionalFields = [],
       categories = [],
-      seed
+      seed,
+      excludeDefaultValue = false
     } = options;
     
     if (startDate > endDate) {
@@ -168,10 +175,9 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       );
       
       // Create the base data point
-      const dataPoint: TimeSeriesDataPoint = {
-        timestamp: date.toISOString(),
-        value
-      };
+      const dataPoint: TimeSeriesDataPoint = excludeDefaultValue 
+        ? { timestamp: date.toISOString() }
+        : { timestamp: date.toISOString(), value };
       
       // Add additional fields if specified
       additionalFields.forEach(field => {
@@ -280,6 +286,8 @@ export interface AITimeSeriesOptions {
   dataPoints?: number;
   existingData?: TimeSeriesDataPoint[];
   additionalFields?: { name: string; type: 'number' | 'boolean' | 'category' }[];
+  excludeDefaultValue?: boolean; // Add option to exclude default value
+  onProgressUpdate?: (progress: number) => void; // Add progress callback
 }
 
 /**
@@ -295,8 +303,13 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       interval,
       dataPoints,
       existingData,
-      additionalFields
+      additionalFields,
+      excludeDefaultValue = false,
+      onProgressUpdate
     } = options;
+
+    // Initial progress update
+    onProgressUpdate?.(5);
 
     // Format the dates for the prompt
     const formattedStartDate = startDate.toISOString().split('T')[0];
@@ -306,11 +319,14 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     const systemMessage: OpenAiMessage = {
       role: 'system',
       content: `You are a time series data generation expert. Generate realistic time series data based on the user's request.
-      Only return the data as a valid JSON array with no additional text. 
-      Each data point must have a "timestamp" (ISO format) and a "value" (numeric) field.
+      Only return the data as a valid JSON array with no additional text, comments, or markdown formatting. 
+      ${!excludeDefaultValue ? 'Each data point must have a "timestamp" (ISO format) and a "value" (numeric) field.' : 'Each data point must have a "timestamp" (ISO format) field.'}
       If additional fields are requested, include those as well.
-      The data should follow realistic temporal patterns and be suitable for analysis.`
+      The data should follow realistic temporal patterns and be suitable for analysis.
+      Your response must contain only valid JSON and nothing else.`
     };
+    
+    onProgressUpdate?.(15);
     
     // Build information about existing data if provided
     let existingDataInfo = '';
@@ -319,18 +335,20 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       const fieldNames = Object.keys(existingData[0]);
       
       // Calculate basic statistics from existing data
-      const values = existingData.map(point => point.value);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+      const values = existingData.map(point => point.value).filter(v => v !== undefined);
+      const min = values.length > 0 ? Math.min(...values) : 0;
+      const max = values.length > 0 ? Math.max(...values) : 100;
+      const avg = values.length > 0 ? values.reduce((sum, val) => sum + val, 0) / values.length : 50;
       
       // Add statistics to the prompt
       existingDataInfo = `
       I have existing time series data with fields: ${fieldNames.join(', ')}.
-      Value range: min=${min.toFixed(2)}, max=${max.toFixed(2)}, avg=${avg.toFixed(2)}
+      ${values.length > 0 ? `Value range: min=${min.toFixed(2)}, max=${max.toFixed(2)}, avg=${avg.toFixed(2)}` : ''}
       First few data points: ${JSON.stringify(existingData.slice(0, 3))}
       Last few data points: ${JSON.stringify(existingData.slice(-3))}`;
     }
+    
+    onProgressUpdate?.(25);
     
     // Build information about additional fields if requested
     let additionalFieldsInfo = '';
@@ -347,8 +365,11 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       ${prompt}
       ${existingDataInfo}
       ${additionalFieldsInfo}
-      Return ONLY a JSON array of data points, each with "timestamp" and "value" properties.`
+      ${excludeDefaultValue ? 'Do not include a default "value" field in the output.' : ''}
+      Return ONLY a valid JSON array of data points, with no additional text, comments, or markdown formatting.`
     };
+    
+    onProgressUpdate?.(35);
     
     // Call the OpenAI API
     const messages = [systemMessage, userMessage];
@@ -357,6 +378,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       temperature: 0.5,
       max_tokens: 2000
     });
+    
+    onProgressUpdate?.(75);
     
     try {
       // Parse the response
@@ -367,13 +390,15 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
         parsedData = JSON.parse(response);
       } catch (parseError) {
         // If direct parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
           throw new Error('Failed to extract valid JSON from the response');
         }
       }
+      
+      onProgressUpdate?.(85);
       
       // Validate the data
       if (!Array.isArray(parsedData) || parsedData.length === 0) {
@@ -382,8 +407,19 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       
       // Ensure each data point has the required properties
       parsedData = parsedData.map(point => {
-        if (!point.timestamp || point.value === undefined) {
-          throw new Error('Data points must have timestamp and value properties');
+        if (!point.timestamp) {
+          throw new Error('Data points must have timestamp property');
+        }
+        
+        // If we're excluding the default value field and it exists, remove it
+        if (excludeDefaultValue && 'value' in point) {
+          const { value, ...rest } = point;
+          return rest;
+        }
+        
+        // Otherwise, ensure the value field exists and is a number
+        if (!excludeDefaultValue && point.value === undefined) {
+          point.value = 0;
         }
         
         // Try to parse the timestamp if it's not in ISO format
@@ -406,6 +442,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
         return dateA.getTime() - dateB.getTime();
       });
       
+      onProgressUpdate?.(100);
+      
       toast.success(`Generated ${parsedData.length} time series data points with AI`);
       return parsedData;
     } catch (error) {
@@ -420,37 +458,50 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
   }
 };
 
+export interface AINoiseOptions {
+  apiKey: string | null;
+  data: TimeSeriesDataPoint[];
+  prompt: string;
+  noiseLevel: number;
+  onProgressUpdate?: (progress: number) => void; // Add progress callback
+}
+
 /**
  * Generate realistic noise or anomalies in time series data using AI
  */
-export const addAINoiseToTimeSeries = async (
-  apiKey: string | null,
-  data: TimeSeriesDataPoint[],
-  prompt: string,
-  noiseLevel: number = 0.3
-): Promise<TimeSeriesDataPoint[]> => {
+export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<TimeSeriesDataPoint[]> => {
   try {
+    const { apiKey, data, prompt, noiseLevel = 0.3, onProgressUpdate } = options;
+    
     if (!data || data.length === 0) {
       throw new Error('No data provided for noise generation');
     }
+    
+    // Initial progress update
+    onProgressUpdate?.(5);
     
     // Create a system message explaining the task
     const systemMessage: OpenAiMessage = {
       role: 'system',
       content: `You are a time series data noise generation expert. Add realistic noise, seasonality, or anomalies to the existing time series data based on the user's request.
-      Only return the modified data as a valid JSON array with no additional text.
+      Only return the modified data as a valid JSON array with no additional text, comments, or markdown formatting.
       Maintain the original timestamp values and field structure.
-      The modifications should match real-world patterns in similar data.`
+      The modifications should match real-world patterns in similar data.
+      Your response must only contain valid JSON and nothing else.`
     };
+    
+    onProgressUpdate?.(15);
     
     // Get the field names from the first data point
     const fieldNames = Object.keys(data[0]);
     
     // Calculate basic statistics from existing data
-    const values = data.map(point => point.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const values = data.map(point => point.value).filter(v => v !== undefined);
+    const min = values.length > 0 ? Math.min(...values) : 0;
+    const max = values.length > 0 ? Math.max(...values) : 100;
+    const avg = values.length > 0 ? values.reduce((sum, val) => sum + val, 0) / values.length : 50;
+    
+    onProgressUpdate?.(25);
     
     // Build the user prompt
     const userMessage: OpenAiMessage = {
@@ -459,15 +510,18 @@ export const addAINoiseToTimeSeries = async (
       
       Noise level: ${noiseLevel} (0-1 scale, where 1 is maximum noise)
       Fields present: ${fieldNames.join(', ')}
-      Value range: min=${min.toFixed(2)}, max=${max.toFixed(2)}, avg=${avg.toFixed(2)}
+      ${values.length > 0 ? `Value range: min=${min.toFixed(2)}, max=${max.toFixed(2)}, avg=${avg.toFixed(2)}` : ''}
       Data points count: ${data.length}
       First few data points: ${JSON.stringify(data.slice(0, 3))}
       Last few data points: ${JSON.stringify(data.slice(-3))}
       
       Specific instructions: ${prompt}
       
-      Return ONLY a JSON array of the modified data points with the same structure as the input.`
+      Return ONLY a JSON array of the modified data points with the same structure as the input.
+      Do not include any text, comments, or markdown formatting in your response.`
     };
+    
+    onProgressUpdate?.(35);
     
     // Call the OpenAI API
     const messages = [systemMessage, userMessage];
@@ -476,6 +530,8 @@ export const addAINoiseToTimeSeries = async (
       temperature: 0.5,
       max_tokens: 2000
     });
+    
+    onProgressUpdate?.(75);
     
     try {
       // Parse the response
@@ -486,13 +542,15 @@ export const addAINoiseToTimeSeries = async (
         parsedData = JSON.parse(response);
       } catch (parseError) {
         // If direct parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
           throw new Error('Failed to extract valid JSON from the response');
         }
       }
+      
+      onProgressUpdate?.(85);
       
       // Validate the data
       if (!Array.isArray(parsedData) || parsedData.length === 0) {
@@ -510,6 +568,8 @@ export const addAINoiseToTimeSeries = async (
         const dateB = new Date(b.timestamp);
         return dateA.getTime() - dateB.getTime();
       });
+      
+      onProgressUpdate?.(100);
       
       toast.success(`Added AI-generated noise to ${parsedData.length} time series data points`);
       return parsedData;

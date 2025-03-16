@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
@@ -27,6 +27,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import FileUploader from '@/components/FileUploader';
@@ -41,7 +42,8 @@ import {
   downloadData,
   saveToMockDatabase,
   TimeSeriesDataPoint,
-  TimeSeriesOptions
+  TimeSeriesOptions,
+  AINoiseOptions
 } from '@/services/timeSeriesService';
 
 type FormValues = TimeSeriesOptions & {
@@ -63,6 +65,8 @@ const TimeSeries = () => {
   const [aiNoisePrompt, setAiNoisePrompt] = useState<string>('');
   const [isApplyingAiNoise, setIsApplyingAiNoise] = useState<boolean>(false);
   const [activeSubTab, setActiveSubTab] = useState<string>('manual'); // 'manual' or 'ai'
+  const [progressPercentage, setProgressPercentage] = useState<number>(0);
+  const [showProgress, setShowProgress] = useState<boolean>(false);
   
   const { handleSubmit, control, watch, setValue, register, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -79,7 +83,8 @@ const TimeSeries = () => {
       categories: ['category-A', 'category-B', 'category-C', 'category-D'],
       seed: Math.floor(Math.random() * 10000),
       aiPrompt: '',
-      useAi: false
+      useAi: false,
+      excludeDefaultValue: false // Add new option
     }
   });
   
@@ -87,6 +92,7 @@ const TimeSeries = () => {
   const additionalFieldCount = watch('additionalFieldCount');
   const additionalFields = watch('additionalFields') || [];
   const useAi = watch('useAi');
+  const excludeDefaultValue = watch('excludeDefaultValue');
   
   useEffect(() => {
     const currentCount = additionalFields?.length || 0;
@@ -104,6 +110,9 @@ const TimeSeries = () => {
   
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
+    setShowProgress(true);
+    setProgressPercentage(0);
+    
     try {
       let generatedData: TimeSeriesDataPoint[];
       
@@ -116,10 +125,22 @@ const TimeSeries = () => {
           interval: data.interval,
           dataPoints: data.dataPoints,
           additionalFields: data.additionalFields,
-          existingData: timeSeriesData.length > 0 ? timeSeriesData : undefined
+          existingData: timeSeriesData.length > 0 ? timeSeriesData : undefined,
+          excludeDefaultValue: data.excludeDefaultValue,
+          onProgressUpdate: setProgressPercentage
         });
       } else {
-        generatedData = generateTimeSeriesData(data);
+        // For manual generation, simulate progress
+        setProgressPercentage(25);
+        setTimeout(() => setProgressPercentage(50), 300);
+        setTimeout(() => setProgressPercentage(75), 500);
+        
+        generatedData = generateTimeSeriesData({
+          ...data,
+          excludeDefaultValue: data.excludeDefaultValue
+        });
+        
+        setTimeout(() => setProgressPercentage(100), 700);
       }
       
       setTimeSeriesData(generatedData);
@@ -136,6 +157,8 @@ const TimeSeries = () => {
       toast.error('Failed to generate time series data');
     } finally {
       setLoading(false);
+      // Hide progress after a delay
+      setTimeout(() => setShowProgress(false), 1000);
     }
   };
   
@@ -189,15 +212,20 @@ const TimeSeries = () => {
     }
     
     setIsApplyingAiNoise(true);
+    setShowProgress(true);
+    setProgressPercentage(0);
     
     try {
       const noiseLevel = watch('noiseLevel');
-      const modifiedData = await addAINoiseToTimeSeries(
+      const options: AINoiseOptions = {
         apiKey,
-        timeSeriesData,
-        aiNoisePrompt,
-        noiseLevel
-      );
+        data: timeSeriesData,
+        prompt: aiNoisePrompt,
+        noiseLevel,
+        onProgressUpdate: setProgressPercentage
+      };
+      
+      const modifiedData = await addAINoiseToTimeSeries(options);
       
       setTimeSeriesData(modifiedData);
       
@@ -213,6 +241,8 @@ const TimeSeries = () => {
       toast.error('Failed to apply AI noise');
     } finally {
       setIsApplyingAiNoise(false);
+      // Hide progress after a delay
+      setTimeout(() => setShowProgress(false), 1000);
     }
   };
   
@@ -387,7 +417,20 @@ const TimeSeries = () => {
     }
   };
   
-  const additionalFieldNames = additionalFields?.map(field => field.name) || [];
+  // Get field names for the chart
+  const additionalFieldNames = useMemo(() => {
+    if (!timeSeriesData.length) return [];
+    
+    return Object.keys(timeSeriesData[0])
+      .filter(key => {
+        // Include only numeric fields that are not the timestamp or default value (if excluded)
+        return (
+          key !== 'timestamp' && 
+          typeof timeSeriesData[0][key] === 'number' && 
+          (!excludeDefaultValue || key !== 'value')
+        );
+      });
+  }, [timeSeriesData, excludeDefaultValue]);
   
   return (
     <motion.div
@@ -623,6 +666,18 @@ const TimeSeries = () => {
                         </div>
                       </>
                     )}
+
+                    {/* Add option to exclude default value field */}
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        id="excludeDefaultValue" 
+                        checked={excludeDefaultValue} 
+                        onCheckedChange={(checked) => setValue('excludeDefaultValue', checked)} 
+                      />
+                      <Label htmlFor="excludeDefaultValue" className="font-medium">
+                        Exclude default "value" field
+                      </Label>
+                    </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="additionalFieldCount">Additional Fields</Label>
@@ -796,6 +851,17 @@ const TimeSeries = () => {
                   </div>
                 </TabsContent>
               </Tabs>
+              
+              {/* Add progress bar */}
+              {showProgress && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Processing</span>
+                    <span>{progressPercentage}%</span>
+                  </div>
+                  <Progress value={progressPercentage} className="h-2" />
+                </div>
+              )}
             </CardContent>
             
             <CardFooter>
@@ -878,10 +944,9 @@ const TimeSeries = () => {
               {timeSeriesData.length > 0 ? (
                 <TimeSeriesChart 
                   data={timeSeriesData} 
-                  additionalFields={timeSeriesData[0] ? 
-                    Object.keys(timeSeriesData[0])
-                      .filter(key => key !== 'timestamp' && typeof timeSeriesData[0][key] === 'number') 
-                    : additionalFieldNames}
+                  additionalFields={additionalFieldNames}
+                  // Don't show 'value' field if excludeDefaultValue is true
+                  defaultValue={excludeDefaultValue ? '' : 'value'}
                 />
               ) : (
                 <Card>
@@ -890,64 +955,4 @@ const TimeSeries = () => {
                       <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="text-lg font-medium">No Data to Display</h3>
                       <p className="text-muted-foreground mt-2">
-                        Configure the settings and click "Generate Time Series" to create data
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="data">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Data Preview</h2>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleCopyToClipboard}
-                    disabled={!formattedData}
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleDownload}
-                    disabled={!formattedData}
-                  >
-                    <DownloadCloud className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-              
-              <Card>
-                <CardContent className="p-0">
-                  {formattedData ? (
-                    <pre className="p-4 overflow-auto max-h-[600px] text-xs font-mono bg-muted rounded-md">
-                      {formattedData}
-                    </pre>
-                  ) : (
-                    <div className="flex items-center justify-center h-[400px]">
-                      <div className="text-center">
-                        <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium">No Data to Display</h3>
-                        <p className="text-muted-foreground mt-2">
-                          Generate data to preview it here
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-export default TimeSeries;
+                        Configure the settings and click "
