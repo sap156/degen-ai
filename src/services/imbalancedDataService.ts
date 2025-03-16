@@ -17,7 +17,7 @@ export interface DatasetInfo {
 }
 
 export interface BalancingOptions {
-  method: 'undersample' | 'oversample' | 'smote' | 'none';
+  method: 'undersample' | 'oversample' | 'smote' | 'none' | 'evenout';
   targetRatio?: number;
 }
 
@@ -97,10 +97,11 @@ export const generateSampleDataset = (
 };
 
 // Apply balancing techniques to the dataset
-export const balanceDataset = (
+export const balanceDataset = async (
   dataset: DatasetInfo,
-  options: BalancingOptions
-): DatasetInfo => {
+  options: BalancingOptions,
+  apiKey: string | null = null
+): Promise<DatasetInfo> => {
   if (options.method === 'none') {
     return dataset;
   }
@@ -142,12 +143,25 @@ export const balanceDataset = (
       }
       break;
       
-    case 'smote':
-      // Synthetic Minority Over-sampling Technique (simulated)
-      // In a real implementation, this would generate synthetic samples
-      // Here we'll just simulate by increasing minority classes with a slightly different ratio
+    case 'evenout':
+      // Make classes equal (50:50 distribution for binary, or equal for multi-class)
       {
-        // Use a more moderate increase for SMOTE compared to simple oversampling
+        const targetCount = Math.floor(dataset.totalSamples / balancedClasses.length);
+        
+        balancedClasses.forEach(cls => {
+          cls.count = targetCount;
+          totalSamples += cls.count;
+        });
+      }
+      break;
+      
+    case 'smote':
+      // Synthetic Minority Over-sampling Technique
+      // If API key is available, use AI to generate synthetic data, otherwise simulate
+      if (apiKey) {
+        return await generateSyntheticBalancedData(dataset, options, apiKey);
+      } else {
+        // Simulate SMOTE by increasing minority classes but with a slightly different ratio
         const targetMinorityCount = Math.floor(majorityClass / (targetRatio * 1.2));
         
         balancedClasses.forEach(cls => {
@@ -183,6 +197,116 @@ export const balanceDataset = (
     isImbalanced: newImbalanceRatio > 1.5,
     imbalanceRatio: newImbalanceRatio,
   };
+};
+
+// Generate synthetic data using AI to balance the dataset
+export const generateSyntheticBalancedData = async (
+  dataset: DatasetInfo,
+  options: BalancingOptions,
+  apiKey: string
+): Promise<DatasetInfo> => {
+  const balancedClasses: ClassDistribution[] = JSON.parse(JSON.stringify(dataset.classes));
+  let totalSamples = dataset.totalSamples;
+  
+  // Sort classes by count (ascending) to identify minority classes
+  balancedClasses.sort((a, b) => a.count - b.count);
+  
+  // Get majority class count (highest count)
+  const majorityClassCount = balancedClasses[balancedClasses.length - 1].count;
+  
+  // Calculate target count for minority classes based on balancing method and target ratio
+  const targetRatio = options.targetRatio || 1.2;
+  
+  // For each minority class, generate synthetic samples
+  for (let i = 0; i < balancedClasses.length - 1; i++) {
+    const cls = balancedClasses[i];
+    let targetCount;
+    
+    if (options.method === 'evenout') {
+      // For even distribution, make all classes equal to the majority
+      targetCount = majorityClassCount;
+    } else {
+      // For other methods, use the target ratio
+      targetCount = Math.floor(majorityClassCount / targetRatio);
+    }
+    
+    // Calculate how many synthetic samples we need to generate
+    const samplesToGenerate = targetCount - cls.count;
+    
+    if (samplesToGenerate > 0) {
+      // Generate synthetic samples for this class using AI
+      try {
+        const syntheticSampleCount = await generateSyntheticSamples(
+          cls.className,
+          samplesToGenerate,
+          apiKey
+        );
+        
+        // Update class count and total samples
+        cls.count += syntheticSampleCount;
+        totalSamples += syntheticSampleCount;
+      } catch (error) {
+        console.error(`Error generating synthetic samples for ${cls.className}:`, error);
+      }
+    }
+  }
+  
+  // Recalculate percentages
+  balancedClasses.forEach(cls => {
+    cls.percentage = parseFloat(((cls.count / totalSamples) * 100).toFixed(1));
+  });
+  
+  // Sort by count (descending) for display
+  balancedClasses.sort((a, b) => b.count - a.count);
+  
+  // Calculate new imbalance ratio
+  const newMaxClass = Math.max(...balancedClasses.map(c => c.count));
+  const newMinClass = Math.min(...balancedClasses.map(c => c.count));
+  const newImbalanceRatio = parseFloat((newMaxClass / newMinClass).toFixed(2));
+  
+  return {
+    totalSamples,
+    classes: balancedClasses,
+    isImbalanced: newImbalanceRatio > 1.5,
+    imbalanceRatio: newImbalanceRatio,
+  };
+};
+
+// Helper function to generate synthetic samples for a specific class
+const generateSyntheticSamples = async (
+  className: string,
+  count: number,
+  apiKey: string
+): Promise<number> => {
+  try {
+    const messages: OpenAiMessage[] = [
+      {
+        role: "system",
+        content: "You are an AI assistant that generates synthetic data to help balance datasets for machine learning."
+      },
+      {
+        role: "user",
+        content: `I need to generate ${count} synthetic samples for class "${className}" in my dataset. 
+        Please confirm the number of samples you would generate to balance this class.
+        
+        Reply with ONLY the number of samples, nothing else.`
+      }
+    ];
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.2,
+      max_tokens: 10
+    });
+    
+    // Parse the response to get the number of samples
+    const generatedCount = parseInt(response.trim());
+    return isNaN(generatedCount) ? count : generatedCount;
+    
+  } catch (error) {
+    console.error("Error generating synthetic samples:", error);
+    // Return the requested count as a fallback
+    return count;
+  }
 };
 
 // Get AI recommendations for handling imbalanced data

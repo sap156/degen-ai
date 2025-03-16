@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { RefreshCw, Download, Save } from 'lucide-react';
 import { BalancingOptions, DatasetInfo } from '@/services/imbalancedDataService';
+import { useApiKey } from '@/contexts/ApiKeyContext';
 
 interface DataBalancingControlsProps {
   originalDataset: DatasetInfo | null;
@@ -23,12 +24,16 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
 }) => {
   const [balancingMethod, setBalancingMethod] = useState<BalancingOptions['method']>('none');
   const [targetRatio, setTargetRatio] = useState<number>(1.2);
+  const { apiKey } = useApiKey();
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   
-  const handleApplyBalancing = () => {
+  const handleApplyBalancing = async () => {
+    setIsProcessing(true);
     onBalanceDataset({
       method: balancingMethod,
       targetRatio
     });
+    setIsProcessing(false);
   };
   
   if (!originalDataset) {
@@ -36,6 +41,7 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   }
   
   const isImbalanced = originalDataset.imbalanceRatio > 1.5;
+  const needsApiKeyForSmote = balancingMethod === 'smote' && !apiKey;
   
   return (
     <Card className="mt-6">
@@ -75,6 +81,10 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
                     <Label htmlFor="none">None (keep original)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="evenout" id="evenout" />
+                    <Label htmlFor="evenout">Even Out (50:50 distribution with synthetic data)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
                     <RadioGroupItem value="undersample" id="undersample" />
                     <Label htmlFor="undersample">Undersampling (reduce majority classes)</Label>
                   </div>
@@ -85,11 +95,14 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="smote" id="smote" />
                     <Label htmlFor="smote">SMOTE (Synthetic Minority Over-sampling)</Label>
+                    {needsApiKeyForSmote && (
+                      <span className="text-xs text-red-500 ml-2">Requires API key</span>
+                    )}
                   </div>
                 </RadioGroup>
               </div>
               
-              {balancingMethod !== "none" && (
+              {balancingMethod !== "none" && balancingMethod !== "evenout" && (
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="targetRatio">Target Imbalance Ratio</Label>
@@ -108,6 +121,26 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
                   </p>
                 </div>
               )}
+              
+              {balancingMethod === "evenout" && (
+                <div className="text-sm bg-blue-50 p-4 rounded-md border border-blue-200">
+                  <p className="font-medium text-blue-800">Even Distribution</p>
+                  <p className="text-blue-700 mt-1">
+                    This will generate synthetic data to create an even distribution across all classes.
+                    {!apiKey && " An OpenAI API key is recommended for better synthetic data."}
+                  </p>
+                </div>
+              )}
+              
+              {balancingMethod === "smote" && (
+                <div className="text-sm bg-purple-50 p-4 rounded-md border border-purple-200">
+                  <p className="font-medium text-purple-800">SMOTE - Synthetic Data</p>
+                  <p className="text-purple-700 mt-1">
+                    SMOTE generates synthetic samples for minority classes based on existing features.
+                    {!apiKey && " An OpenAI API key is required for this method."}
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -118,10 +151,19 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
           <Button 
             className="w-full" 
             onClick={handleApplyBalancing}
-            disabled={balancingMethod === 'none'}
+            disabled={balancingMethod === 'none' || isProcessing || (balancingMethod === 'smote' && !apiKey)}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Apply Balancing
+            {isProcessing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Apply Balancing
+              </>
+            )}
           </Button>
         )}
         
