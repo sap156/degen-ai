@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -10,10 +9,12 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
+import DataBalancingControls from '@/components/DataBalancingControls';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
   DatasetPreferences, 
+  ModelOptions,
   analyzeDataset, 
   getFeatureEngineeringSuggestions 
 } from '@/services/aiDatasetAnalysisService';
@@ -70,6 +71,16 @@ const ImbalancedData = () => {
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [featureEngineering, setFeatureEngineering] = useState<any | null>(null);
+  const [showConfiguration, setShowConfiguration] = useState<boolean>(true);
+  
+  // Model options for synthetic data generation
+  const [modelOptions, setModelOptions] = useState<ModelOptions>({
+    syntheticDataPreferences: {
+      enabled: false,
+      volume: 100,
+      diversity: 'medium'
+    }
+  });
   
   // Get API key from context
   const { apiKey } = useApiKey();
@@ -107,9 +118,12 @@ const ImbalancedData = () => {
     setBalancedDataset(null);
   };
 
-  // Existing function to handle dataset balancing
+  // Handle dataset balancing
   const handleBalanceDataset = (options: BalancingOptions) => {
-    if (!originalDataset) return;
+    if (!originalDataset) {
+      toast.error("No dataset available to balance");
+      return;
+    }
 
     const balanced = balanceDataset(originalDataset, options);
     setBalancedDataset(balanced);
@@ -117,7 +131,7 @@ const ImbalancedData = () => {
     toast.success(`Applied ${options.method} balancing technique`);
   };
 
-  // Existing function to handle data export
+  // Handle data export
   const handleExport = (dataset: DatasetInfo, format: 'json' | 'csv') => {
     const filename = `imbalanced-data-${format === 'json' ? 'json' : 'csv'}`;
     const data = format === 'json' ? exportAsJson(dataset) : exportAsCsv(dataset);
@@ -193,6 +207,7 @@ const ImbalancedData = () => {
   // Function to handle dataset configuration
   const handleDatasetConfigurationComplete = (preferences: DatasetPreferences) => {
     setDatasetPreferences(preferences);
+    setShowConfiguration(false);
     toast.success('Dataset configuration saved');
   };
 
@@ -254,7 +269,7 @@ const ImbalancedData = () => {
     }
   };
 
-  // Existing function to process uploaded data
+  // Function to process uploaded data
   const processUploadedData = (data: any): DatasetInfo => {
     // Handle array format (most common case)
     if (Array.isArray(data)) {
@@ -312,7 +327,7 @@ const ImbalancedData = () => {
     }
   };
 
-  // Process uploaded data into the expected format (existing code)
+  // Detect class field
   const detectClassField = (data: any[]): string | null => {
     if (data.length === 0) return null;
     
@@ -344,7 +359,7 @@ const ImbalancedData = () => {
     return null;
   };
 
-  // Prepare chart data for visualization (existing code)
+  // Prepare chart data for visualization
   const prepareChartData = (dataset: DatasetInfo) => {
     return {
       labels: dataset.classes.map(c => c.className),
@@ -358,6 +373,11 @@ const ImbalancedData = () => {
         },
       ],
     };
+  };
+
+  // Function to handle going back to upload
+  const handleBackToConfiguration = () => {
+    setShowConfiguration(true);
   };
 
   return (
@@ -458,13 +478,43 @@ const ImbalancedData = () => {
             </CardContent>
           </Card>
           
-          {/* AI Configuration Component */}
-          <AIDatasetConfiguration
-            datasetAnalysis={datasetAnalysis}
-            isLoading={isAnalyzing}
-            onConfigurationComplete={handleDatasetConfigurationComplete}
-            apiKeyAvailable={!!apiKey}
-          />
+          {/* Conditional rendering of components based on showConfiguration state */}
+          {showConfiguration ? (
+            <AIDatasetConfiguration
+              datasetAnalysis={datasetAnalysis}
+              isLoading={isAnalyzing}
+              onConfigurationComplete={handleDatasetConfigurationComplete}
+              apiKeyAvailable={!!apiKey}
+            />
+          ) : (
+            <>
+              {/* Data Balancing Controls */}
+              <DataBalancingControls 
+                onBalanceDataset={handleBalanceDataset} 
+                isDisabled={!originalDataset}
+              />
+              
+              {/* AI Analysis Component */}
+              <AIDatasetAnalysis
+                datasetAnalysis={datasetAnalysis}
+                preferences={datasetPreferences}
+                apiKeyAvailable={!!apiKey}
+                onRequestAnalysis={getAIRecommendations}
+                isLoading={isLoadingRecommendations}
+                aiRecommendations={aiRecommendations}
+              />
+              
+              {/* Back to Configuration Button */}
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleBackToConfiguration}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Configuration
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Right column - Visualization and Analysis */}
@@ -683,16 +733,6 @@ const ImbalancedData = () => {
               </Tabs>
             </CardContent>
           </Card>
-          
-          {/* AI Analysis Component */}
-          <AIDatasetAnalysis
-            datasetAnalysis={datasetAnalysis}
-            preferences={datasetPreferences}
-            apiKeyAvailable={!!apiKey}
-            onRequestAnalysis={getAIRecommendations}
-            isLoading={isLoadingRecommendations}
-            aiRecommendations={aiRecommendations}
-          />
         </div>
       </div>
     </motion.div>

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Bot, Brain, BarChart, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Bot, Brain, BarChart, Sparkles, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -180,28 +180,6 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                         </div>
                       );
                     })}
-                  </div>
-                </div>
-                
-                <div className="mt-4 space-y-3">
-                  <h3 className="font-medium flex items-center">
-                    <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
-                    Potential Issues
-                  </h3>
-                  
-                  <div className="space-y-2">
-                    {datasetAnalysis.potentialIssues.length > 0 ? (
-                      <ul className="space-y-1 text-sm">
-                        {datasetAnalysis.potentialIssues.map((issue, index) => (
-                          <li key={index} className="flex items-start">
-                            <span className="text-orange-500 mr-2">•</span>
-                            <span>{issue}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No significant issues detected.</p>
-                    )}
                   </div>
                 </div>
               </TabsContent>
