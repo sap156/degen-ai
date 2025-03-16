@@ -31,7 +31,11 @@ import { Progress } from '@/components/ui/progress';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import FileUploader from '@/components/FileUploader';
+import SchemaEditor from '@/components/SchemaEditor';
+import DataGenerationOptions from '@/components/DataGenerationOptions';
+import DateRangeInfo from '@/components/DateRangeInfo';
 import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema, SchemaFieldType } from '@/utils/fileUploadUtils';
+import { detectTimeSeriesFields, analyzeDataset } from '@/utils/schemaDetectionUtils';
 
 import {
   generateTimeSeriesData,
@@ -53,6 +57,7 @@ type FormValues = TimeSeriesOptions & {
   aiPrompt?: string;
   useAi?: boolean;
   excludeDefaultValue?: boolean;
+  generationMode: 'new' | 'append';
 };
 
 const TimeSeries = () => {
@@ -65,12 +70,12 @@ const TimeSeries = () => {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [aiNoisePrompt, setAiNoisePrompt] = useState<string>('');
   const [isApplyingAiNoise, setIsApplyingAiNoise] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<string>('manual'); // 'manual' or 'ai'
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
   const [showProgress, setShowProgress] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('generate');
   const [detectedSchema, setDetectedSchema] = useState<Record<string, SchemaFieldType> | null>(null);
   const [uploadedTimestampField, setUploadedTimestampField] = useState<string | null>(null);
+  const [datasetAnalysis, setDatasetAnalysis] = useState<any>(null);
   
   const { handleSubmit, control, watch, setValue, register, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -88,29 +93,26 @@ const TimeSeries = () => {
       seed: Math.floor(Math.random() * 10000),
       aiPrompt: '',
       useAi: false,
-      excludeDefaultValue: false
+      excludeDefaultValue: false,
+      generationMode: 'new'
     }
   });
   
   const outputFormat = watch('outputFormat');
-  const additionalFieldCount = watch('additionalFieldCount');
   const additionalFields = watch('additionalFields') || [];
   const useAi = watch('useAi');
   const excludeDefaultValue = watch('excludeDefaultValue');
+  const generationMode = watch('generationMode');
+  const startDate = watch('startDate');
+  const endDate = watch('endDate');
+  const interval = watch('interval');
+  const dataPoints = watch('dataPoints');
   
-  useEffect(() => {
-    const currentCount = additionalFields?.length || 0;
-    
-    if (additionalFieldCount > currentCount) {
-      const newFields = [...(additionalFields || [])];
-      for (let i = currentCount; i < additionalFieldCount; i++) {
-        newFields.push({ name: `field${i + 1}`, type: 'number' });
-      }
-      setValue('additionalFields', newFields);
-    } else if (additionalFieldCount < currentCount) {
-      setValue('additionalFields', additionalFields.slice(0, additionalFieldCount));
-    }
-  }, [additionalFieldCount, setValue, additionalFields]);
+  // Handle additionalFields changes directly instead of through additionalFieldCount
+  const setAdditionalFields = (fields: any[]) => {
+    setValue('additionalFields', fields);
+    setValue('additionalFieldCount', fields.length);
+  };
   
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
@@ -129,7 +131,9 @@ const TimeSeries = () => {
           interval: data.interval,
           dataPoints: data.dataPoints,
           additionalFields: data.additionalFields,
-          existingData: timeSeriesData.length > 0 ? timeSeriesData : undefined,
+          existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
+            ? timeSeriesData 
+            : undefined,
           excludeDefaultValue: data.excludeDefaultValue,
           onProgressUpdate: setProgressPercentage
         });
@@ -141,10 +145,34 @@ const TimeSeries = () => {
         
         generatedData = generateTimeSeriesData({
           ...data,
-          excludeDefaultValue: data.excludeDefaultValue
+          excludeDefaultValue: data.excludeDefaultValue,
+          existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
+            ? timeSeriesData 
+            : undefined
         });
         
         setTimeout(() => setProgressPercentage(100), 700);
+      }
+      
+      // If appending, combine with existing data
+      if (data.generationMode === 'append' && timeSeriesData.length > 0) {
+        // Ensure no duplicate timestamps by creating a Map
+        const uniqueData = new Map<string, TimeSeriesDataPoint>();
+        
+        // Add existing data to map
+        timeSeriesData.forEach(item => {
+          uniqueData.set(item.timestamp, item);
+        });
+        
+        // Add or replace with new data
+        generatedData.forEach(item => {
+          uniqueData.set(item.timestamp, item);
+        });
+        
+        // Convert map back to array and sort by timestamp
+        generatedData = Array.from(uniqueData.values()).sort((a, b) => {
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
       }
       
       setTimeSeriesData(generatedData);
@@ -154,6 +182,11 @@ const TimeSeries = () => {
         : formatAsJSON(generatedData);
         
       setFormattedData(formatted);
+      
+      // Update date range info when new data is generated
+      if (generatedData.length > 0) {
+        updateDatasetAnalysis(generatedData);
+      }
       
       toast.success(`Generated ${generatedData.length} time series data points`);
     } catch (error) {
@@ -165,6 +198,31 @@ const TimeSeries = () => {
       setTimeout(() => setShowProgress(false), 1000);
     }
   };
+  
+  // Update additional fields when schema changes
+  useEffect(() => {
+    if (detectedSchema && Object.keys(detectedSchema).length > 0) {
+      const schemaFields = Object.entries(detectedSchema)
+        .filter(([key, type]) => {
+          // Exclude timestamp and optionally value fields
+          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
+        })
+        .map(([key, type]) => {
+          // Convert schema type to additionalField type
+          let fieldType: 'number' | 'boolean' | 'category' = 'number';
+          
+          if (type === 'boolean') {
+            fieldType = 'boolean';
+          } else if (type === 'string' || type === 'address' || type === 'name') {
+            fieldType = 'category';
+          }
+          
+          return { name: key, type: fieldType };
+        });
+      
+      setAdditionalFields(schemaFields);
+    }
+  }, [detectedSchema, excludeDefaultValue]);
   
   const handleSave = async () => {
     if (!timeSeriesData.length) {
@@ -250,6 +308,35 @@ const TimeSeries = () => {
     }
   };
   
+  const updateDatasetAnalysis = (data: TimeSeriesDataPoint[]) => {
+    if (!data.length) return;
+    
+    try {
+      // Get timestamps from data
+      const timestamps = data.map(item => new Date(item.timestamp));
+      
+      // Find min and max dates
+      const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
+      
+      // Get time interval if available
+      const timeInterval = detectTimeInterval(timestamps);
+      
+      const analysis = {
+        dataPoints: data.length,
+        dateRange: {
+          start: minDate,
+          end: maxDate,
+          interval: timeInterval
+        }
+      };
+      
+      setDatasetAnalysis(analysis);
+    } catch (error) {
+      console.error('Error analyzing dataset:', error);
+    }
+  };
+  
   const handleFileUpload = async (file: File) => {
     try {
       setUploadedFile(file);
@@ -282,6 +369,9 @@ const TimeSeries = () => {
       // Extract schema from the data
       const schema = generateSchema(timeSeriesData);
       setDetectedSchema(schema);
+      
+      // Analyze the dataset and extract properties
+      updateDatasetAnalysis(timeSeriesData);
       
       // Set detected dataset properties to the form
       updateFormWithDetectedSchema(timeSeriesData, schema);
@@ -324,8 +414,8 @@ const TimeSeries = () => {
         setValue('datasetName', fileName);
       }
       
-      // Extract additional fields from the schema
-      const additionalFields = Object.entries(schema)
+      // Convert schema to additionalFields format
+      const schemaFields = Object.entries(schema)
         .filter(([key, type]) => {
           // Exclude timestamp and default value fields
           return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
@@ -344,14 +434,16 @@ const TimeSeries = () => {
         });
       
       // Update the additionalFields in the form
-      setValue('additionalFields', additionalFields);
-      setValue('additionalFieldCount', additionalFields.length);
+      setAdditionalFields(schemaFields);
       
       // Exclude default value if specified
       setValue('excludeDefaultValue', schema['value'] ? false : true);
       
       // Get data points count
       setValue('dataPoints', data.length);
+      
+      // Default to append mode when data is uploaded
+      setValue('generationMode', 'append');
     } catch (error) {
       console.error('Error updating form with detected schema:', error);
     }
@@ -571,6 +663,23 @@ const TimeSeries = () => {
                         </p>
                       </div>
                     )}
+                    
+                    {/* Display date range info when available */}
+                    {datasetAnalysis && (
+                      <DateRangeInfo 
+                        startDate={datasetAnalysis.dateRange.start}
+                        endDate={datasetAnalysis.dateRange.end}
+                        interval={datasetAnalysis.dateRange.interval}
+                        dataPoints={datasetAnalysis.dataPoints}
+                      />
+                    )}
+                    
+                    {/* Generation mode selector for uploaded data */}
+                    <DataGenerationOptions 
+                      generationMode={generationMode}
+                      onGenerationModeChange={(mode) => setValue('generationMode', mode)}
+                      hasExistingData={timeSeriesData.length > 0}
+                    />
                     
                     <div className="space-y-2">
                       <Label htmlFor="datasetName">Dataset Name</Label>
@@ -816,62 +925,14 @@ const TimeSeries = () => {
                       </Label>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="additionalFieldCount">Additional Fields</Label>
-                      <Input
-                        id="additionalFieldCount"
-                        type="number"
-                        min={0}
-                        max={5}
-                        {...register('additionalFieldCount', { 
-                          valueAsNumber: true,
-                          min: 0,
-                          max: 5
-                        })}
+                    {/* Replace the numeric field count input with the schema editor */}
+                    {detectedSchema && (
+                      <SchemaEditor
+                        schema={detectedSchema}
+                        additionalFields={additionalFields}
+                        setAdditionalFields={setAdditionalFields}
+                        excludeDefaultValue={excludeDefaultValue}
                       />
-                    </div>
-                    
-                    {additionalFields && additionalFields.length > 0 && (
-                      <div className="space-y-3 border p-3 rounded-md">
-                        <h4 className="font-medium">Configure Additional Fields</h4>
-                        
-                        {additionalFields.map((field, index) => (
-                          <div key={index} className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label htmlFor={`field-name-${index}`}>Field Name</Label>
-                              <Input
-                                id={`field-name-${index}`}
-                                value={field.name}
-                                onChange={(e) => {
-                                  const updatedFields = [...additionalFields];
-                                  updatedFields[index] = { ...field, name: e.target.value };
-                                  setValue('additionalFields', updatedFields);
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`field-type-${index}`}>Type</Label>
-                              <Select
-                                value={field.type}
-                                onValueChange={(value: 'number' | 'boolean' | 'category') => {
-                                  const updatedFields = [...additionalFields];
-                                  updatedFields[index] = { ...field, type: value };
-                                  setValue('additionalFields', updatedFields);
-                                }}
-                              >
-                                <SelectTrigger id={`field-type-${index}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="number">Number</SelectItem>
-                                  <SelectItem value="boolean">Boolean</SelectItem>
-                                  <SelectItem value="category">Category</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     )}
                     
                     <div className="space-y-2">
@@ -1036,17 +1097,17 @@ const TimeSeries = () => {
           </Card>
         </div>
         
-        <div className="w-full md:w-2/3">
+        <div className="w-full md:w-2/3 space-y-4">
           {timeSeriesData.length > 0 ? (
             <TimeSeriesChart 
               data={timeSeriesData} 
               title="Time Series Data Preview" 
               additionalFields={additionalFieldNames}
               defaultValue={excludeDefaultValue ? undefined : 'value'}
-              className="h-full"
+              className="h-[500px]"
             />
           ) : (
-            <Card className="h-full">
+            <Card className="h-[500px]">
               <CardContent className="flex flex-col items-center justify-center h-full p-6">
                 <div className="text-center space-y-3">
                   <BarChart className="h-12 w-12 text-muted-foreground mx-auto" />
@@ -1060,7 +1121,7 @@ const TimeSeries = () => {
           )}
           
           {formattedData && (
-            <Card className="mt-4">
+            <Card>
               <CardHeader>
                 <CardTitle>Generated Data</CardTitle>
                 <CardDescription>Preview of the generated time series data</CardDescription>
