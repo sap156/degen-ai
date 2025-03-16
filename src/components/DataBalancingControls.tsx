@@ -17,6 +17,7 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   onBalanceDataset,
   isDisabled
 }) => {
+  // Update this type definition to include 'none' as a valid option
   const [balancingMethod, setBalancingMethod] = React.useState<'undersample' | 'oversample' | 'smote' | 'none'>('none');
   const [targetRatio, setTargetRatio] = React.useState<number>(1.2);
 
