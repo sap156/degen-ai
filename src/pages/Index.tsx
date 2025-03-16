@@ -146,10 +146,7 @@ const Index: React.FC = () => {
       }} transition={{
         duration: 0.5,
         delay: 0.2
-      }}>
-          Augmento provides powerful tools for data engineers to generate, augment, and analyze
-          data with state-of-the-art AI capabilities.
-        </motion.p>
+      }}>DeGen.AI provides powerful tools for data engineers to generate, augment, and analyze data with state-of-the-art AI capabilities.</motion.p>
         
         <motion.div className="flex flex-wrap gap-4 justify-center mt-6" initial={{
         opacity: 0,
