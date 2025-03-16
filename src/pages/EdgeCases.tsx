@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bug, Upload, BarChart3, GitBranch, BrainCircuit, AlertTriangle, FileDown, Settings, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -272,6 +271,10 @@ const EdgeCases = () => {
                         </Label>
                       </div>
                     </RadioGroup>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <p className="mb-1"><strong>AI-based Generation:</strong> Uses machine learning to create synthetic edge cases by analyzing patterns in your data.</p>
+                      <p><strong>Domain-specific Rules:</strong> Applies pre-defined business rules and constraints specific to your data domain.</p>
+                    </div>
                   </div>
                   
                   <div className="space-y-2 pt-2">
@@ -456,12 +459,6 @@ const EdgeCases = () => {
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button variant="ghost" size="sm" className="w-full" onClick={() => window.open('https://docs.lovable.dev', '_blank')}>
-                <FileText className="mr-2 h-4 w-4" />
-                View Documentation
-              </Button>
-            </CardFooter>
           </Card>
           
           {detectedEdgeCases.length > 0 && (

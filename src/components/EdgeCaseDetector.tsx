@@ -1,11 +1,20 @@
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Download, BarChart } from 'lucide-react';
+import { AlertTriangle, Download, BarChart, Loader } from 'lucide-react';
 import { formatData, downloadData } from '@/utils/fileUploadUtils';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface EdgeCaseDetectorProps {
   loading: boolean;
@@ -18,29 +27,27 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
   detectedEdgeCases,
   targetColumn
 }) => {
+  const [exporting, setExporting] = useState(false);
+  const [visualizationsOpen, setVisualizationsOpen] = useState(false);
+
   const handleExport = () => {
     if (detectedEdgeCases.length > 0) {
-      const formattedData = formatData(detectedEdgeCases, 'json');
-      downloadData(formattedData, 'detected_edge_cases', 'json');
+      setExporting(true);
+      setTimeout(() => {
+        const formattedData = formatData(detectedEdgeCases, 'json');
+        downloadData(formattedData, 'detected_edge_cases', 'json');
+        setExporting(false);
+        toast.success('Edge cases exported successfully');
+      }, 800);
     }
   };
 
-  // Get a sample of columns for display, excluding long text fields
-  const getSampleColumns = () => {
-    if (detectedEdgeCases.length === 0) return [];
-    
-    const allColumns = Object.keys(detectedEdgeCases[0]);
-    // Filter out the target column, score, confidence, and reason as they're displayed separately
-    return allColumns.filter(col => 
-      col !== targetColumn && 
-      col !== 'score' && 
-      col !== 'confidence' && 
-      col !== 'reason' &&
-      typeof detectedEdgeCases[0][col] !== 'object'
-    ).slice(0, 3); // Limit to 3 additional columns for readability
+  // Get colors for scores
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'bg-red-100 text-red-800';
+    if (score >= 50) return 'bg-amber-100 text-amber-800';
+    return 'bg-blue-100 text-blue-800';
   };
-  
-  const sampleColumns = getSampleColumns();
 
   if (loading) {
     return (
@@ -51,7 +58,7 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
             Detecting Edge Cases...
           </CardTitle>
           <CardDescription>
-            Analyzing your dataset to identify potential edge cases
+            Analyzing dataset for anomalies and edge cases
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -78,15 +85,87 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
         <CardContent>
           <div className="flex flex-col items-center justify-center p-6 text-center">
             <AlertTriangle className="h-12 w-12 text-muted-foreground mb-3" />
-            <h3 className="text-lg font-medium">No Edge Cases Detected</h3>
+            <h3 className="text-lg font-medium">No Edge Cases</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-md">
-              Click the "Detect Edge Cases" button to begin analysis
+              Click the "Detect Edge Cases" button to identify anomalies in your dataset
             </p>
           </div>
         </CardContent>
       </Card>
     );
   }
+
+  // Visualizations component for the dialog
+  const Visualizations = () => (
+    <div className="space-y-8">
+      {/* Score Distribution Chart */}
+      <div>
+        <h3 className="text-sm font-medium mb-4">Edge Case Score Distribution</h3>
+        <div className="h-48 border rounded-md p-4">
+          <div className="flex h-full items-end space-x-2">
+            {detectedEdgeCases.map((item, index) => {
+              const height = `${Math.max(15, Number(item.score))}%`;
+              return (
+                <div key={index} className="relative flex flex-col items-center flex-1">
+                  <div 
+                    className={`w-full rounded-t-sm ${getScoreColor(Number(item.score))}`} 
+                    style={{ height }}
+                  ></div>
+                  <span className="text-xs mt-1">{item[targetColumn]?.toString().substring(0, 6)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Confidence vs Score Scatter Plot */}
+      <div>
+        <h3 className="text-sm font-medium mb-4">Confidence vs Score</h3>
+        <div className="h-64 border rounded-md p-4 relative">
+          <div className="absolute inset-0 p-4">
+            {/* Y-axis (confidence) */}
+            <div className="absolute left-0 top-0 h-full w-px bg-gray-300"></div>
+            <div className="absolute left-0 bottom-0 transform -translate-y-1/2 -translate-x-3">
+              <span className="text-xs">0</span>
+            </div>
+            <div className="absolute left-0 top-0 transform translate-y-1/2 -translate-x-3">
+              <span className="text-xs">1</span>
+            </div>
+            <span className="absolute left-0 top-1/2 transform -translate-x-6 -translate-y-1/2 -rotate-90 text-xs font-medium">
+              Confidence
+            </span>
+            
+            {/* X-axis (score) */}
+            <div className="absolute left-0 bottom-0 w-full h-px bg-gray-300"></div>
+            <div className="absolute left-0 bottom-0 transform -translate-y-3">
+              <span className="text-xs">0</span>
+            </div>
+            <div className="absolute right-0 bottom-0 transform -translate-y-3">
+              <span className="text-xs">100</span>
+            </div>
+            <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-5 text-xs font-medium">
+              Edge Case Score
+            </span>
+            
+            {/* Plot points */}
+            {detectedEdgeCases.map((item, index) => {
+              const x = `${Math.min(95, Math.max(5, Number(item.score)))}%`;
+              const y = `${100 - Math.min(95, Math.max(5, Number(item.confidence) * 100))}%`;
+              return (
+                <div
+                  key={index}
+                  className="absolute w-3 h-3 rounded-full bg-blue-500 transform -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: x, top: y }}
+                  title={`${item[targetColumn]}: Score ${item.score}, Confidence ${item.confidence}`}
+                ></div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <Card>
@@ -100,8 +179,17 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
             {detectedEdgeCases.length} potential edge cases found in your dataset
           </CardDescription>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
           Export
         </Button>
       </CardHeader>
@@ -110,66 +198,58 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[80px]">Score</TableHead>
+                <TableHead>Score</TableHead>
                 <TableHead>Target ({targetColumn})</TableHead>
-                {sampleColumns.map(col => (
-                  <TableHead key={col}>{col}</TableHead>
-                ))}
                 <TableHead>Confidence</TableHead>
                 <TableHead>Reason</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {detectedEdgeCases.map((item, index) => {
-                // Calculate a color for the score (red for high scores, green for low)
-                const score = parseFloat(item.score);
-                const scoreColor = score > 75 ? 'bg-red-100 text-red-800' : 
-                                   score > 50 ? 'bg-amber-100 text-amber-800' : 
-                                   'bg-green-100 text-green-800';
-                
-                return (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <Badge 
-                        variant="outline" 
-                        className={`font-medium ${scoreColor}`}
-                      >
-                        {item.score}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {item[targetColumn]}
-                    </TableCell>
-                    {sampleColumns.map(col => (
-                      <TableCell key={col}>
-                        {typeof item[col] === 'object' 
-                          ? JSON.stringify(item[col]).substring(0, 20) + '...'
-                          : String(item[col]).substring(0, 20)}
-                      </TableCell>
-                    ))}
-                    <TableCell>{item.confidence}</TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate" title={item.reason}>
-                        {item.reason}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {detectedEdgeCases.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <Badge 
+                      variant="outline" 
+                      className={`font-medium ${getScoreColor(Number(item.score))}`}
+                    >
+                      {item.score}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">{item[targetColumn]}</TableCell>
+                  <TableCell>{item.confidence}</TableCell>
+                  <TableCell>
+                    <div className="max-w-xs truncate" title={item.reason}>
+                      {item.reason}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
-        
-        <div className="mt-4 flex justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {detectedEdgeCases.length} edge cases
-          </div>
-          <Button size="sm" variant="ghost">
-            <BarChart className="mr-2 h-4 w-4" />
-            View Visualizations
-          </Button>
-        </div>
       </CardContent>
+      <CardFooter className="flex justify-between">
+        <div className="text-sm text-muted-foreground">
+          Showing {detectedEdgeCases.length} edge cases
+        </div>
+        <Dialog open={visualizationsOpen} onOpenChange={setVisualizationsOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <BarChart className="mr-2 h-4 w-4" />
+              View Visualizations
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edge Case Visualizations</DialogTitle>
+              <DialogDescription>
+                Visual analysis of detected edge cases
+              </DialogDescription>
+            </DialogHeader>
+            <Visualizations />
+          </DialogContent>
+        </Dialog>
+      </CardFooter>
     </Card>
   );
 };

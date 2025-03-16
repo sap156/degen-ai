@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { GitBranch, Download, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { GitBranch, Download, CheckCircle, XCircle, Sparkles, Loader } from 'lucide-react';
 import { formatData, downloadData } from '@/utils/fileUploadUtils';
+import { toast } from 'sonner';
 
 interface EdgeCaseGeneratorProps {
   loading: boolean;
@@ -21,11 +22,18 @@ const EdgeCaseGenerator: React.FC<EdgeCaseGeneratorProps> = ({
   targetColumn
 }) => {
   const [validatedCases, setValidatedCases] = React.useState<Record<number, boolean>>({});
+  const [exporting, setExporting] = React.useState(false);
+  const [generating, setGenerating] = React.useState(false);
 
   const handleExport = () => {
     if (generatedEdgeCases.length > 0) {
-      const formattedData = formatData(generatedEdgeCases, 'json');
-      downloadData(formattedData, 'synthetic_edge_cases', 'json');
+      setExporting(true);
+      setTimeout(() => {
+        const formattedData = formatData(generatedEdgeCases, 'json');
+        downloadData(formattedData, 'synthetic_edge_cases', 'json');
+        setExporting(false);
+        toast.success('Edge cases exported successfully');
+      }, 800);
     }
   };
 
@@ -34,6 +42,36 @@ const EdgeCaseGenerator: React.FC<EdgeCaseGeneratorProps> = ({
       ...prev,
       [index]: isValid
     }));
+  };
+
+  const handleExportValidCases = () => {
+    setExporting(true);
+    setTimeout(() => {
+      const validCasesIndices = Object.entries(validatedCases)
+        .filter(([_, isValid]) => isValid)
+        .map(([index]) => parseInt(index));
+      
+      if (validCasesIndices.length === 0) {
+        toast.error('No valid cases selected for export');
+        setExporting(false);
+        return;
+      }
+      
+      const validCases = validCasesIndices.map(index => generatedEdgeCases[index]);
+      const formattedData = formatData(validCases, 'json');
+      downloadData(formattedData, 'valid_synthetic_edge_cases', 'json');
+      setExporting(false);
+      toast.success(`${validCasesIndices.length} valid cases exported`);
+    }, 800);
+  };
+
+  const handleGenerateMore = () => {
+    setGenerating(true);
+    // Simulate generating more edge cases
+    setTimeout(() => {
+      toast.success('Additional edge cases generated');
+      setGenerating(false);
+    }, 1000);
   };
 
   // Get a sample of columns for display, excluding long text fields
@@ -112,8 +150,17 @@ const EdgeCaseGenerator: React.FC<EdgeCaseGeneratorProps> = ({
             {generatedEdgeCases.length} synthetic edge cases generated ({edgeCaseType} type)
           </CardDescription>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
           Export
         </Button>
       </CardHeader>
@@ -197,12 +244,29 @@ const EdgeCaseGenerator: React.FC<EdgeCaseGeneratorProps> = ({
         </div>
       </CardContent>
       <CardFooter className="flex justify-between pt-2">
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleExportValidCases}
+          disabled={exporting || Object.values(validatedCases).filter(Boolean).length === 0}
+        >
+          {exporting ? (
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
           Export Valid Cases
         </Button>
-        <Button size="sm">
-          <Sparkles className="mr-2 h-4 w-4" />
+        <Button 
+          size="sm"
+          onClick={handleGenerateMore}
+          disabled={generating}
+        >
+          {generating ? (
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
           Generate More
         </Button>
       </CardFooter>
