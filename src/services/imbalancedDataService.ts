@@ -1,3 +1,4 @@
+
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
 // Interfaces for imbalanced data operations
@@ -157,6 +158,10 @@ export const balanceDataset = (
         });
       }
       break;
+    
+    default:
+      // Return original dataset if method is not recognized
+      return dataset;
   }
   
   // Recalculate percentages

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight } from 'lucide-react';
+import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -76,6 +76,14 @@ const AIDatasetConfiguration = ({
 
   const handleClassesSelection = () => {
     setStep('context');
+  };
+
+  const handleBackToTarget = () => {
+    setStep('target');
+  };
+
+  const handleBackToClasses = () => {
+    setStep('classes');
   };
 
   const handleComplete = (data: DatasetPreferences) => {
@@ -239,14 +247,22 @@ const AIDatasetConfiguration = ({
               </div>
             </div>
             
-            <Button 
-              onClick={handleClassesSelection} 
-              className="mt-4"
-              disabled={watch('classLabels').length < 2}
-            >
-              Continue
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+            <div className="flex justify-between mt-4">
+              <Button
+                variant="outline"
+                onClick={handleBackToTarget}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button 
+                onClick={handleClassesSelection} 
+                disabled={watch('classLabels').length < 2}
+              >
+                Continue
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
         
@@ -271,8 +287,16 @@ const AIDatasetConfiguration = ({
               />
             </div>
             
-            <div className="pt-4">
-              <Button type="submit" className="w-full">
+            <div className="flex justify-between pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleBackToClasses}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button type="submit">
                 <Bot className="mr-2 h-4 w-4" />
                 Complete Configuration
               </Button>

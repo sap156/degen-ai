@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
+import DataBalancingControls from '@/components/DataBalancingControls';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
@@ -107,7 +107,7 @@ const ImbalancedData = () => {
     setBalancedDataset(null);
   };
 
-  // Existing function to handle dataset balancing
+  // Function to handle dataset balancing
   const handleBalanceDataset = (options: BalancingOptions) => {
     if (!originalDataset) return;
 
@@ -117,13 +117,24 @@ const ImbalancedData = () => {
     toast.success(`Applied ${options.method} balancing technique`);
   };
 
-  // Existing function to handle data export
+  // Function to handle data export
   const handleExport = (dataset: DatasetInfo, format: 'json' | 'csv') => {
     const filename = `imbalanced-data-${format === 'json' ? 'json' : 'csv'}`;
     const data = format === 'json' ? exportAsJson(dataset) : exportAsCsv(dataset);
     
     downloadData(data, filename, format);
     toast.success(`Exported data as ${format.toUpperCase()}`);
+  };
+
+  // Function to handle download of balanced dataset
+  const handleDownloadBalanced = (format: 'json' | 'csv') => {
+    if (!balancedDataset) return;
+    
+    const filename = `balanced-dataset.${format}`;
+    const data = format === 'json' ? exportAsJson(balancedDataset) : exportAsCsv(balancedDataset);
+    
+    downloadData(data, filename, format);
+    toast.success(`Downloaded balanced dataset as ${format.toUpperCase()}`);
   };
 
   // Enhanced file upload handler
@@ -254,7 +265,7 @@ const ImbalancedData = () => {
     }
   };
 
-  // Existing function to process uploaded data
+  // Process uploaded data into the expected format (existing code)
   const processUploadedData = (data: any): DatasetInfo => {
     // Handle array format (most common case)
     if (Array.isArray(data)) {
@@ -312,7 +323,7 @@ const ImbalancedData = () => {
     }
   };
 
-  // Process uploaded data into the expected format (existing code)
+  // Detect class field in uploaded data (existing code)
   const detectClassField = (data: any[]): string | null => {
     if (data.length === 0) return null;
     
@@ -465,6 +476,16 @@ const ImbalancedData = () => {
             onConfigurationComplete={handleDatasetConfigurationComplete}
             apiKeyAvailable={!!apiKey}
           />
+          
+          {/* Data Balancing Controls */}
+          {originalDataset && (
+            <DataBalancingControls
+              originalDataset={originalDataset}
+              onBalanceDataset={handleBalanceDataset}
+              onDownloadBalanced={handleDownloadBalanced}
+              hasBalancedData={!!balancedDataset}
+            />
+          )}
         </div>
 
         {/* Right column - Visualization and Analysis */}
