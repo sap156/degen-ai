@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import {
   getFeatureEngineeringSuggestions 
 } from '@/services/aiDatasetAnalysisService';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
-import { ClassDistribution, DatasetInfo, BalancingOptions, generateSampleDataset, balanceDataset, exportAsJson, exportAsCsv, downloadData } from '@/services/imbalancedDataService';
+import { ClassDistribution, DatasetInfo, BalancingOptions, balanceDataset, exportAsJson, exportAsCsv, downloadData } from '@/services/imbalancedDataService';
 
 import {
   Chart as ChartJS,
@@ -30,7 +31,6 @@ import {
   BarElement,
 } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
-import { useForm } from 'react-hook-form';
 
 ChartJS.register(
   ArcElement,
@@ -41,14 +41,6 @@ ChartJS.register(
   BarElement
 );
 
-type FormValues = {
-  classes: number;
-  imbalanceRatio: number;
-  totalSamples: number;
-  balancingMethod: 'undersample' | 'oversample' | 'smote' | 'none';
-  targetRatio: number;
-};
-
 const ImbalancedData = () => {
   const [originalDataset, setOriginalDataset] = useState<DatasetInfo | null>(null);
   const [balancedDataset, setBalancedDataset] = useState<DatasetInfo | null>(null);
@@ -57,6 +49,7 @@ const ImbalancedData = () => {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   
   const [parsedData, setParsedData] = useState<any[]>([]);
+  const [balancedParsedData, setBalancedParsedData] = useState<any[]>([]);
   const [datasetAnalysis, setDatasetAnalysis] = useState<DatasetAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [datasetPreferences, setDatasetPreferences] = useState<DatasetPreferences | null>(null);
@@ -66,72 +59,16 @@ const ImbalancedData = () => {
   
   const { apiKey } = useApiKey();
 
-  const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
-    defaultValues: {
-      classes: 4,
-      imbalanceRatio: 5,
-      totalSamples: 1000,
-      balancingMethod: 'none',
-      targetRatio: 1.2,
-    },
-  });
-
-  useEffect(() => {
-    generateDataset();
-  }, []);
-
-  const generateDataset = (customParams?: Partial<FormValues>) => {
-    const params = {
-      classes: customParams?.classes || watch('classes'),
-      imbalanceRatio: customParams?.imbalanceRatio || watch('imbalanceRatio'),
-      totalSamples: customParams?.totalSamples || watch('totalSamples'),
-    };
-
-    const dataset = generateSampleDataset(
-      params.classes,
-      params.imbalanceRatio,
-      params.totalSamples
-    );
-    
-    setOriginalDataset(dataset);
-    setBalancedDataset(null);
-  };
-
-  const handleBalanceDataset = (options: BalancingOptions) => {
-    if (!originalDataset) return;
-
-    const balanced = balanceDataset(originalDataset, options);
-    setBalancedDataset(balanced);
-
-    toast.success(`Applied ${options.method} balancing technique`);
-  };
-
-  const handleExport = (dataset: DatasetInfo, format: 'json' | 'csv') => {
-    const filename = `imbalanced-data-${format === 'json' ? 'json' : 'csv'}`;
-    const data = format === 'json' ? exportAsJson(dataset) : exportAsCsv(dataset);
-    
-    downloadData(data, filename, format);
-    toast.success(`Exported data as ${format.toUpperCase()}`);
-  };
-
-  const handleDownloadBalanced = (format: 'json' | 'csv') => {
-    if (!balancedDataset) return;
-    
-    const filename = `balanced-dataset.${format}`;
-    const data = format === 'json' ? exportAsJson(balancedDataset) : exportAsCsv(balancedDataset);
-    
-    downloadData(data, filename, format);
-    toast.success(`Downloaded balanced dataset as ${format.toUpperCase()}`);
-  };
-
   const handleFileUpload = async (file: File) => {
     try {
       setUploadedFile(file);
       setIsProcessingFile(true);
       setParsedData([]);
+      setBalancedParsedData([]);
       setDatasetAnalysis(null);
       setDatasetPreferences(null);
       setAiRecommendations(null);
+      setBalancedDataset(null);
       
       const content = await readFileContent(file);
       const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -148,7 +85,6 @@ const ImbalancedData = () => {
       
       const processedData = processUploadedData(parsedData);
       setOriginalDataset(processedData);
-      setBalancedDataset(null);
       
       setParsedData(Array.isArray(parsedData) ? parsedData : []);
       
@@ -242,6 +178,173 @@ const ImbalancedData = () => {
     } finally {
       setIsLoadingRecommendations(false);
     }
+  };
+
+  const handleBalanceDataset = (options: BalancingOptions, data?: any[]) => {
+    if (!originalDataset) return;
+    
+    const dataToUse = data && data.length > 0 ? data : null;
+    
+    try {
+      // Get the balanced dataset info (classes, counts, etc.)
+      const balanced = balanceDataset(originalDataset, options);
+      setBalancedDataset(balanced);
+      
+      // If we have the actual parsed data, balance the records
+      if (dataToUse && datasetPreferences?.targetColumn) {
+        const balancedData = balanceActualRecords(
+          dataToUse, 
+          datasetPreferences.targetColumn,
+          originalDataset, 
+          balanced, 
+          options
+        );
+        setBalancedParsedData(balancedData);
+      }
+      
+      toast.success(`Applied ${options.method} balancing technique`);
+    } catch (error) {
+      console.error('Error in balancing dataset:', error);
+      toast.error('Failed to balance dataset');
+    }
+  };
+
+  const balanceActualRecords = (
+    data: any[],
+    targetColumn: string,
+    originalDataset: DatasetInfo,
+    balancedDataset: DatasetInfo,
+    options: BalancingOptions
+  ): any[] => {
+    // Group records by class
+    const recordsByClass: Record<string, any[]> = {};
+    
+    data.forEach(record => {
+      const className = String(record[targetColumn]);
+      if (!recordsByClass[className]) {
+        recordsByClass[className] = [];
+      }
+      recordsByClass[className].push({...record});
+    });
+    
+    // Get the original and target counts for each class
+    const originalClassCounts = originalDataset.classes.reduce((acc, cls) => {
+      acc[cls.className] = cls.count;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const targetClassCounts = balancedDataset.classes.reduce((acc, cls) => {
+      acc[cls.className] = cls.count;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Create the balanced dataset
+    const balancedRecords: any[] = [];
+    
+    Object.entries(recordsByClass).forEach(([className, records]) => {
+      const originalCount = records.length;
+      const targetCount = targetClassCounts[className] || originalCount;
+      
+      if (targetCount <= originalCount) {
+        // Undersample: randomly select records
+        const shuffled = [...records].sort(() => 0.5 - Math.random());
+        balancedRecords.push(...shuffled.slice(0, targetCount));
+      } else {
+        // Oversample or SMOTE: duplicate or generate synthetic records
+        balancedRecords.push(...records); // Add all original records
+        
+        const recordsToAdd = targetCount - originalCount;
+        
+        if (options.method === 'smote' && records.length >= 2) {
+          // Simple SMOTE-like approach: generate records by combining features
+          for (let i = 0; i < recordsToAdd; i++) {
+            const randomIdx1 = Math.floor(Math.random() * records.length);
+            let randomIdx2 = Math.floor(Math.random() * records.length);
+            // Ensure we pick two different records
+            while (randomIdx2 === randomIdx1 && records.length > 1) {
+              randomIdx2 = Math.floor(Math.random() * records.length);
+            }
+            
+            const record1 = records[randomIdx1];
+            const record2 = records[randomIdx2] || records[randomIdx1];
+            
+            // Create synthetic record by combining features
+            const syntheticRecord: any = {...record1};
+            
+            // For each numeric field, interpolate between the two records
+            Object.keys(record1).forEach(key => {
+              if (key !== targetColumn && typeof record1[key] === 'number' && typeof record2[key] === 'number') {
+                // Random interpolation
+                const alpha = Math.random();
+                syntheticRecord[key] = record1[key] * alpha + record2[key] * (1 - alpha);
+                
+                // Round to same precision as original
+                if (Number.isInteger(record1[key]) && Number.isInteger(record2[key])) {
+                  syntheticRecord[key] = Math.round(syntheticRecord[key]);
+                }
+              }
+            });
+            
+            balancedRecords.push(syntheticRecord);
+          }
+        } else {
+          // Simple oversampling: duplicate records randomly
+          for (let i = 0; i < recordsToAdd; i++) {
+            const randomIdx = Math.floor(Math.random() * records.length);
+            balancedRecords.push({...records[randomIdx]});
+          }
+        }
+      }
+    });
+    
+    return balancedRecords;
+  };
+
+  const handleDownloadBalanced = (format: 'json' | 'csv') => {
+    if (!balancedDataset) return;
+    
+    try {
+      const filename = `balanced-dataset.${format}`;
+      
+      if (balancedParsedData.length > 0) {
+        // Download the actual balanced records
+        const data = format === 'json' 
+          ? JSON.stringify(balancedParsedData, null, 2)
+          : convertRecordsToCSV(balancedParsedData);
+        
+        downloadData(data, filename, format);
+      } else {
+        // Fall back to the summary data if we don't have records
+        const data = format === 'json' ? exportAsJson(balancedDataset) : exportAsCsv(balancedDataset);
+        downloadData(data, filename, format);
+      }
+      
+      toast.success(`Downloaded balanced dataset as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Error downloading balanced dataset:', error);
+      toast.error('Failed to download balanced dataset');
+    }
+  };
+
+  // Helper function to convert records to CSV format
+  const convertRecordsToCSV = (records: any[]): string => {
+    if (!records.length) return '';
+    
+    const headers = Object.keys(records[0]);
+    const headerRow = headers.join(',');
+    
+    const rows = records.map(record => {
+      return headers.map(header => {
+        const value = record[header];
+        // Handle values that might contain commas
+        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(',');
+    });
+    
+    return [headerRow, ...rows].join('\n');
   };
 
   const processUploadedData = (data: any): DatasetInfo => {
@@ -377,9 +480,19 @@ const ImbalancedData = () => {
             apiKeyAvailable={!!apiKey}
           />
           
+          <AIDatasetAnalysis
+            datasetAnalysis={datasetAnalysis}
+            preferences={datasetPreferences}
+            apiKeyAvailable={!!apiKey}
+            onRequestAnalysis={getAIRecommendations}
+            isLoading={isLoadingRecommendations}
+            aiRecommendations={aiRecommendations}
+          />
+          
           {originalDataset && (
             <DataBalancingControls
               originalDataset={originalDataset}
+              parsedData={parsedData}
               onBalanceDataset={handleBalanceDataset}
               onDownloadBalanced={handleDownloadBalanced}
               hasBalancedData={!!balancedDataset}
@@ -487,17 +600,6 @@ const ImbalancedData = () => {
                           ))}
                         </div>
                       </div>
-                      
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleExport(originalDataset, 'csv')}>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Export CSV
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleExport(originalDataset, 'json')}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Export JSON
-                        </Button>
-                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12">
@@ -581,12 +683,29 @@ const ImbalancedData = () => {
                         </div>
                       </div>
                       
+                      {balancedParsedData.length > 0 && (
+                        <div>
+                          <h3 className="font-medium text-lg mb-2">Balanced Records Preview</h3>
+                          <div className="text-sm text-muted-foreground mb-2">
+                            Generated {balancedParsedData.length} records using {balancedDataset.classes.length} classes
+                          </div>
+                          <div className="border rounded-md p-3 max-h-60 overflow-auto">
+                            <pre className="text-xs">{JSON.stringify(balancedParsedData.slice(0, 5), null, 2)}</pre>
+                            {balancedParsedData.length > 5 && (
+                              <div className="text-xs text-center mt-2 text-muted-foreground">
+                                ... and {balancedParsedData.length - 5} more records
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-end space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleExport(balancedDataset, 'csv')}>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadBalanced('csv')}>
                           <FileText className="h-4 w-4 mr-2" />
                           Export CSV
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleExport(balancedDataset, 'json')}>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadBalanced('json')}>
                           <Download className="h-4 w-4 mr-2" />
                           Export JSON
                         </Button>
@@ -601,15 +720,6 @@ const ImbalancedData = () => {
               </Tabs>
             </CardContent>
           </Card>
-          
-          <AIDatasetAnalysis
-            datasetAnalysis={datasetAnalysis}
-            preferences={datasetPreferences}
-            apiKeyAvailable={!!apiKey}
-            onRequestAnalysis={getAIRecommendations}
-            isLoading={isLoadingRecommendations}
-            aiRecommendations={aiRecommendations}
-          />
         </div>
       </div>
     </motion.div>

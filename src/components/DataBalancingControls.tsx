@@ -7,28 +7,43 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { RefreshCw, Download, Save } from 'lucide-react';
 import { BalancingOptions, DatasetInfo } from '@/services/imbalancedDataService';
+import { toast } from 'sonner';
 
 interface DataBalancingControlsProps {
   originalDataset: DatasetInfo | null;
-  onBalanceDataset: (options: BalancingOptions) => void;
+  parsedData: any[];
+  onBalanceDataset: (options: BalancingOptions, data?: any[]) => void;
   onDownloadBalanced: (format: 'json' | 'csv') => void;
   hasBalancedData: boolean;
 }
 
 const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   originalDataset,
+  parsedData,
   onBalanceDataset,
   onDownloadBalanced,
   hasBalancedData
 }) => {
   const [balancingMethod, setBalancingMethod] = useState<BalancingOptions['method']>('none');
   const [targetRatio, setTargetRatio] = useState<number>(1.2);
+  const [isBalancing, setIsBalancing] = useState(false);
   
   const handleApplyBalancing = () => {
-    onBalanceDataset({
-      method: balancingMethod,
-      targetRatio
-    });
+    if (!originalDataset) return;
+    
+    setIsBalancing(true);
+    
+    try {
+      onBalanceDataset({
+        method: balancingMethod,
+        targetRatio
+      }, parsedData);
+    } catch (error) {
+      console.error('Error balancing dataset:', error);
+      toast.error('Failed to balance dataset. Please try again.');
+    } finally {
+      setIsBalancing(false);
+    }
   };
   
   if (!originalDataset) {
@@ -118,10 +133,19 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
           <Button 
             className="w-full" 
             onClick={handleApplyBalancing}
-            disabled={balancingMethod === 'none'}
+            disabled={balancingMethod === 'none' || isBalancing}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Apply Balancing
+            {isBalancing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Balancing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Apply Balancing
+              </>
+            )}
           </Button>
         )}
         
