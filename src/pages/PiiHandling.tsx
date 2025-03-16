@@ -1,55 +1,31 @@
-
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Clipboard, 
   Download, 
   RefreshCw, 
-  Upload, 
-  Sparkles, 
-  Sliders, 
-  Key, 
-  ShieldCheck, 
-  FileText, 
-  Lock,
-  ClipboardCheck,
-  ScissorsLineDashed
+  Sparkles,
+  Key
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ModelSelector from '@/components/ModelSelector';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import { 
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
+import MaskingFieldControl from '@/components/MaskingFieldControl';
+import AddFieldForm from '@/components/AddFieldForm';
+import { AddFieldParams, PerFieldMaskingOptions } from '@/types/piiHandling';
 
 import { 
   PiiData, 
   PiiDataMasked, 
-  MaskingOptions,
-  AiMaskingOptions,
   MaskingTechnique,
   EncryptionMethod,
   generateSamplePiiData, 
@@ -57,7 +33,8 @@ import {
   exportAsJson, 
   exportAsCsv, 
   downloadData,
-  analyzePiiData
+  analyzePiiData,
+  FieldMaskingConfig
 } from '@/services/piiHandlingService';
 
 const PiiHandling = () => {
@@ -69,31 +46,26 @@ const PiiHandling = () => {
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadDataSchema, setUploadDataSchema] = useState<Record<string, string>>({});
-  const [newFieldName, setNewFieldName] = useState('');
-  const [newFieldType, setNewFieldType] = useState<string>('text');
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isMaskingData, setIsMaskingData] = useState(false);
   const [isAnalyzingData, setIsAnalyzingData] = useState(false);
   const [piiAnalysisResult, setPiiAnalysisResult] = useState<{identifiedPii: string[], suggestions: string} | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('manual');
   
-  const [aiMaskingOptions, setAiMaskingOptions] = useState<AiMaskingOptions>({
-    useAi: false,
-    maskingPrompt: '',
-    preserveFormat: true,
-    randomizationLevel: 'medium',
-    maskingTechnique: 'character-masking',
-    encryptionMethod: 'aes-256'
+  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({
+    firstName: { enabled: true, technique: 'character-masking' },
+    lastName: { enabled: true, technique: 'character-masking' },
+    email: { enabled: true, technique: 'character-masking' },
+    phoneNumber: { enabled: true, technique: 'character-masking' },
+    ssn: { enabled: true, technique: 'character-masking' },
+    address: { enabled: true, technique: 'character-masking' },
+    creditCard: { enabled: true, technique: 'character-masking' },
+    dob: { enabled: true, technique: 'character-masking' }
   });
   
-  const [maskingOptions, setMaskingOptions] = useState<MaskingOptions>({
-    firstName: true,
-    lastName: true,
-    email: true,
-    phoneNumber: true,
-    ssn: true,
-    address: true,
-    creditCard: true,
-    dob: true
+  const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
+    preserveFormat: true,
+    randomizationLevel: 'medium' as 'low' | 'medium' | 'high'
   });
 
   useEffect(() => {
@@ -109,20 +81,56 @@ const PiiHandling = () => {
   const applyMasking = async (data: PiiData[] = originalData) => {
     try {
       setIsMaskingData(true);
-      const masked = await maskPiiData(data, maskingOptions, aiMaskingOptions, apiKey);
+      const masked = await maskPiiData(data, perFieldMaskingOptions, globalMaskingPreferences, apiKey);
       setMaskedData(masked);
     } catch (error) {
       console.error("Error applying masking:", error);
-      toast.error("Failed to apply masking to data");
+      toast({
+        title: "Masking failed",
+        description: "Failed to apply masking to data",
+        variant: "destructive"
+      });
     } finally {
       setIsMaskingData(false);
     }
   };
 
-  const toggleMaskingOption = (field: keyof MaskingOptions) => {
-    setMaskingOptions(prev => {
-      const newOptions = { ...prev, [field]: !prev[field] };
-      return newOptions;
+  const toggleFieldMasking = (field: string) => {
+    setPerFieldMaskingOptions(prev => {
+      const config = prev[field] || { enabled: false, technique: 'character-masking' };
+      return {
+        ...prev,
+        [field]: {
+          ...config,
+          enabled: !config.enabled
+        }
+      };
+    });
+  };
+  
+  const updateFieldMaskingTechnique = (field: string, technique: MaskingTechnique) => {
+    setPerFieldMaskingOptions(prev => {
+      const config = prev[field] || { enabled: true, technique: 'character-masking' };
+      return {
+        ...prev,
+        [field]: {
+          ...config,
+          technique
+        }
+      };
+    });
+  };
+  
+  const updateFieldCustomPrompt = (field: string, customPrompt: string) => {
+    setPerFieldMaskingOptions(prev => {
+      const config = prev[field] || { enabled: true, technique: 'character-masking' };
+      return {
+        ...prev,
+        [field]: {
+          ...config,
+          customPrompt
+        }
+      };
     });
   };
 
@@ -182,11 +190,12 @@ const PiiHandling = () => {
       
       const processedData = processUploadedPiiData(parsedData);
       setOriginalData(processedData);
-      applyMasking(processedData);
       
       if (parsedData && parsedData.length > 0) {
         const schema: Record<string, string> = {};
         const firstItem = parsedData[0];
+        
+        const newPerFieldOptions: PerFieldMaskingOptions = {};
         
         Object.keys(firstItem).forEach(key => {
           const value = firstItem[key];
@@ -203,15 +212,24 @@ const PiiHandling = () => {
           }
           
           schema[key] = type;
+          
+          if (key !== 'id') {
+            newPerFieldOptions[key] = {
+              enabled: perFieldMaskingOptions[key]?.enabled ?? true,
+              technique: perFieldMaskingOptions[key]?.technique ?? 'character-masking',
+              customPrompt: perFieldMaskingOptions[key]?.customPrompt
+            };
+          }
         });
         
         setUploadDataSchema(schema);
+        setPerFieldMaskingOptions(newPerFieldOptions);
       }
       
-      // Auto-switch to manual tab after successful upload
       setActiveTab('manual');
 
-      // Automatically analyze PII data if API key is available
+      await applyMasking(processedData);
+
       if (apiKey) {
         analyzeDataWithAi(processedData);
       }
@@ -362,8 +380,8 @@ const PiiHandling = () => {
     });
   };
 
-  const handleAddField = () => {
-    if (!newFieldName.trim()) {
+  const handleAddField = ({ name, type }: AddFieldParams) => {
+    if (!name.trim()) {
       toast({
         title: "Error",
         description: "Field name cannot be empty",
@@ -374,11 +392,21 @@ const PiiHandling = () => {
     
     setUploadDataSchema(prev => ({
       ...prev,
-      [newFieldName]: newFieldType
+      [name]: type
     }));
     
-    setNewFieldName('');
-    setNewFieldType('text');
+    setPerFieldMaskingOptions(prev => ({
+      ...prev,
+      [name]: {
+        enabled: true,
+        technique: 'character-masking'
+      }
+    }));
+    
+    toast({
+      title: "Field added",
+      description: `Added new field: ${name}`,
+    });
   };
 
   const handleRemoveField = (fieldName: string) => {
@@ -387,52 +415,38 @@ const PiiHandling = () => {
       delete newSchema[fieldName];
       return newSchema;
     });
+    
+    setPerFieldMaskingOptions(prev => {
+      const newOptions = { ...prev };
+      delete newOptions[fieldName];
+      return newOptions;
+    });
+    
+    toast({
+      title: "Field removed",
+      description: `Removed field: ${fieldName}`,
+    });
   };
 
   const handleGenerateFromSchema = () => {
     generateData();
-    toast.success('Generated data based on schema');
-  };
-
-  const handleAIMaskingToggle = (value: boolean) => {
-    setAiMaskingOptions(prev => ({
-      ...prev,
-      useAi: value
-    }));
-  };
-
-  const handleAIMaskingPromptChange = (value: string) => {
-    setAiMaskingOptions(prev => ({
-      ...prev,
-      maskingPrompt: value
-    }));
+    toast({
+      title: "Data generated",
+      description: "Generated data based on schema",
+    });
   };
 
   const handleRandomizationLevelChange = (value: 'low' | 'medium' | 'high') => {
-    setAiMaskingOptions(prev => ({
+    setGlobalMaskingPreferences(prev => ({
       ...prev,
       randomizationLevel: value
     }));
   };
 
   const handlePreserveFormatToggle = (value: boolean) => {
-    setAiMaskingOptions(prev => ({
+    setGlobalMaskingPreferences(prev => ({
       ...prev,
       preserveFormat: value
-    }));
-  };
-
-  const handleMaskingTechniqueChange = (value: MaskingTechnique) => {
-    setAiMaskingOptions(prev => ({
-      ...prev,
-      maskingTechnique: value
-    }));
-  };
-
-  const handleEncryptionMethodChange = (value: EncryptionMethod) => {
-    setAiMaskingOptions(prev => ({
-      ...prev,
-      encryptionMethod: value
     }));
   };
 
@@ -440,590 +454,336 @@ const PiiHandling = () => {
     if (originalData.length > 0) {
       applyMasking();
     }
-  }, [maskingOptions, aiMaskingOptions.useAi, aiMaskingOptions.maskingTechnique, aiMaskingOptions.encryptionMethod]);
-
-  // Animation variants
-  const [activeTab, setActiveTab] = useState<string>('manual');
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        staggerChildren: 0.1 
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { duration: 0.3 }
-    }
-  };
-
-  const renderMaskingTechniqueIcon = (technique: MaskingTechnique) => {
-    switch (technique) {
-      case 'character-masking':
-        return <ClipboardCheck className="mr-2 h-4 w-4" />;
-      case 'truncation':
-        return <ScissorsLineDashed className="mr-2 h-4 w-4" />;
-      case 'tokenization':
-        return <FileText className="mr-2 h-4 w-4" />;
-      case 'encryption':
-        return <Lock className="mr-2 h-4 w-4" />;
-      case 'redaction':
-        return <ShieldCheck className="mr-2 h-4 w-4" />;
-      case 'synthetic-replacement':
-        return <Sparkles className="mr-2 h-4 w-4" />;
-      default:
-        return <Sparkles className="mr-2 h-4 w-4" />;
-    }
-  };
+  }, [perFieldMaskingOptions, globalMaskingPreferences]);
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="container mx-auto py-6 space-y-8"
-    >
-      <motion.div variants={itemVariants}>
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
         <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
         <p className="text-muted-foreground mt-2">
-          Securely handle Personally Identifiable Information (PII) with masking and anonymization techniques.
+          Securely handle Personally Identifiable Information (PII) with AI-powered masking and anonymization techniques.
         </p>
-      </motion.div>
+      </div>
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Controls</CardTitle>
-            <CardDescription>Configure masking options and export settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Tabs defaultValue="generate" value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="manual">Generate</TabsTrigger>
-                <TabsTrigger value="upload">Upload</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="manual" className="space-y-4">
-                <div>
-                  <Label htmlFor="record-count">Number of Records</Label>
-                  <div className="flex items-center gap-2 mt-2">
-                    <input
-                      id="record-count"
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={dataCount}
-                      onChange={(e) => setDataCount(parseInt(e.target.value) || 10)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <Button onClick={generateData} size="sm">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Generate
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Schema Editor section */}
-                {Object.keys(uploadDataSchema).length > 0 && (
-                  <div className="space-y-3 border p-3 rounded-md mt-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-medium">Schema Configuration</h3>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => analyzeDataWithAi(originalData)}
-                        disabled={!apiKey || isAnalyzingData}
-                        className="text-xs h-7"
-                      >
-                        {isAnalyzingData ? (
-                          <>
-                            <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
-                            Analyzing...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            Analyze PII
-                          </>
-                        )}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Controls</CardTitle>
+              <CardDescription>Configure masking options and export settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Tabs defaultValue="manual" value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="manual">Generate</TabsTrigger>
+                  <TabsTrigger value="upload">Upload</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="manual" className="space-y-4">
+                  <div>
+                    <Label htmlFor="record-count">Number of Records</Label>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input
+                        id="record-count"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={dataCount}
+                        onChange={(e) => setDataCount(parseInt(e.target.value) || 10)}
+                      />
+                      <Button onClick={generateData} size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Generate
                       </Button>
                     </div>
-                    
-                    {piiAnalysisResult && (
-                      <div className="bg-blue-50 dark:bg-blue-950 p-2 rounded-md text-xs space-y-1 mb-2">
-                        <p className="font-medium text-blue-700 dark:text-blue-300">PII Analysis Results:</p>
-                        <p>Identified: {piiAnalysisResult.identifiedPii.join(', ')}</p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {piiAnalysisResult.suggestions.substring(0, 120)}
-                          {piiAnalysisResult.suggestions.length > 120 ? '...' : ''}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {Object.entries(uploadDataSchema).map(([field, type]) => (
-                        <div key={field} className="flex justify-between items-center text-sm">
-                          <div>
-                            <span className="font-medium">{field}:</span> {type}
-                          </div>
-                          <div className="flex items-center">
-                            <Checkbox 
-                              id={`edit-mask-${field}`}
-                              checked={maskingOptions[field as keyof MaskingOptions] ?? false}
-                              onCheckedChange={() => field in maskingOptions && toggleMaskingOption(field as keyof MaskingOptions)}
-                              className="mr-2 h-3 w-3"
-                            />
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleRemoveField(field)}
-                              className="h-6 w-6 p-0"
-                            >
-                              &times;
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex items-end space-x-2 pt-2 border-t">
-                      <div className="flex-1">
-                        <Label htmlFor="new-field" className="text-xs">New Field</Label>
-                        <Input 
-                          id="new-field" 
-                          value={newFieldName} 
-                          onChange={(e) => setNewFieldName(e.target.value)}
-                          placeholder="Field name"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="w-24">
-                        <Label htmlFor="field-type" className="text-xs">Type</Label>
-                        <select 
-                          id="field-type"
-                          value={newFieldType}
-                          onChange={(e) => setNewFieldType(e.target.value)}
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                        >
-                          <option value="text">Text</option>
-                          <option value="email">Email</option>
-                          <option value="phoneNumber">Phone</option>
-                          <option value="ssn">SSN</option>
-                          <option value="creditCard">Credit Card</option>
-                          <option value="address">Address</option>
-                          <option value="dob">DOB</option>
-                        </select>
-                      </div>
-                      <Button size="sm" onClick={handleAddField} className="h-8">Add</Button>
-                    </div>
-                    
-                    <Button 
-                      onClick={handleGenerateFromSchema} 
-                      className="w-full mt-2"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Generate from Schema
-                    </Button>
                   </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="upload" className="space-y-4">
-                <div>
-                  <Label className="mb-2 block">Upload JSON or CSV file</Label>
-                  <FileUploader
-                    onFileUpload={handleFileUpload}
-                    accept=".json,.csv"
-                    maxSize={5}
-                    title="Upload Schema"
-                    description="Upload a JSON or CSV file with sample data"
-                  />
+                </TabsContent>
+                
+                <TabsContent value="upload" className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Upload JSON or CSV file</Label>
+                    <FileUploader
+                      onFileUpload={handleFileUpload}
+                      accept=".json,.csv"
+                      maxSize={5}
+                      title="Upload Schema"
+                      description="Upload a JSON or CSV file with sample data"
+                    />
+                  </div>
+                  
+                  {isProcessingFile && (
+                    <div className="flex items-center justify-center space-x-2 py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      <span className="text-sm">Processing file...</span>
+                    </div>
+                  )}
+                  
+                  {uploadedFile && !isProcessingFile && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <p className="font-medium">File: {uploadedFile.name}</p>
+                      <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle>Schema Management</CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => analyzeDataWithAi(originalData)}
+                  disabled={!apiKey || isAnalyzingData || originalData.length === 0}
+                >
+                  {isAnalyzingData ? (
+                    <>
+                      <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Analyze PII
+                    </>
+                  )}
+                </Button>
+              </div>
+              <CardDescription>
+                Add, edit, or remove fields from your data schema
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {piiAnalysisResult && (
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md text-sm space-y-2 mb-2">
+                  <p className="font-medium text-blue-700 dark:text-blue-300">PII Analysis Results:</p>
+                  <p className="text-sm">Identified: {piiAnalysisResult.identifiedPii.join(', ')}</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    {piiAnalysisResult.suggestions.substring(0, 120)}
+                    {piiAnalysisResult.suggestions.length > 120 ? '...' : ''}
+                  </p>
                 </div>
+              )}
+              
+              <AddFieldForm onAddField={handleAddField} />
+              
+              {Object.keys(uploadDataSchema).length > 0 && (
+                <Button 
+                  onClick={handleGenerateFromSchema} 
+                  className="w-full mt-2"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Generate from Schema
+                </Button>
+              )}
+              
+              <div className="border rounded-md p-3 space-y-3 mt-4">
+                <h3 className="text-sm font-medium">Global Masking Preferences</h3>
                 
-                {isProcessingFile && (
-                  <div className="flex items-center justify-center space-x-2 py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                    <span className="text-sm">Processing file...</span>
-                  </div>
-                )}
-                
-                {uploadedFile && !isProcessingFile && (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    <p className="font-medium">File: {uploadedFile.name}</p>
-                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium">Mask Fields</h3>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="flex items-center gap-1">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span className="text-xs">AI Options</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                      <DialogTitle>AI-Powered Masking</DialogTitle>
-                      <DialogDescription>
-                        Enhance privacy with AI-generated realistic but fictional data replacements
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4 py-2">
-                      <ApiKeyRequirement>
-                        <div className="flex items-center space-x-2">
-                          <Switch 
-                            id="use-ai" 
-                            checked={aiMaskingOptions.useAi}
-                            onCheckedChange={handleAIMaskingToggle}
-                            disabled={!apiKey}
-                          />
-                          <Label htmlFor="use-ai" className="font-medium">
-                            Enable AI-powered masking
-                          </Label>
-                        </div>
-                        
-                        {aiMaskingOptions.useAi && (
-                          <>
-                            <div className="space-y-4 mt-4">
-                              <div className="mb-2">
-                                <Label htmlFor="ai-model" className="text-sm">AI Model</Label>
-                                <ModelSelector />
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor="masking-technique" className="text-sm">Masking Technique</Label>
-                                <Select 
-                                  defaultValue={aiMaskingOptions.maskingTechnique} 
-                                  onValueChange={(v) => handleMaskingTechniqueChange(v as MaskingTechnique)}
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select technique" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="character-masking">
-                                      <div className="flex items-center">
-                                        <ClipboardCheck className="mr-2 h-4 w-4" />
-                                        <span>Character Masking</span>
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="truncation">
-                                      <div className="flex items-center">
-                                        <ScissorsLineDashed className="mr-2 h-4 w-4" />
-                                        <span>Truncation</span>
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="tokenization">
-                                      <div className="flex items-center">
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        <span>Tokenization</span>
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="encryption">
-                                      <div className="flex items-center">
-                                        <Lock className="mr-2 h-4 w-4" />
-                                        <span>Encryption</span>
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="redaction">
-                                      <div className="flex items-center">
-                                        <ShieldCheck className="mr-2 h-4 w-4" />
-                                        <span>Data Redaction</span>
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="synthetic-replacement">
-                                      <div className="flex items-center">
-                                        <Sparkles className="mr-2 h-4 w-4" />
-                                        <span>Synthetic Replacement</span>
-                                      </div>
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              {aiMaskingOptions.maskingTechnique === 'encryption' && (
-                                <div className="space-y-2 mt-1">
-                                  <Label htmlFor="encryption-method" className="text-sm">Encryption Method</Label>
-                                  <Select 
-                                    defaultValue={aiMaskingOptions.encryptionMethod} 
-                                    onValueChange={(v) => handleEncryptionMethodChange(v as EncryptionMethod)}
-                                  >
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Select method" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="aes-256">
-                                        <div className="flex items-center">
-                                          <Key className="mr-2 h-4 w-4" />
-                                          <span>AES-256</span>
-                                        </div>
-                                      </SelectItem>
-                                      <SelectItem value="rsa">
-                                        <div className="flex items-center">
-                                          <Key className="mr-2 h-4 w-4" />
-                                          <span>RSA</span>
-                                        </div>
-                                      </SelectItem>
-                                      <SelectItem value="sha-256">
-                                        <div className="flex items-center">
-                                          <Key className="mr-2 h-4 w-4" />
-                                          <span>SHA-256</span>
-                                        </div>
-                                      </SelectItem>
-                                      <SelectItem value="md5">
-                                        <div className="flex items-center">
-                                          <Key className="mr-2 h-4 w-4" />
-                                          <span>MD5</span>
-                                        </div>
-                                      </SelectItem>
-                                      <SelectItem value="base64">
-                                        <div className="flex items-center">
-                                          <Key className="mr-2 h-4 w-4" />
-                                          <span>Base64</span>
-                                        </div>
-                                      </SelectItem>
-                                      <SelectItem value="ai-recommended">
-                                        <div className="flex items-center">
-                                          <Sparkles className="mr-2 h-4 w-4" />
-                                          <span>AI Recommended</span>
-                                        </div>
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              )}
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor="randomization" className="text-sm">Randomization Level</Label>
-                                <Select 
-                                  defaultValue={aiMaskingOptions.randomizationLevel} 
-                                  onValueChange={(v) => handleRandomizationLevelChange(v as 'low' | 'medium' | 'high')}
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select level" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="low">Low - Subtle changes</SelectItem>
-                                    <SelectItem value="medium">Medium - Balanced</SelectItem>
-                                    <SelectItem value="high">High - Completely different</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2 mt-3">
-                                <Switch 
-                                  id="preserve-format" 
-                                  checked={aiMaskingOptions.preserveFormat}
-                                  onCheckedChange={handlePreserveFormatToggle}
-                                />
-                                <Label htmlFor="preserve-format" className="text-sm">
-                                  Preserve original format and pattern
-                                </Label>
-                              </div>
-                              
-                              <div className="space-y-2 mt-4">
-                                <Label htmlFor="masking-prompt" className="text-sm">Custom Instructions (Optional)</Label>
-                                <Textarea 
-                                  id="masking-prompt"
-                                  placeholder="E.g., 'Keep initials the same' or 'Make all masked names more exotic'"
-                                  className="min-h-[80px]"
-                                  value={aiMaskingOptions.maskingPrompt}
-                                  onChange={(e) => handleAIMaskingPromptChange(e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Provide specific instructions for how the AI should mask your data
-                                </p>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </ApiKeyRequirement>
+                <div className="space-y-4">
+                  <ApiKeyRequirement>
+                    <div>
+                      <Label htmlFor="ai-model" className="text-xs">AI Model</Label>
+                      <ModelSelector />
                     </div>
-                    
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button type="button">Apply</Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                      
+                    <div className="space-y-2 mt-3">
+                      <Label htmlFor="randomization" className="text-xs">Randomization Level</Label>
+                      <Select 
+                        value={globalMaskingPreferences.randomizationLevel} 
+                        onValueChange={(v) => handleRandomizationLevelChange(v as 'low' | 'medium' | 'high')}
+                      >
+                        <SelectTrigger id="randomization" className="h-8 text-sm">
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low - Subtle changes</SelectItem>
+                          <SelectItem value="medium">Medium - Balanced</SelectItem>
+                          <SelectItem value="high">High - Completely different</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                      
+                    <div className="flex items-center justify-between mt-3">
+                      <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
+                      <div className="flex h-8 items-center space-x-2">
+                        <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                            onClick={() => handlePreserveFormatToggle(false)}>
+                          No
+                        </div>
+                        <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                            onClick={() => handlePreserveFormatToggle(true)}>
+                          Yes
+                        </div>
+                      </div>
+                    </div>
+                  </ApiKeyRequirement>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Export Options</CardTitle>
+              <CardDescription>
+                Export or copy your masked data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between">
+                <Label className="text-sm">Format</Label>
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${exportFormat === 'json' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                    onClick={() => setExportFormat('json')}
+                  >
+                    JSON
+                  </div>
+                  <div
+                    className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${exportFormat === 'csv' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                    onClick={() => setExportFormat('csv')}
+                  >
+                    CSV
+                  </div>
+                </div>
               </div>
               
-              <div className="space-y-2">
-                {Object.keys(maskingOptions).map((field) => (
-                  <div key={field} className="flex items-center space-x-2 py-1">
-                    <Checkbox
-                      id={`mask-${field}`}
-                      checked={maskingOptions[field as keyof MaskingOptions]}
-                      onCheckedChange={() => toggleMaskingOption(field as keyof MaskingOptions)}
-                    />
-                    <Label htmlFor={`mask-${field}`} className="text-sm cursor-pointer">
-                      {field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')}
-                    </Label>
+              <div className="flex flex-col space-y-2">
+                <Button 
+                  onClick={() => handleExport(maskedData)} 
+                  className="w-full"
+                  disabled={maskedData.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Masked Data
+                </Button>
+                <Button 
+                  onClick={() => copyToClipboard(maskedData)} 
+                  variant="outline" 
+                  className="w-full"
+                  disabled={maskedData.length === 0}
+                >
+                  <Clipboard className="h-4 w-4 mr-2" />
+                  Copy to Clipboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-3 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Field Masking Configuration</CardTitle>
+                {isMaskingData && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                    Applying AI masking...
                   </div>
+                )}
+              </div>
+              <CardDescription>
+                Configure masking techniques for each field
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
+                  <MaskingFieldControl 
+                    key={field}
+                    field={field}
+                    enabled={config.enabled}
+                    maskingTechnique={config.technique}
+                    customPrompt={config.customPrompt}
+                    onToggle={() => toggleFieldMasking(field)}
+                    onTechniqueChange={(technique) => updateFieldMaskingTechnique(field, technique)}
+                    onCustomPromptChange={(prompt) => updateFieldCustomPrompt(field, prompt)}
+                    onRemoveField={() => handleRemoveField(field)}
+                    canRemove={!['firstName', 'lastName', 'email', 'phoneNumber', 'ssn', 'address', 'creditCard', 'dob'].includes(field)}
+                  />
                 ))}
               </div>
-              
-              <div className="pt-4 space-y-3">
-                <h3 className="text-sm font-medium">Export Settings</h3>
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="export-json"
-                      checked={exportFormat === 'json'}
-                      onChange={() => setExportFormat('json')}
-                      className="h-4 w-4"
-                    />
-                    <Label htmlFor="export-json" className="text-sm cursor-pointer">JSON</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="export-csv"
-                      checked={exportFormat === 'csv'}
-                      onChange={() => setExportFormat('csv')}
-                      className="h-4 w-4"
-                    />
-                    <Label htmlFor="export-csv" className="text-sm cursor-pointer">CSV</Label>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col space-y-2 mt-2">
-                  <Button 
-                    onClick={() => handleExport(maskedData)} 
-                    size="sm" 
-                    className="w-full"
-                    disabled={maskedData.length === 0}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export Masked Data
-                  </Button>
-                  <Button 
-                    onClick={() => copyToClipboard(maskedData)} 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full"
-                    disabled={maskedData.length === 0}
-                  >
-                    <Clipboard className="h-4 w-4 mr-2" />
-                    Copy to Clipboard
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>PII Data Viewer</CardTitle>
-            <CardDescription>
-              View original and masked PII data side by side
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="original">
-              <div className="flex justify-between items-center mb-4">
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>PII Data Viewer</CardTitle>
+              <CardDescription>
+                View original and masked PII data side by side
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="original">
                 <TabsList>
                   <TabsTrigger value="original">Original Data</TabsTrigger>
                   <TabsTrigger value="masked">Masked Data</TabsTrigger>
                 </TabsList>
                 
-                {isMaskingData && (
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
-                    {aiMaskingOptions.useAi ? "AI masking in progress..." : "Masking data..."}
+                <TabsContent value="original">
+                  <div className="border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          {Object.keys(perFieldMaskingOptions).map(field => (
+                            <TableHead key={field}>{field}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {originalData.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.id}</TableCell>
+                            {Object.keys(perFieldMaskingOptions).map(field => (
+                              <TableCell key={field} className="max-w-[200px] truncate">
+                                {item[field]}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                )}
-              </div>
-              
-              <TabsContent value="original">
-                <div className="border rounded-md overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>First Name</TableHead>
-                        <TableHead>Last Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>SSN</TableHead>
-                        <TableHead>Address</TableHead>
-                        <TableHead>Credit Card</TableHead>
-                        <TableHead>DOB</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {originalData.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.id}</TableCell>
-                          <TableCell>{item.firstName}</TableCell>
-                          <TableCell>{item.lastName}</TableCell>
-                          <TableCell>{item.email}</TableCell>
-                          <TableCell>{item.phoneNumber}</TableCell>
-                          <TableCell>{item.ssn}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{item.address}</TableCell>
-                          <TableCell>{item.creditCard}</TableCell>
-                          <TableCell>{item.dob}</TableCell>
+                </TabsContent>
+                
+                <TabsContent value="masked">
+                  <div className="border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          {Object.keys(perFieldMaskingOptions).map(field => (
+                            <TableHead key={field}>{field}</TableHead>
+                          ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="masked">
-                <div className="border rounded-md overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>First Name</TableHead>
-                        <TableHead>Last Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>SSN</TableHead>
-                        <TableHead>Address</TableHead>
-                        <TableHead>Credit Card</TableHead>
-                        <TableHead>DOB</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {maskedData.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.id}</TableCell>
-                          <TableCell>{item.firstName}</TableCell>
-                          <TableCell>{item.lastName}</TableCell>
-                          <TableCell>{item.email}</TableCell>
-                          <TableCell>{item.phoneNumber}</TableCell>
-                          <TableCell>{item.ssn}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{item.address}</TableCell>
-                          <TableCell>{item.creditCard}</TableCell>
-                          <TableCell>{item.dob}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+                      </TableHeader>
+                      <TableBody>
+                        {maskedData.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.id}</TableCell>
+                            {Object.keys(perFieldMaskingOptions).map(field => (
+                              <TableCell key={field} className="max-w-[200px] truncate">
+                                {item[field]}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 };
 

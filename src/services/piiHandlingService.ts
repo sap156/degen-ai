@@ -10,6 +10,7 @@ export interface PiiData {
   address: string;
   creditCard: string;
   dob: string;
+  [key: string]: string; // Allow for additional dynamic fields
 }
 
 export type PiiDataMasked = {
@@ -19,6 +20,17 @@ export type PiiDataMasked = {
 export type MaskingOptions = {
   [K in keyof Omit<PiiData, 'id'>]: boolean;
 };
+
+export interface FieldMaskingConfig {
+  enabled: boolean;
+  technique: MaskingTechnique;
+  customPrompt?: string;
+  encryptionMethod?: EncryptionMethod;
+}
+
+export interface PerFieldMaskingOptions {
+  [fieldName: string]: FieldMaskingConfig;
+}
 
 export interface AiMaskingOptions {
   useAi: boolean;
@@ -93,93 +105,157 @@ const standardMaskingFunctions = {
   }
 };
 
-// Apply masking based on selected options with enhanced AI capabilities
+// Apply masking based on selected options with enhanced AI capabilities and per-field techniques
 export const maskPiiData = async (
   data: PiiData[], 
-  options: MaskingOptions, 
-  aiOptions?: AiMaskingOptions,
+  perFieldMaskingOptions: PerFieldMaskingOptions,
+  globalOptions?: {
+    preserveFormat?: boolean;
+    randomizationLevel?: 'low' | 'medium' | 'high';
+  },
   apiKey?: string | null
 ): Promise<PiiDataMasked[]> => {
-  if (aiOptions?.useAi && apiKey) {
-    try {
-      const fieldsToMask = Object.entries(options)
-        .filter(([_, selected]) => selected)
-        .map(([field]) => field);
-      
-      if (fieldsToMask.length === 0) {
-        return applyStandardMasking(data, options);
+  if (!apiKey) {
+    return applyStandardMasking(data, perFieldMaskingOptions);
+  }
+
+  try {
+    const fieldsToMask = Object.entries(perFieldMaskingOptions)
+      .filter(([_, config]) => config.enabled)
+      .map(([field]) => field);
+    
+    if (fieldsToMask.length === 0) {
+      return data.map(item => ({...item})) as PiiDataMasked[];
+    }
+    
+    const sampleData = data.slice(0, Math.min(5, data.length));
+    
+    // Group fields by technique for batch processing
+    const fieldsByTechnique: Record<MaskingTechnique, {
+      fields: string[],
+      customPrompts: Record<string, string>
+    }> = {
+      'character-masking': { fields: [], customPrompts: {} },
+      'truncation': { fields: [], customPrompts: {} },
+      'tokenization': { fields: [], customPrompts: {} },
+      'encryption': { fields: [], customPrompts: {} },
+      'redaction': { fields: [], customPrompts: {} },
+      'synthetic-replacement': { fields: [], customPrompts: {} }
+    };
+    
+    // Organize fields by technique
+    Object.entries(perFieldMaskingOptions).forEach(([field, config]) => {
+      if (config.enabled) {
+        fieldsByTechnique[config.technique].fields.push(field);
+        if (config.customPrompt) {
+          fieldsByTechnique[config.technique].customPrompts[field] = config.customPrompt;
+        }
       }
+    });
+    
+    // Process each technique group
+    let aiMaskedData: PiiDataMasked[] = [];
+    
+    for (const [technique, { fields, customPrompts }] of Object.entries(fieldsByTechnique)) {
+      if (fields.length === 0) continue;
       
-      const sampleData = data.slice(0, Math.min(5, data.length));
+      const techniquePrompts = Object.entries(customPrompts)
+        .map(([field, prompt]) => `For ${field}: ${prompt}`)
+        .join("\n");
       
-      // Enhance prompts based on selected masking technique
-      let technique = "";
-      switch (aiOptions.maskingTechnique) {
-        case 'character-masking':
-          technique = "Replace characters but maintain recognizability";
-          break;
-        case 'truncation':
-          technique = "Intelligently truncate data while maintaining usability";
-          break;
-        case 'tokenization':
-          technique = "Replace with consistent token identifiers";
-          break;
-        case 'encryption':
-          technique = `Apply ${aiOptions.encryptionMethod || 'appropriate'} encryption simulation`;
-          break;
-        case 'redaction':
-          technique = "Completely redact sensitive parts while keeping structure";
-          break;
-        case 'synthetic-replacement':
-        default:
-          technique = "Generate realistic but fictional replacements";
-      }
-      
-      const aiMaskedData = await generateMaskedDataWithAI(
+      const basePrompt = getTechniquePrompt(technique as MaskingTechnique);
+      const combinedPrompt = basePrompt + (techniquePrompts ? `\n\nCustom field instructions:\n${techniquePrompts}` : '');
+
+      const techniqueResult = await generateMaskedDataWithAI(
         apiKey,
         sampleData,
-        fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
+        fields as Array<keyof Omit<PiiData, 'id'>>,
         {
-          preserveFormat: aiOptions.preserveFormat || true,
-          randomizationLevel: aiOptions.randomizationLevel || 'medium',
-          customPrompt: `${technique}. ${aiOptions.maskingPrompt || ''}`
+          preserveFormat: globalOptions?.preserveFormat || true,
+          randomizationLevel: globalOptions?.randomizationLevel || 'medium',
+          customPrompt: combinedPrompt
         }
       );
       
-      return data.map((item, index) => {
-        const maskedItem: Partial<PiiDataMasked> = { id: item.id };
-        
-        (Object.keys(options) as Array<keyof MaskingOptions>).forEach(key => {
-          if (options[key]) {
-            if (index < aiMaskedData.length) {
-              maskedItem[key] = aiMaskedData[index][key];
-            } else {
-              maskedItem[key] = standardMaskingFunctions[key](item[key]);
-            }
-          } else {
-            maskedItem[key] = item[key];
-          }
-        });
-        
-        return maskedItem as PiiDataMasked;
-      });
-    } catch (error) {
-      console.error("Error applying AI masking:", error);
-      return applyStandardMasking(data, options);
+      // Merge results
+      if (aiMaskedData.length === 0) {
+        aiMaskedData = techniqueResult;
+      } else {
+        // Merge the results from this technique with existing results
+        aiMaskedData = aiMaskedData.map((item, idx) => ({
+          ...item,
+          ...techniqueResult[idx]
+        }));
+      }
     }
-  } else {
-    return applyStandardMasking(data, options);
+    
+    // Combine AI-masked sample data with standard masking for the rest
+    return data.map((item, index) => {
+      const maskedItem: Partial<PiiDataMasked> = { id: item.id };
+      
+      Object.keys(item).forEach(key => {
+        if (key === 'id') {
+          maskedItem[key] = item[key];
+          return;
+        }
+        
+        const config = perFieldMaskingOptions[key];
+        
+        if (config?.enabled) {
+          if (index < aiMaskedData.length) {
+            maskedItem[key] = aiMaskedData[index][key] || standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
+          } else {
+            // For items beyond the AI-processed sample, use standard masking
+            maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
+          }
+        } else {
+          maskedItem[key] = item[key];
+        }
+      });
+      
+      return maskedItem as PiiDataMasked;
+    });
+  } catch (error) {
+    console.error("Error applying AI masking:", error);
+    return applyStandardMasking(data, perFieldMaskingOptions);
+  }
+};
+
+// Get appropriate prompt based on masking technique
+const getTechniquePrompt = (technique: MaskingTechnique): string => {
+  switch (technique) {
+    case 'character-masking':
+      return "Replace characters while maintaining recognizability. Leave some characters visible (like first/last letter) to maintain usability.";
+    case 'truncation':
+      return "Intelligently truncate data while maintaining usability. Keep essential parts and replace others with appropriate masking characters.";
+    case 'tokenization':
+      return "Replace sensitive data with consistent token identifiers that maintain the same format but aren't reversible to the original data.";
+    case 'encryption':
+      return "Apply encryption-style transformations that completely change the appearance of the data while maintaining consistency.";
+    case 'redaction':
+      return "Completely redact sensitive parts while keeping the structure. Replace with standard placeholders (e.g., [REDACTED]).";
+    case 'synthetic-replacement':
+      return "Generate realistic but fictional replacements that maintain the data's utility for analysis but contain no actual PII.";
+    default:
+      return "Mask the data while maintaining its usability and format.";
   }
 };
 
 // Helper function to apply standard masking
-const applyStandardMasking = (data: PiiData[], options: MaskingOptions): PiiDataMasked[] => {
+const applyStandardMasking = (data: PiiData[], perFieldMaskingOptions: PerFieldMaskingOptions): PiiDataMasked[] => {
   return data.map(item => {
     const maskedItem: Partial<PiiDataMasked> = { id: item.id };
     
-    (Object.keys(options) as Array<keyof MaskingOptions>).forEach(key => {
-      if (options[key]) {
-        maskedItem[key] = standardMaskingFunctions[key](item[key]);
+    Object.keys(item).forEach(key => {
+      if (key === 'id') {
+        maskedItem[key] = item[key];
+        return;
+      }
+      
+      const config = perFieldMaskingOptions[key];
+      
+      if (config?.enabled) {
+        maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
       } else {
         maskedItem[key] = item[key];
       }
