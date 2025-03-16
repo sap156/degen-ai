@@ -1,0 +1,523 @@
+
+import React, { useState } from 'react';
+import { Bug, Upload, BarChart3, GitBranch, BrainCircuit, AlertTriangle, FileDown, Settings, FileText } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import FileUploader from '@/components/FileUploader';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import { toast } from 'sonner';
+import { detectDataType, readFileContent, parseCSV, parseJSON } from '@/utils/fileUploadUtils';
+import EdgeCaseDetector from '@/components/EdgeCaseDetector';
+import EdgeCaseGenerator from '@/components/EdgeCaseGenerator';
+import ModelTester from '@/components/ModelTester';
+import EdgeCaseReport from '@/components/EdgeCaseReport';
+
+const EdgeCases = () => {
+  const { apiKey } = useApiKey();
+  const [activeTab, setActiveTab] = useState('detect');
+  const [dataset, setDataset] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [datasetInfo, setDatasetInfo] = useState<{
+    numRows: number;
+    numColumns: number;
+    columnNames: string[];
+    dataType: string;
+  } | null>(null);
+  const [targetColumn, setTargetColumn] = useState<string>('');
+  const [edgeCaseType, setEdgeCaseType] = useState<string>('anomalies');
+  const [generationMethod, setGenerationMethod] = useState<string>('ai');
+  const [detectedEdgeCases, setDetectedEdgeCases] = useState<any[]>([]);
+  const [generatedEdgeCases, setGeneratedEdgeCases] = useState<any[]>([]);
+  const [modelTestResults, setModelTestResults] = useState<any | null>(null);
+  const [complexityLevel, setComplexityLevel] = useState<number>(50);
+  const [analysisStarted, setAnalysisStarted] = useState(false);
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setLoading(true);
+      const content = await readFileContent(file);
+      
+      let parsedData;
+      if (file.name.endsWith('.csv')) {
+        parsedData = parseCSV(content);
+      } else if (file.name.endsWith('.json')) {
+        parsedData = parseJSON(content);
+      } else {
+        toast.error('Unsupported file format. Please upload CSV or JSON.');
+        setLoading(false);
+        return;
+      }
+      
+      if (!Array.isArray(parsedData)) {
+        parsedData = [parsedData];
+      }
+      
+      setDataset(parsedData);
+      const dataTypeInfo = detectDataType(parsedData);
+      
+      setDatasetInfo({
+        numRows: parsedData.length,
+        numColumns: parsedData[0] ? Object.keys(parsedData[0]).length : 0,
+        columnNames: parsedData[0] ? Object.keys(parsedData[0]) : [],
+        dataType: dataTypeInfo.dataType
+      });
+      
+      toast.success('Dataset loaded successfully!');
+      
+      // Set default target column to the first column
+      if (parsedData[0] && Object.keys(parsedData[0]).length > 0) {
+        setTargetColumn(Object.keys(parsedData[0])[0]);
+      }
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast.error('Error processing file. Please check the format.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDetectEdgeCases = () => {
+    setAnalysisStarted(true);
+    setLoading(true);
+    
+    // This would typically call an API or a service
+    // For now, we'll simulate the detection process
+    setTimeout(() => {
+      const sampleEdgeCases = dataset
+        .slice(0, Math.min(5, dataset.length))
+        .map(item => ({
+          ...item,
+          confidence: Math.random().toFixed(2),
+          reason: 'Statistical outlier detected',
+          score: (Math.random() * 100).toFixed(1)
+        }));
+      
+      setDetectedEdgeCases(sampleEdgeCases);
+      setLoading(false);
+      toast.success('Edge cases detected successfully!');
+    }, 2000);
+  };
+
+  const handleGenerateEdgeCases = () => {
+    setAnalysisStarted(true);
+    setLoading(true);
+    
+    // Simulate the generation process
+    setTimeout(() => {
+      const generatedSamples = dataset
+        .slice(0, Math.min(3, dataset.length))
+        .map(item => ({
+          ...item,
+          synthetic: true,
+          confidence: (Math.random() * 0.5 + 0.1).toFixed(2),
+          modification: 'Feature values adjusted to create edge conditions',
+          complexity: complexityLevel
+        }));
+      
+      setGeneratedEdgeCases(generatedSamples);
+      setLoading(false);
+      toast.success('Synthetic edge cases generated!');
+    }, 2500);
+  };
+
+  const handleTestModel = () => {
+    setAnalysisStarted(true);
+    setLoading(true);
+    
+    // Simulate the testing process
+    setTimeout(() => {
+      setModelTestResults({
+        overallAccuracy: (Math.random() * 30 + 65).toFixed(1),
+        edgeCaseAccuracy: (Math.random() * 40 + 40).toFixed(1),
+        falsePositives: Math.floor(Math.random() * 10),
+        falseNegatives: Math.floor(Math.random() * 8),
+        robustnessScore: (Math.random() * 10).toFixed(1),
+        impactedFeatures: ['feature1', 'feature2', 'feature3'],
+        recommendations: [
+          'Add more diverse samples for minority classes',
+          'Increase regularization to prevent overfitting on common cases',
+          'Implement specific data augmentation techniques for rare cases'
+        ]
+      });
+      setLoading(false);
+      toast.success('Model testing completed!');
+    }, 3000);
+  };
+
+  return (
+    <div className="container px-4 py-6 mx-auto max-w-7xl">
+      <div className="flex items-center gap-2 mb-6">
+        <Bug className="w-6 h-6 text-primary" />
+        <h1 className="text-3xl font-bold tracking-tight">Edge Cases</h1>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="space-y-6 md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5 text-muted-foreground" />
+                Dataset Upload
+              </CardTitle>
+              <CardDescription>
+                Upload your dataset to identify and generate edge cases
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {datasetInfo ? (
+                <div className="p-4 border rounded-md bg-muted/50">
+                  <h3 className="text-sm font-medium">Dataset Information</h3>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-sm md:grid-cols-4">
+                    <div>
+                      <p className="text-muted-foreground">Rows</p>
+                      <p className="font-medium">{datasetInfo.numRows}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Columns</p>
+                      <p className="font-medium">{datasetInfo.numColumns}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Type</p>
+                      <p className="font-medium capitalize">{datasetInfo.dataType}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Status</p>
+                      <Badge variant="outline" className="mt-1 bg-green-50">Ready</Badge>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <FileUploader
+                  onFileUpload={handleFileUpload}
+                  accept=".csv, .json"
+                  title="Upload Dataset"
+                  description="Drag and drop your CSV or JSON file"
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {datasetInfo && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Edge Case Analysis</CardTitle>
+                <CardDescription>
+                  Detect, generate and test edge cases in your dataset
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="target-column">Target Variable</Label>
+                      <Select value={targetColumn} onValueChange={setTargetColumn}>
+                        <SelectTrigger id="target-column">
+                          <SelectValue placeholder="Select column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {datasetInfo?.columnNames.map((column) => (
+                            <SelectItem key={column} value={column}>
+                              {column}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="edge-case-type">Edge Case Type</Label>
+                      <Select value={edgeCaseType} onValueChange={setEdgeCaseType}>
+                        <SelectTrigger id="edge-case-type">
+                          <SelectValue placeholder="Select edge case type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="anomalies">Anomalies</SelectItem>
+                          <SelectItem value="rare-classes">Rare Classes</SelectItem>
+                          <SelectItem value="adversarial">Adversarial Examples</SelectItem>
+                          <SelectItem value="boundary">Decision Boundary Cases</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <Label className="mb-2 block">Generation Method</Label>
+                    <RadioGroup 
+                      value={generationMethod} 
+                      onValueChange={setGenerationMethod}
+                      className="grid grid-cols-1 gap-2 md:grid-cols-2"
+                    >
+                      <div className="flex items-center space-x-2 border rounded-md px-3 py-2">
+                        <RadioGroupItem value="ai" id="ai" />
+                        <Label htmlFor="ai" className="flex items-center gap-1.5">
+                          <BrainCircuit className="h-4 w-4 text-primary" />
+                          AI-based Generation
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2 border rounded-md px-3 py-2">
+                        <RadioGroupItem value="rules" id="rules" />
+                        <Label htmlFor="rules" className="flex items-center gap-1.5">
+                          <Settings className="h-4 w-4 text-primary" />
+                          Domain-specific Rules
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between">
+                      <Label>Complexity Level</Label>
+                      <span className="text-sm text-muted-foreground">{complexityLevel}%</span>
+                    </div>
+                    <Slider 
+                      value={[complexityLevel]} 
+                      onValueChange={(value) => setComplexityLevel(value[0])}
+                      min={10}
+                      max={90}
+                      step={10}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground pt-1">
+                      <span>Subtle</span>
+                      <span>Extreme</span>
+                    </div>
+                  </div>
+                  
+                  {!apiKey && (
+                    <Alert className="mt-4">
+                      <AlertDescription>
+                        <ApiKeyRequirement />
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </CardContent>
+              <CardFooter className="flex gap-2 border-t px-6 py-4">
+                <Button
+                  onClick={handleDetectEdgeCases}
+                  disabled={!apiKey || !targetColumn || loading}
+                  className="flex-1"
+                >
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Detect Edge Cases
+                </Button>
+                <Button
+                  onClick={handleGenerateEdgeCases}
+                  disabled={!apiKey || !targetColumn || loading}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <GitBranch className="mr-2 h-4 w-4" />
+                  Generate Synthetic Cases
+                </Button>
+                <Button
+                  onClick={handleTestModel}
+                  disabled={!apiKey || !targetColumn || loading}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Test Model
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+          
+          {analysisStarted && (
+            <Tabs defaultValue="detect" value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="detect">Detected</TabsTrigger>
+                <TabsTrigger value="generate">Generated</TabsTrigger>
+                <TabsTrigger value="test">Test Results</TabsTrigger>
+                <TabsTrigger value="report">Report</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="detect" className="mt-4">
+                <EdgeCaseDetector 
+                  loading={loading} 
+                  detectedEdgeCases={detectedEdgeCases}
+                  targetColumn={targetColumn}
+                />
+              </TabsContent>
+              
+              <TabsContent value="generate" className="mt-4">
+                <EdgeCaseGenerator
+                  loading={loading}
+                  generatedEdgeCases={generatedEdgeCases}
+                  edgeCaseType={edgeCaseType}
+                  targetColumn={targetColumn}
+                />
+              </TabsContent>
+              
+              <TabsContent value="test" className="mt-4">
+                <ModelTester
+                  loading={loading}
+                  testResults={modelTestResults}
+                  targetColumn={targetColumn}
+                />
+              </TabsContent>
+              
+              <TabsContent value="report" className="mt-4">
+                <EdgeCaseReport
+                  loading={loading}
+                  detectedEdgeCases={detectedEdgeCases}
+                  generatedEdgeCases={generatedEdgeCases}
+                  testResults={modelTestResults}
+                  targetColumn={targetColumn}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
+        
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Edge Case Guide</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    What are Edge Cases?
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Edge cases are unusual or rare data points that may cause your model to 
+                    behave unexpectedly. Identifying and addressing these can improve model robustness.
+                  </p>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
+                    <GitBranch className="h-4 w-4 text-blue-500" />
+                    Types of Edge Cases
+                  </h3>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li className="flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      <span><strong>Anomalies:</strong> Unusual data points that deviate significantly from the norm</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      <span><strong>Rare Classes:</strong> Underrepresented categories in your dataset</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      <span><strong>Adversarial:</strong> Samples designed to trick your model</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      <span><strong>Boundary Cases:</strong> Samples near decision boundaries</span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-green-500" />
+                    Getting Started
+                  </h3>
+                  <ol className="space-y-1 text-muted-foreground">
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">1.</span>
+                      <span>Upload your dataset (CSV or JSON format)</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">2.</span>
+                      <span>Select your target variable and edge case type</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">3.</span>
+                      <span>Choose your preferred generation method</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">4.</span>
+                      <span>Run detection, generation, or model testing</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-green-500 mr-2">5.</span>
+                      <span>Export your findings and generated data</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => window.open('https://docs.lovable.dev', '_blank')}>
+                <FileText className="mr-2 h-4 w-4" />
+                View Documentation
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          {detectedEdgeCases.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Analysis Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Edge Case Detection</p>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Found</span>
+                      <span className="font-medium">{detectedEdgeCases.length}</span>
+                    </div>
+                    <Progress value={Math.min(detectedEdgeCases.length * 10, 100)} className="h-2" />
+                  </div>
+                  
+                  {generatedEdgeCases.length > 0 && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Synthetic Generation</p>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Created</span>
+                        <span className="font-medium">{generatedEdgeCases.length}</span>
+                      </div>
+                      <Progress value={Math.min(generatedEdgeCases.length * 20, 100)} className="h-2" />
+                    </div>
+                  )}
+                  
+                  {modelTestResults && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Model Robustness</p>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Score</span>
+                        <span className="font-medium">{modelTestResults.robustnessScore}/10</span>
+                      </div>
+                      <Progress 
+                        value={Number(modelTestResults.robustnessScore) * 10} 
+                        className="h-2" 
+                      />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" size="sm" className="w-full">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export Results
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default EdgeCases;

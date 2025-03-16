@@ -1,11 +1,14 @@
+
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, Menu, X } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, Menu, X, Bug } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+
 const NavBar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const navItems = [{
     path: '/',
     label: 'Dashboard',
@@ -43,13 +46,19 @@ const NavBar = () => {
     label: 'Entity Recognition',
     icon: <Workflow className="h-4 w-4" />
   }, {
+    path: '/edge-cases',
+    label: 'Edge Cases',
+    icon: <Bug className="h-4 w-4" />
+  }, {
     path: '/data-query',
     label: 'Data Query',
     icon: <Search className="h-4 w-4" />
   }];
+  
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+  
   return <header className="sticky top-0 z-50 w-full">
       <div className="glassmorph border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm">
         <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
@@ -113,4 +122,5 @@ const NavBar = () => {
         </motion.div>}
     </header>;
 };
+
 export default NavBar;
