@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bot, Brain, BarChart, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +17,10 @@ interface AIDatasetAnalysisProps {
   datasetAnalysis: DatasetAnalysis | null;
   preferences: DatasetPreferences | null;
   apiKeyAvailable: boolean;
-  onRequestAnalysis: () => void;
+  onRequestAnalysis: (options: { desiredOutcome: string; modelPreference: string }) => void;
   isLoading: boolean;
   aiRecommendations?: string | null;
+  originalDataset?: any;
 }
 
 const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
@@ -29,13 +30,26 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
   onRequestAnalysis,
   isLoading,
   aiRecommendations = null,
+  originalDataset = null
 }) => {
   const [desiredOutcome, setDesiredOutcome] = useState<string>('balanced');
   const [modelPreference, setModelPreference] = useState<string>('auto');
+  const [parametersChanged, setParametersChanged] = useState<boolean>(false);
+  
+  // Track when parameters change after initial analysis
+  useEffect(() => {
+    if (aiRecommendations) {
+      setParametersChanged(true);
+    }
+  }, [desiredOutcome, modelPreference]);
   
   const handleAnalysisRequest = () => {
     if (onRequestAnalysis) {
-      onRequestAnalysis();
+      onRequestAnalysis({ 
+        desiredOutcome, 
+        modelPreference 
+      });
+      setParametersChanged(false);
     }
   };
   
@@ -77,7 +91,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
           <div className="space-y-2">
             <Label>Desired Performance Outcome</Label>
             <RadioGroup 
-              defaultValue={desiredOutcome} 
+              value={desiredOutcome} 
               onValueChange={setDesiredOutcome}
               className="grid grid-cols-1 gap-2"
             >
@@ -102,7 +116,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
           
           <div className="space-y-2">
             <Label>Model Preference</Label>
-            <Select defaultValue={modelPreference} onValueChange={setModelPreference}>
+            <Select value={modelPreference} onValueChange={setModelPreference}>
               <SelectTrigger>
                 <SelectValue placeholder="Select model preference" />
               </SelectTrigger>
@@ -159,14 +173,14 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                       <div></div>
                     </div>
                     <Separator />
-                    {preferences.classLabels.map((className) => {
-                      const isMajority = className === preferences.majorityClass;
-                      const isMinority = className === preferences.minorityClass;
+                    {originalDataset && originalDataset.classes && originalDataset.classes.map((cls: any) => {
+                      const isMajority = preferences.majorityClass && cls.className === preferences.majorityClass;
+                      const isMinority = preferences.minorityClass && cls.className === preferences.minorityClass;
                       
                       return (
-                        <div key={className} className="grid grid-cols-4 gap-2 text-sm items-center">
+                        <div key={cls.className} className="grid grid-cols-4 gap-2 text-sm items-center">
                           <div className="flex items-center">
-                            {className}
+                            {cls.className}
                             {isMajority && (
                               <Badge variant="outline" className="ml-2 text-[10px] bg-blue-50">Majority</Badge>
                             )}
@@ -174,9 +188,17 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                               <Badge variant="outline" className="ml-2 text-[10px] bg-amber-50">Minority</Badge>
                             )}
                           </div>
-                          <div>-</div>
-                          <div>-</div>
-                          <div></div>
+                          <div>{cls.count}</div>
+                          <div>{cls.percentage}%</div>
+                          <div className="flex items-center">
+                            <div 
+                              className="h-3 rounded" 
+                              style={{
+                                backgroundColor: cls.color,
+                                width: `${Math.max(cls.percentage, 5)}%`
+                              }}
+                            ></div>
+                          </div>
                         </div>
                       );
                     })}
@@ -218,7 +240,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
         )}
       </CardContent>
       
-      {!aiRecommendations && !isLoading && (
+      {(!aiRecommendations || parametersChanged) && !isLoading && (
         <CardFooter className="pt-2">
           <Button 
             className="w-full" 

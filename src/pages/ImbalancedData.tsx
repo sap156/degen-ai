@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -124,7 +123,7 @@ const ImbalancedData = () => {
     toast.success('Dataset configuration saved');
   };
 
-  const getAIRecommendations = async () => {
+  const getAIRecommendations = async (options?: { desiredOutcome: string; modelPreference: string }) => {
     if (!datasetPreferences || !parsedData.length || !apiKey) return;
     
     setIsLoadingRecommendations(true);
@@ -151,7 +150,10 @@ const ImbalancedData = () => {
           3. Evaluation metrics appropriate for imbalanced data
           4. Any other relevant strategies
           
-          Make the recommendations specific to this dataset and context.`
+          My optimization goal is: ${options?.desiredOutcome || 'balanced precision and recall'}
+          My preferred model type is: ${options?.modelPreference || 'Auto (AI-recommended)'}
+          
+          Make the recommendations specific to this dataset and context, optimizing for my stated goal.`
         }
       ];
       
@@ -702,6 +704,7 @@ const ImbalancedData = () => {
             onRequestAnalysis={getAIRecommendations}
             isLoading={isLoadingRecommendations}
             aiRecommendations={aiRecommendations}
+            originalDataset={originalDataset}
           />
         </div>
       </div>
@@ -710,3 +713,4 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
+
