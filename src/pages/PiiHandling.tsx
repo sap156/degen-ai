@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -585,11 +586,6 @@ const PiiHandling = () => {
                 
                 <div className="space-y-4">
                   <ApiKeyRequirement>
-                    <div>
-                      <Label htmlFor="ai-model" className="text-xs">AI Model</Label>
-                      <ModelSelector />
-                    </div>
-                      
                     <div className="space-y-2 mt-3">
                       <Label htmlFor="randomization" className="text-xs">Randomization Level</Label>
                       <Select 

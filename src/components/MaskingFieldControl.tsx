@@ -37,25 +37,6 @@ const MaskingFieldControl: React.FC<MaskingFieldControlProps> = ({
   
   const fieldDisplayName = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
   
-  const renderTechniqueIcon = (technique: MaskingTechnique) => {
-    switch (technique) {
-      case 'character-masking':
-        return <ClipboardCheck className="mr-2 h-4 w-4" />;
-      case 'truncation':
-        return <ScissorsLineDashed className="mr-2 h-4 w-4" />;
-      case 'tokenization':
-        return <FileText className="mr-2 h-4 w-4" />;
-      case 'encryption':
-        return <Lock className="mr-2 h-4 w-4" />;
-      case 'redaction':
-        return <ShieldCheck className="mr-2 h-4 w-4" />;
-      case 'synthetic-replacement':
-        return <Sparkles className="mr-2 h-4 w-4" />;
-      default:
-        return <Clipboard className="mr-2 h-4 w-4" />;
-    }
-  };
-
   return (
     <div className="border rounded-md p-3 space-y-2">
       <div className="flex justify-between items-center">
