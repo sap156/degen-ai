@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bug, Upload, BarChart3, GitBranch, BrainCircuit, AlertTriangle, FileDown, Settings, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +15,7 @@ import FileUploader from '@/components/FileUploader';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { toast } from 'sonner';
-import { detectDataType, readFileContent, parseCSV, parseJSON } from '@/utils/fileUploadUtils';
+import { detectDataType, readFileContent, parseCSV, parseJSON, formatData, downloadData } from '@/utils/fileUploadUtils';
 import EdgeCaseDetector from '@/components/EdgeCaseDetector';
 import EdgeCaseGenerator from '@/components/EdgeCaseGenerator';
 import ModelTester from '@/components/ModelTester';
@@ -75,7 +74,6 @@ const EdgeCases = () => {
       
       toast.success('Dataset loaded successfully!');
       
-      // Set default target column to the first column
       if (parsedData[0] && Object.keys(parsedData[0]).length > 0) {
         setTargetColumn(Object.keys(parsedData[0])[0]);
       }
@@ -103,7 +101,6 @@ const EdgeCases = () => {
     setLoading(true);
     
     try {
-      // Call the OpenAI-powered edge case detection service
       const options = {
         dataset,
         targetColumn,
@@ -117,7 +114,6 @@ const EdgeCases = () => {
         setDetectedEdgeCases(edgeCases);
         toast.success(`Detected ${edgeCases.length} edge cases using AI analysis!`);
       } else {
-        // Fallback to sample data if API fails
         const sampleEdgeCases = dataset
           .slice(0, Math.min(5, dataset.length))
           .map(item => ({
@@ -134,7 +130,6 @@ const EdgeCases = () => {
       console.error('Error detecting edge cases:', error);
       toast.error('Error detecting edge cases. Using sample data instead.');
       
-      // Fallback to sample data
       const sampleEdgeCases = dataset
         .slice(0, Math.min(5, dataset.length))
         .map(item => ({
@@ -166,7 +161,6 @@ const EdgeCases = () => {
     setLoading(true);
     
     try {
-      // Call the OpenAI-powered edge case generation service
       const options = {
         dataset,
         targetColumn,
@@ -180,7 +174,6 @@ const EdgeCases = () => {
         setGeneratedEdgeCases(syntheticCases);
         toast.success(`Generated ${syntheticCases.length} synthetic edge cases using AI!`);
       } else {
-        // Fallback to sample data if API fails
         const generatedSamples = dataset
           .slice(0, Math.min(3, dataset.length))
           .map(item => ({
@@ -198,7 +191,6 @@ const EdgeCases = () => {
       console.error('Error generating edge cases:', error);
       toast.error('Error generating edge cases. Using sample data instead.');
       
-      // Fallback to sample data
       const generatedSamples = dataset
         .slice(0, Math.min(3, dataset.length))
         .map(item => ({
@@ -231,7 +223,6 @@ const EdgeCases = () => {
     setLoading(true);
     
     try {
-      // Call the OpenAI-powered model testing service
       const options = {
         edgeCases: detectedEdgeCases,
         dataset,
@@ -244,7 +235,6 @@ const EdgeCases = () => {
         setModelTestResults(testResults);
         toast.success('Model testing completed using AI analysis!');
       } else {
-        // Fallback to sample data if API fails
         setModelTestResults({
           overallAccuracy: (Math.random() * 30 + 65).toFixed(1),
           edgeCaseAccuracy: (Math.random() * 40 + 40).toFixed(1),
@@ -264,7 +254,6 @@ const EdgeCases = () => {
       console.error('Error testing model:', error);
       toast.error('Error testing model. Using sample data instead.');
       
-      // Fallback to sample data
       setModelTestResults({
         overallAccuracy: (Math.random() * 30 + 65).toFixed(1),
         edgeCaseAccuracy: (Math.random() * 40 + 40).toFixed(1),
@@ -281,6 +270,29 @@ const EdgeCases = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExportReport = () => {
+    if (detectedEdgeCases.length === 0) {
+      toast.error('No edge cases to export');
+      return;
+    }
+    
+    const reportData = {
+      detectedCases: detectedEdgeCases,
+      generatedCases: generatedEdgeCases,
+      testResults: modelTestResults,
+      metadata: {
+        targetColumn,
+        edgeCaseType,
+        complexityLevel,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    const formattedData = formatData(reportData, 'json');
+    downloadData(formattedData, 'edge_case_report', 'json');
+    toast.success('Edge case report exported successfully');
   };
 
   return (

@@ -1,6 +1,6 @@
 
 import { toast } from 'sonner';
-import { openAiService } from './openAiService';
+import { getCompletion } from './openAiService';
 
 export interface EdgeCaseDetectionOptions {
   dataset: any[];
@@ -51,29 +51,27 @@ export const edgeCaseService = {
       ONLY return the JSON array without any explanations or other text.
       `;
       
-      const response = await openAiService.callOpenAI({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant specialized in data analysis and edge case detection."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
+      const apiKey = localStorage.getItem('openai-api-key');
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in data analysis and edge case detection."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      if (!response || !response.choices || !response.choices[0].message) {
+      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      
+      if (!responseText) {
         throw new Error("Invalid response from OpenAI");
       }
       
-      const resultText = response.choices[0].message.content.trim();
-      
       // Extract JSON from the response (in case there's additional text)
-      const jsonMatch = resultText.match(/\[[\s\S]*\]/);
-      const jsonText = jsonMatch ? jsonMatch[0] : resultText;
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      const jsonText = jsonMatch ? jsonMatch[0] : responseText;
       
       return JSON.parse(jsonText);
     } catch (error) {
@@ -113,29 +111,27 @@ export const edgeCaseService = {
       ONLY return the JSON array without any explanations or other text.
       `;
       
-      const response = await openAiService.callOpenAI({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant specialized in synthetic data generation and edge case creation."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
+      const apiKey = localStorage.getItem('openai-api-key');
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in synthetic data generation and edge case creation."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      if (!response || !response.choices || !response.choices[0].message) {
+      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      
+      if (!responseText) {
         throw new Error("Invalid response from OpenAI");
       }
       
-      const resultText = response.choices[0].message.content.trim();
-      
       // Extract JSON from the response (in case there's additional text)
-      const jsonMatch = resultText.match(/\[[\s\S]*\]/);
-      const jsonText = jsonMatch ? jsonMatch[0] : resultText;
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      const jsonText = jsonMatch ? jsonMatch[0] : responseText;
       
       return JSON.parse(jsonText);
     } catch (error) {
@@ -170,29 +166,27 @@ export const edgeCaseService = {
       ONLY return the JSON object without any explanations or other text.
       `;
       
-      const response = await openAiService.callOpenAI({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant specialized in ML model evaluation and testing."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
+      const apiKey = localStorage.getItem('openai-api-key');
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in ML model evaluation and testing."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      if (!response || !response.choices || !response.choices[0].message) {
+      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      
+      if (!responseText) {
         throw new Error("Invalid response from OpenAI");
       }
       
-      const resultText = response.choices[0].message.content.trim();
-      
       // Extract JSON from the response (in case there's additional text)
-      const jsonMatch = resultText.match(/\{[\s\S]*\}/);
-      const jsonText = jsonMatch ? jsonMatch[0] : resultText;
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const jsonText = jsonMatch ? jsonMatch[0] : responseText;
       
       return JSON.parse(jsonText);
     } catch (error) {
@@ -225,25 +219,19 @@ export const edgeCaseService = {
       Format the report as a well-structured markdown document with clear sections, bullet points, and tables where appropriate.
       `;
       
-      const response = await openAiService.callOpenAI({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant specialized in creating detailed data science reports."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
+      const apiKey = localStorage.getItem('openai-api-key');
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in creating detailed data science reports."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      if (!response || !response.choices || !response.choices[0].message) {
-        throw new Error("Invalid response from OpenAI");
-      }
-      
-      return response.choices[0].message.content;
+      return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
     } catch (error) {
       console.error("Error generating detailed report:", error);
       toast.error("Failed to generate detailed report. Please try again.");
@@ -270,25 +258,19 @@ export const edgeCaseService = {
       Format the response as a markdown document with clear code blocks and explanations.
       `;
       
-      const response = await openAiService.callOpenAI({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant specialized in ML engineering and implementation."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      });
+      const apiKey = localStorage.getItem('openai-api-key');
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in ML engineering and implementation."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      if (!response || !response.choices || !response.choices[0].message) {
-        throw new Error("Invalid response from OpenAI");
-      }
-      
-      return response.choices[0].message.content;
+      return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
     } catch (error) {
       console.error("Error generating recommendations implementation:", error);
       toast.error("Failed to generate implementation steps. Please try again.");
