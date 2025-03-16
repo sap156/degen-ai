@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -22,6 +21,7 @@ import { motion } from 'framer-motion';
 import FileUploader from '@/components/FileUploader';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { applyAugmentation } from '@/services/dataAugmentationService';
+import { formatData } from '@/utils/fileUploadUtils';
 import { 
   ArrowRight, 
   BarChart3, 
@@ -30,7 +30,9 @@ import {
   PlusCircle, 
   Trash2, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  FileJson,
+  FileText
 } from 'lucide-react';
 
 const augmentationMethods = [
@@ -48,6 +50,7 @@ const DataAugmentationPage: React.FC = () => {
   const [previewData, setPreviewData] = useState<string | null>(null);
   const [selectedMethods, setSelectedMethods] = useState<string[]>(['noise']);
   const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [augmentationSettings, setAugmentationSettings] = useState({
     noise: {
       intensity: 0.2,
@@ -94,9 +97,16 @@ const DataAugmentationPage: React.FC = () => {
         // Parse the data
         let parsedData;
         if (file.name.endsWith('.json')) {
-          parsedData = JSON.parse(content);
-          if (!Array.isArray(parsedData)) {
-            parsedData = [parsedData]; // Convert to array if not already
+          // Fix: Properly handle JSON parsing with error handling
+          try {
+            parsedData = JSON.parse(content);
+            if (!Array.isArray(parsedData)) {
+              parsedData = [parsedData]; // Convert to array if not already
+            }
+          } catch (jsonError) {
+            console.error("Error parsing JSON:", jsonError);
+            toast.error(`Failed to parse JSON: ${jsonError.message}`);
+            return;
           }
         } else if (file.name.endsWith('.csv')) {
           // Simple CSV parsing
@@ -236,15 +246,36 @@ const DataAugmentationPage: React.FC = () => {
   const handleDownload = () => {
     if (!augmentedData) return;
     
-    const blob = new Blob([augmentedData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `augmented_data_${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Download started');
+    try {
+      const parsedAugmentedData = JSON.parse(augmentedData);
+      let downloadData: string;
+      let mimeType: string;
+      let fileExtension: string;
+      
+      if (exportFormat === 'json') {
+        downloadData = JSON.stringify(parsedAugmentedData, null, 2);
+        mimeType = 'application/json';
+        fileExtension = 'json';
+      } else {
+        // CSV format
+        downloadData = formatData(parsedAugmentedData, 'csv');
+        mimeType = 'text/csv';
+        fileExtension = 'csv';
+      }
+      
+      const blob = new Blob([downloadData], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `augmented_data_${Date.now()}.${fileExtension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success(`Download started in ${exportFormat.toUpperCase()} format`);
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      toast.error('Failed to download data');
+    }
   };
 
   return (
@@ -559,12 +590,37 @@ const DataAugmentationPage: React.FC = () => {
                 </div>
               )}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col space-y-3">
               {augmentedData && (
-                <Button onClick={handleDownload} className="w-full gap-2">
-                  <Download className="h-4 w-4" />
-                  Download Augmented Data
-                </Button>
+                <>
+                  <div className="w-full flex justify-between items-center mb-2">
+                    <Label>Export Format</Label>
+                    <div className="flex space-x-2">
+                      <Button 
+                        size="sm" 
+                        variant={exportFormat === 'json' ? "default" : "outline"} 
+                        onClick={() => setExportFormat('json')}
+                        className="flex items-center gap-1"
+                      >
+                        <FileJson className="h-4 w-4" />
+                        JSON
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={exportFormat === 'csv' ? "default" : "outline"} 
+                        onClick={() => setExportFormat('csv')}
+                        className="flex items-center gap-1"
+                      >
+                        <FileText className="h-4 w-4" />
+                        CSV
+                      </Button>
+                    </div>
+                  </div>
+                  <Button onClick={handleDownload} className="w-full gap-2">
+                    <Download className="h-4 w-4" />
+                    Download Augmented Data
+                  </Button>
+                </>
               )}
             </CardFooter>
           </Card>

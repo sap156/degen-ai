@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -243,15 +244,16 @@ export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => 
  * @returns Formatted data string
  */
 export const formatData = (data: any[], format: 'csv' | 'json' | 'text'): string => {
-  if (!data.length) return '';
+  if (!data || !data.length) return '';
   
   switch (format) {
     case 'csv':
       const headers = Object.keys(data[0]).join(',');
       const rows = data.map(item => 
-        Object.values(item).map(value => 
-          typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value
-        ).join(',')
+        Object.values(item).map(value => {
+          if (value === null || value === undefined) return '';
+          return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+        }).join(',')
       );
       return [headers, ...rows].join('\n');
       
