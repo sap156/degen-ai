@@ -337,7 +337,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       // Get the field names from the first data point
       const fieldNames = Object.keys(existingData[0]);
       
-      // Calculate basic statistics from existing data
+      // Calculate basic statistics from existing data if value exists
       const values = existingData.map(point => point.value).filter(v => v !== undefined);
       const min = values.length > 0 ? Math.min(...values) : 0;
       const max = values.length > 0 ? Math.max(...values) : 100;
@@ -392,11 +392,14 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       try {
         parsedData = JSON.parse(response);
       } catch (parseError) {
+        console.error("Initial parsing failed:", parseError);
+        
         // If direct parsing fails, try to extract JSON from the response
         const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
+          console.error("Failed to extract JSON pattern. Raw response:", response);
           throw new Error('Failed to extract valid JSON from the response');
         }
       }
@@ -405,12 +408,19 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       
       // Validate the data
       if (!Array.isArray(parsedData) || parsedData.length === 0) {
+        console.error("Invalid data format. Received:", parsedData);
         throw new Error('The response is not a valid array of data points');
       }
       
       // Ensure each data point has the required properties
-      parsedData = parsedData.map(point => {
+      parsedData = parsedData.map((point, index) => {
+        if (!point || typeof point !== 'object') {
+          console.error(`Invalid data point at index ${index}:`, point);
+          throw new Error(`Invalid data point at index ${index}`);
+        }
+        
         if (!point.timestamp) {
+          console.error(`Missing timestamp at index ${index}:`, point);
           throw new Error('Data points must have timestamp property');
         }
         
@@ -440,6 +450,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
             const date = new Date(validPoint.timestamp);
             validPoint.timestamp = date.toISOString();
           } catch (e) {
+            console.error(`Invalid timestamp format at index ${index}:`, validPoint.timestamp);
             // Keep the timestamp as is if parsing fails
           }
         }
@@ -460,8 +471,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       return parsedData;
     } catch (error) {
       console.error('Error parsing AI response:', error);
-      toast.error('Failed to parse the AI-generated data');
-      throw new Error('Failed to parse the AI-generated data: ' + (error as Error).message);
+      toast.error(`Failed to parse the AI-generated data: ${(error as Error).message}`);
+      throw new Error(`Failed to parse the AI-generated data: ${(error as Error).message}`);
     }
   } catch (error) {
     console.error('Error generating time series data with AI:', error);
@@ -507,22 +518,48 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     // Get the field names from the first data point
     const fieldNames = Object.keys(data[0]);
     
-    // Calculate basic statistics from existing data
-    const values = data.map(point => point.value).filter(v => v !== undefined);
-    const min = values.length > 0 ? Math.min(...values) : 0;
-    const max = values.length > 0 ? Math.max(...values) : 100;
-    const avg = values.length > 0 ? values.reduce((sum, val) => sum + val, 0) / values.length : 50;
+    // Identify numeric fields for potential noise application
+    const numericFields = fieldNames.filter(field => {
+      return field !== 'timestamp' && 
+             data.some(point => typeof point[field] === 'number');
+    });
+    
+    if (numericFields.length === 0) {
+      throw new Error('No numeric fields found in the data to apply noise to');
+    }
+    
+    // Calculate basic statistics from existing data for each numeric field
+    const fieldStats = numericFields.reduce((stats, field) => {
+      const values = data
+        .map(point => point[field])
+        .filter(v => v !== undefined && typeof v === 'number') as number[];
+        
+      if (values.length > 0) {
+        stats[field] = {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          avg: values.reduce((sum, val) => sum + val, 0) / values.length
+        };
+      }
+      return stats;
+    }, {} as Record<string, { min: number; max: number; avg: number }>);
     
     onProgressUpdate?.(25);
     
-    // Build the user prompt
+    // Build the user prompt with detailed information about the data
     const userMessage: OpenAiMessage = {
       role: 'user',
       content: `Modify the following time series data with realistic noise and/or anomalies:
       
       Noise level: ${noiseLevel} (0-1 scale, where 1 is maximum noise)
       Fields present: ${fieldNames.join(', ')}
-      ${values.length > 0 ? `Value range: min=${min.toFixed(2)}, max=${max.toFixed(2)}, avg=${avg.toFixed(2)}` : ''}
+      Numeric fields: ${numericFields.join(', ')}
+      
+      Field statistics:
+      ${Object.entries(fieldStats).map(([field, stats]) => 
+        `${field}: min=${stats.min.toFixed(2)}, max=${stats.max.toFixed(2)}, avg=${stats.avg.toFixed(2)}`
+      ).join('\n')}
+      
       Data points count: ${data.length}
       First few data points: ${JSON.stringify(data.slice(0, 3))}
       Last few data points: ${JSON.stringify(data.slice(-3))}
@@ -530,7 +567,8 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
       Specific instructions: ${prompt}
       
       Return ONLY a JSON array of the modified data points with the same structure as the input.
-      Do not include any text, comments, or markdown formatting in your response.`
+      Do not include any text, comments, or markdown formatting in your response.
+      Ensure the response is valid JSON that can be parsed directly.`
     };
     
     onProgressUpdate?.(35);
@@ -553,12 +591,34 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
       try {
         parsedData = JSON.parse(response);
       } catch (parseError) {
+        console.error("Initial parsing failed:", parseError);
+        console.error("Raw response:", response);
+        
         // If direct parsing fails, try to extract JSON from the response
         const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
-          throw new Error('Failed to extract valid JSON from the response');
+          // If all parsing attempts fail, fallback to applying noise programmatically
+          console.warn("AI response parsing failed. Falling back to programmatic noise generation");
+          
+          // Apply simple noise to numeric fields ourselves
+          parsedData = data.map(point => {
+            const newPoint = { ...point };
+            numericFields.forEach(field => {
+              if (typeof point[field] === 'number') {
+                const value = point[field] as number;
+                const range = fieldStats[field] ? (fieldStats[field].max - fieldStats[field].min) : value * 0.5;
+                const noise = (Math.random() * 2 - 1) * noiseLevel * (range * 0.2);
+                newPoint[field] = Number((value + noise).toFixed(4));
+              }
+            });
+            return newPoint;
+          });
+          
+          toast.warning('AI response was invalid - applied simple noise pattern instead');
+          onProgressUpdate?.(100);
+          return parsedData;
         }
       }
       
@@ -571,8 +631,39 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
       
       // Ensure the data has the same length as the input
       if (parsedData.length !== data.length) {
+        console.error(`Length mismatch: Expected ${data.length} points, got ${parsedData.length}`);
         throw new Error('The modified data must have the same number of points as the input');
       }
+      
+      // Ensure all required fields exist in each data point
+      parsedData = parsedData.map((point, index) => {
+        const originalPoint = data[index];
+        
+        // Ensure the timestamp exists and is preserved
+        if (!point.timestamp) {
+          point.timestamp = originalPoint.timestamp;
+        }
+        
+        // Ensure all fields from the original data are present
+        for (const field of fieldNames) {
+          if (!(field in point)) {
+            // If a field is missing, copy it from the original data
+            point[field] = originalPoint[field];
+          }
+          
+          // If a field should be numeric but isn't, fix it
+          if (numericFields.includes(field) && typeof point[field] !== 'number') {
+            if (typeof originalPoint[field] === 'number') {
+              point[field] = originalPoint[field];
+            } else {
+              // Default to 0 if neither is numeric
+              point[field] = 0;
+            }
+          }
+        }
+        
+        return point;
+      });
       
       // Sort the data by timestamp
       parsedData.sort((a, b) => {
@@ -587,12 +678,31 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
       return parsedData;
     } catch (error) {
       console.error('Error parsing AI noise response:', error);
-      toast.error('Failed to parse the AI-generated noise data');
-      throw new Error('Failed to process AI noise: ' + (error as Error).message);
+      toast.error(`Failed to process AI noise: ${(error as Error).message}`);
+      
+      // Fallback to simple noise generation
+      console.warn("AI response processing failed. Falling back to programmatic noise generation");
+      
+      // Apply simple noise to numeric fields ourselves
+      const fallbackData = data.map(point => {
+        const newPoint = { ...point };
+        numericFields.forEach(field => {
+          if (typeof point[field] === 'number') {
+            const value = point[field] as number;
+            const range = fieldStats[field] ? (fieldStats[field].max - fieldStats[field].min) : value * 0.5;
+            const noise = (Math.random() * 2 - 1) * noiseLevel * (range * 0.2);
+            newPoint[field] = Number((value + noise).toFixed(4));
+          }
+        });
+        return newPoint;
+      });
+      
+      toast.warning('Encountered an error - applied simple noise pattern instead');
+      return fallbackData;
     }
   } catch (error) {
     console.error('Error adding AI noise to time series data:', error);
-    toast.error('Failed to add AI noise to time series data');
+    toast.error(`Failed to add AI noise: ${(error as Error).message}`);
     throw error;
   }
 };
