@@ -48,7 +48,7 @@ const ModelSelector: React.FC = () => {
   const { selectedModel, setSelectedModel, isKeySet } = useApiKey();
 
   return (
-    <div className="w-full space-y-2">
+    <div className="w-full space-y-3">
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
         <span>AI Model</span>
         <Popover>
@@ -75,9 +75,9 @@ const ModelSelector: React.FC = () => {
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select a model" />
         </SelectTrigger>
-        <SelectContent position="popper">
+        <SelectContent position="popper" className="w-full">
           {Object.entries(modelInfo).map(([id, info]) => (
-            <SelectItem key={id} value={id} className="flex items-center justify-between">
+            <SelectItem key={id} value={id} className="flex items-center justify-between py-2.5">
               <span>{info.name}</span>
               {id === 'gpt-4-turbo' && <Check className="h-4 w-4 ml-1 text-primary" />}
             </SelectItem>
@@ -86,12 +86,12 @@ const ModelSelector: React.FC = () => {
       </Select>
       
       {selectedModel && (
-        <Card className="mt-2 bg-secondary/20 border-dashed">
-          <CardContent className="p-3 text-xs space-y-2">
+        <Card className="mt-3 bg-secondary/20 border-dashed">
+          <CardContent className="p-4 text-sm space-y-3">
             <p className="font-medium">{modelInfo[selectedModel].name} Limitations:</p>
-            <ul className="space-y-1 list-disc pl-4">
+            <ul className="space-y-2 list-disc pl-5">
               {modelInfo[selectedModel].limitations.map((limitation, i) => (
-                <li key={i}>{limitation}</li>
+                <li key={i} className="text-muted-foreground">{limitation}</li>
               ))}
             </ul>
           </CardContent>

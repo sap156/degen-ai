@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -172,8 +171,7 @@ const Index: React.FC = () => {
           </Button>
         </motion.div>
         
-        {/* API Key & Model Selection Card */}
-        <motion.div className="w-full max-w-md mt-6" initial={{
+        <motion.div className="w-full max-w-2xl mt-6" initial={{
         opacity: 0,
         y: 20
       }} animate={{
