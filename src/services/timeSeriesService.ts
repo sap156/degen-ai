@@ -4,7 +4,7 @@ import { Progress } from '@/components/ui/progress';
 
 export type TimeSeriesDataPoint = {
   timestamp: string;
-  value: number;
+  value?: number; // Make value optional
   [key: string]: any;
 };
 
@@ -175,9 +175,12 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       );
       
       // Create the base data point
-      const dataPoint: TimeSeriesDataPoint = excludeDefaultValue 
-        ? { timestamp: date.toISOString() }
-        : { timestamp: date.toISOString(), value };
+      const dataPoint: TimeSeriesDataPoint = { timestamp: date.toISOString() };
+      
+      // Add value field if not excluded
+      if (!excludeDefaultValue) {
+        dataPoint.value = value;
+      }
       
       // Add additional fields if specified
       additionalFields.forEach(field => {
@@ -411,28 +414,37 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
           throw new Error('Data points must have timestamp property');
         }
         
+        // Create a valid data point with the timestamp
+        const validPoint: TimeSeriesDataPoint = { timestamp: point.timestamp };
+        
+        // Copy all other properties
+        Object.entries(point).forEach(([key, value]) => {
+          if (key !== 'timestamp') {
+            validPoint[key] = value;
+          }
+        });
+        
         // If we're excluding the default value field and it exists, remove it
-        if (excludeDefaultValue && 'value' in point) {
-          const { value, ...rest } = point;
-          return rest;
+        if (excludeDefaultValue && 'value' in validPoint) {
+          delete validPoint.value;
         }
         
-        // Otherwise, ensure the value field exists and is a number
-        if (!excludeDefaultValue && point.value === undefined) {
-          point.value = 0;
+        // Otherwise, ensure the value field exists and is a number if required
+        if (!excludeDefaultValue && (validPoint.value === undefined || validPoint.value === null)) {
+          validPoint.value = 0;
         }
         
         // Try to parse the timestamp if it's not in ISO format
-        if (typeof point.timestamp === 'string' && !point.timestamp.includes('T')) {
+        if (typeof validPoint.timestamp === 'string' && !validPoint.timestamp.includes('T')) {
           try {
-            const date = new Date(point.timestamp);
-            point.timestamp = date.toISOString();
+            const date = new Date(validPoint.timestamp);
+            validPoint.timestamp = date.toISOString();
           } catch (e) {
             // Keep the timestamp as is if parsing fails
           }
         }
         
-        return point;
+        return validPoint;
       });
       
       // Sort the data by timestamp
