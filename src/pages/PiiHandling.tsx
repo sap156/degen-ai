@@ -6,7 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Clipboard, Download, RefreshCw, Upload, Sparkles, Sliders } from 'lucide-react';
+import { 
+  Clipboard, 
+  Download, 
+  RefreshCw, 
+  Upload, 
+  Sparkles, 
+  Sliders, 
+  Key, 
+  ShieldCheck, 
+  FileText, 
+  Lock,
+  ClipboardCheck,
+  ScissorsLineDashed
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,17 +33,30 @@ import ModelSelector from '@/components/ModelSelector';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { 
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
 
 import { 
   PiiData, 
   PiiDataMasked, 
   MaskingOptions,
   AiMaskingOptions,
+  MaskingTechnique,
+  EncryptionMethod,
   generateSamplePiiData, 
   maskPiiData, 
   exportAsJson, 
   exportAsCsv, 
-  downloadData 
+  downloadData,
+  analyzePiiData
 } from '@/services/piiHandlingService';
 
 const PiiHandling = () => {
@@ -46,12 +72,16 @@ const PiiHandling = () => {
   const [newFieldType, setNewFieldType] = useState<string>('text');
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isMaskingData, setIsMaskingData] = useState(false);
+  const [isAnalyzingData, setIsAnalyzingData] = useState(false);
+  const [piiAnalysisResult, setPiiAnalysisResult] = useState<{identifiedPii: string[], suggestions: string} | null>(null);
   
   const [aiMaskingOptions, setAiMaskingOptions] = useState<AiMaskingOptions>({
     useAi: false,
     maskingPrompt: '',
     preserveFormat: true,
-    randomizationLevel: 'medium'
+    randomizationLevel: 'medium',
+    maskingTechnique: 'character-masking',
+    encryptionMethod: 'aes-256'
   });
   
   const [maskingOptions, setMaskingOptions] = useState<MaskingOptions>({
@@ -177,6 +207,14 @@ const PiiHandling = () => {
         setUploadDataSchema(schema);
       }
       
+      // Auto-switch to manual tab after successful upload
+      setActiveTab('manual');
+
+      // Automatically analyze PII data if API key is available
+      if (apiKey) {
+        analyzeDataWithAi(processedData);
+      }
+      
       toast({
         title: "File processed",
         description: "File processed successfully",
@@ -190,6 +228,37 @@ const PiiHandling = () => {
       });
     } finally {
       setIsProcessingFile(false);
+    }
+  };
+
+  const analyzeDataWithAi = async (data: PiiData[]) => {
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Set your OpenAI API key to use AI-powered analysis",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsAnalyzingData(true);
+      const result = await analyzePiiData(data, apiKey);
+      setPiiAnalysisResult(result);
+      
+      toast({
+        title: "PII Analysis Complete",
+        description: `Identified ${result.identifiedPii.length} types of PII data`,
+      });
+    } catch (error) {
+      console.error("Error analyzing data with AI:", error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze PII data with AI",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzingData(false);
     }
   };
 
@@ -352,12 +421,28 @@ const PiiHandling = () => {
     }));
   };
 
+  const handleMaskingTechniqueChange = (value: MaskingTechnique) => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      maskingTechnique: value
+    }));
+  };
+
+  const handleEncryptionMethodChange = (value: EncryptionMethod) => {
+    setAiMaskingOptions(prev => ({
+      ...prev,
+      encryptionMethod: value
+    }));
+  };
+
   useEffect(() => {
     if (originalData.length > 0) {
       applyMasking();
     }
-  }, [maskingOptions, aiMaskingOptions.useAi]);
+  }, [maskingOptions, aiMaskingOptions.useAi, aiMaskingOptions.maskingTechnique, aiMaskingOptions.encryptionMethod]);
 
+  // Animation variants
+  const [activeTab, setActiveTab] = useState<string>('manual');
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -374,6 +459,25 @@ const PiiHandling = () => {
       y: 0, 
       opacity: 1,
       transition: { duration: 0.3 }
+    }
+  };
+
+  const renderMaskingTechniqueIcon = (technique: MaskingTechnique) => {
+    switch (technique) {
+      case 'character-masking':
+        return <ClipboardCheck className="mr-2 h-4 w-4" />;
+      case 'truncation':
+        return <ScissorsLineDashed className="mr-2 h-4 w-4" />;
+      case 'tokenization':
+        return <FileText className="mr-2 h-4 w-4" />;
+      case 'encryption':
+        return <Lock className="mr-2 h-4 w-4" />;
+      case 'redaction':
+        return <ShieldCheck className="mr-2 h-4 w-4" />;
+      case 'synthetic-replacement':
+        return <Sparkles className="mr-2 h-4 w-4" />;
+      default:
+        return <Sparkles className="mr-2 h-4 w-4" />;
     }
   };
 
@@ -398,13 +502,13 @@ const PiiHandling = () => {
             <CardDescription>Configure masking options and export settings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <Tabs defaultValue="generate">
+            <Tabs defaultValue="generate" value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="generate">Generate</TabsTrigger>
+                <TabsTrigger value="manual">Generate</TabsTrigger>
                 <TabsTrigger value="upload">Upload</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="generate" className="space-y-4">
+              <TabsContent value="manual" className="space-y-4">
                 <div>
                   <Label htmlFor="record-count">Number of Records</Label>
                   <div className="flex items-center gap-2 mt-2">
@@ -423,40 +527,66 @@ const PiiHandling = () => {
                     </Button>
                   </div>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="upload" className="space-y-4">
-                <FileUploader
-                  onFileUpload={handleFileUpload}
-                  accept=".csv, .json"
-                  title="Upload PII Data"
-                  description="Upload a CSV or JSON file with PII data"
-                />
-                
-                {uploadedFile && (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    <p className="font-medium">File: {uploadedFile.name}</p>
-                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                )}
-                
+
+                {/* Schema Editor section */}
                 {Object.keys(uploadDataSchema).length > 0 && (
                   <div className="space-y-3 border p-3 rounded-md mt-4">
-                    <h3 className="text-sm font-medium">Detected Schema</h3>
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium">Schema Configuration</h3>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => analyzeDataWithAi(originalData)}
+                        disabled={!apiKey || isAnalyzingData}
+                        className="text-xs h-7"
+                      >
+                        {isAnalyzingData ? (
+                          <>
+                            <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Analyze PII
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    
+                    {piiAnalysisResult && (
+                      <div className="bg-blue-50 dark:bg-blue-950 p-2 rounded-md text-xs space-y-1 mb-2">
+                        <p className="font-medium text-blue-700 dark:text-blue-300">PII Analysis Results:</p>
+                        <p>Identified: {piiAnalysisResult.identifiedPii.join(', ')}</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          {piiAnalysisResult.suggestions.substring(0, 120)}
+                          {piiAnalysisResult.suggestions.length > 120 ? '...' : ''}
+                        </p>
+                      </div>
+                    )}
+                    
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {Object.entries(uploadDataSchema).map(([field, type]) => (
                         <div key={field} className="flex justify-between items-center text-sm">
                           <div>
                             <span className="font-medium">{field}:</span> {type}
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleRemoveField(field)}
-                            className="h-6 w-6 p-0"
-                          >
-                            &times;
-                          </Button>
+                          <div className="flex items-center">
+                            <Checkbox 
+                              id={`edit-mask-${field}`}
+                              checked={maskingOptions[field as keyof MaskingOptions] ?? false}
+                              onCheckedChange={() => field in maskingOptions && toggleMaskingOption(field as keyof MaskingOptions)}
+                              className="mr-2 h-3 w-3"
+                            />
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleRemoveField(field)}
+                              className="h-6 w-6 p-0"
+                            >
+                              &times;
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -503,6 +633,33 @@ const PiiHandling = () => {
                   </div>
                 )}
               </TabsContent>
+              
+              <TabsContent value="upload" className="space-y-4">
+                <div>
+                  <Label className="mb-2 block">Upload JSON or CSV file</Label>
+                  <FileUploader
+                    onFileUpload={handleFileUpload}
+                    accept=".json,.csv"
+                    maxSize={5}
+                    title="Upload Schema"
+                    description="Upload a JSON or CSV file with sample data"
+                  />
+                </div>
+                
+                {isProcessingFile && (
+                  <div className="flex items-center justify-center space-x-2 py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                    <span className="text-sm">Processing file...</span>
+                  </div>
+                )}
+                
+                {uploadedFile && !isProcessingFile && (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    <p className="font-medium">File: {uploadedFile.name}</p>
+                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                  </div>
+                )}
+              </TabsContent>
             </Tabs>
 
             <div>
@@ -515,7 +672,7 @@ const PiiHandling = () => {
                       <span className="text-xs">AI Options</span>
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                       <DialogTitle>AI-Powered Masking</DialogTitle>
                       <DialogDescription>
@@ -539,11 +696,113 @@ const PiiHandling = () => {
                         
                         {aiMaskingOptions.useAi && (
                           <>
-                            <div className="space-y-2 mt-4">
+                            <div className="space-y-4 mt-4">
                               <div className="mb-2">
                                 <Label htmlFor="ai-model" className="text-sm">AI Model</Label>
                                 <ModelSelector />
                               </div>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="masking-technique" className="text-sm">Masking Technique</Label>
+                                <Select 
+                                  defaultValue={aiMaskingOptions.maskingTechnique} 
+                                  onValueChange={(v) => handleMaskingTechniqueChange(v as MaskingTechnique)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select technique" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="character-masking">
+                                      <div className="flex items-center">
+                                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                                        <span>Character Masking</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="truncation">
+                                      <div className="flex items-center">
+                                        <ScissorsLineDashed className="mr-2 h-4 w-4" />
+                                        <span>Truncation</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="tokenization">
+                                      <div className="flex items-center">
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        <span>Tokenization</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="encryption">
+                                      <div className="flex items-center">
+                                        <Lock className="mr-2 h-4 w-4" />
+                                        <span>Encryption</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="redaction">
+                                      <div className="flex items-center">
+                                        <ShieldCheck className="mr-2 h-4 w-4" />
+                                        <span>Data Redaction</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="synthetic-replacement">
+                                      <div className="flex items-center">
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        <span>Synthetic Replacement</span>
+                                      </div>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              {aiMaskingOptions.maskingTechnique === 'encryption' && (
+                                <div className="space-y-2 mt-1">
+                                  <Label htmlFor="encryption-method" className="text-sm">Encryption Method</Label>
+                                  <Select 
+                                    defaultValue={aiMaskingOptions.encryptionMethod} 
+                                    onValueChange={(v) => handleEncryptionMethodChange(v as EncryptionMethod)}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Select method" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="aes-256">
+                                        <div className="flex items-center">
+                                          <Key className="mr-2 h-4 w-4" />
+                                          <span>AES-256</span>
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="rsa">
+                                        <div className="flex items-center">
+                                          <Key className="mr-2 h-4 w-4" />
+                                          <span>RSA</span>
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="sha-256">
+                                        <div className="flex items-center">
+                                          <Key className="mr-2 h-4 w-4" />
+                                          <span>SHA-256</span>
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="md5">
+                                        <div className="flex items-center">
+                                          <Key className="mr-2 h-4 w-4" />
+                                          <span>MD5</span>
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="base64">
+                                        <div className="flex items-center">
+                                          <Key className="mr-2 h-4 w-4" />
+                                          <span>Base64</span>
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="ai-recommended">
+                                        <div className="flex items-center">
+                                          <Sparkles className="mr-2 h-4 w-4" />
+                                          <span>AI Recommended</span>
+                                        </div>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                               
                               <div className="space-y-2">
                                 <Label htmlFor="randomization" className="text-sm">Randomization Level</Label>
@@ -551,7 +810,7 @@ const PiiHandling = () => {
                                   defaultValue={aiMaskingOptions.randomizationLevel} 
                                   onValueChange={(v) => handleRandomizationLevelChange(v as 'low' | 'medium' | 'high')}
                                 >
-                                  <SelectTrigger>
+                                  <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Select level" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -603,216 +862,3 @@ const PiiHandling = () => {
               
               <div className="space-y-2">
                 {Object.keys(maskingOptions).map((field) => (
-                  <div className="flex items-center space-x-2" key={field}>
-                    <Checkbox 
-                      id={`mask-${field}`} 
-                      checked={maskingOptions[field as keyof MaskingOptions]} 
-                      onCheckedChange={() => toggleMaskingOption(field as keyof MaskingOptions)}
-                    />
-                    <Label 
-                      htmlFor={`mask-${field}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              
-              {aiMaskingOptions.useAi && (
-                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                  <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    AI-powered masking enabled
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium mb-2">Export Format</h3>
-              <div className="flex items-center space-x-2">
-                <Tabs defaultValue="json" onValueChange={(value) => setExportFormat(value as 'json' | 'csv')}>
-                  <TabsList>
-                    <TabsTrigger value="json">JSON</TabsTrigger>
-                    <TabsTrigger value="csv">CSV</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>PII Data Viewer</CardTitle>
-            <CardDescription>View original and masked PII data</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="masked" className="w-full">
-              <TabsList className="mb-4 grid w-full grid-cols-2">
-                <TabsTrigger value="masked">Masked Data</TabsTrigger>
-                <TabsTrigger value="original">Original Data</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="masked" className="space-y-4">
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(maskedData)}>
-                    <Clipboard className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button variant="default" size="sm" onClick={() => handleExport(maskedData)}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export
-                  </Button>
-                </div>
-                
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>First Name</TableHead>
-                        <TableHead>Last Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>SSN</TableHead>
-                        <TableHead>Address</TableHead>
-                        <TableHead>Credit Card</TableHead>
-                        <TableHead>DOB</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isMaskingData ? (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8">
-                            <div className="flex flex-col items-center justify-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
-                              {aiMaskingOptions.useAi && (
-                                <p className="text-sm text-muted-foreground">Generating AI-powered masked data...</p>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ) : maskedData.length > 0 ? (
-                        maskedData.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.id}</TableCell>
-                            <TableCell>{item.firstName}</TableCell>
-                            <TableCell>{item.lastName}</TableCell>
-                            <TableCell>{item.email}</TableCell>
-                            <TableCell>{item.phoneNumber}</TableCell>
-                            <TableCell>{item.ssn}</TableCell>
-                            <TableCell className="max-w-xs truncate">{item.address}</TableCell>
-                            <TableCell>{item.creditCard}</TableCell>
-                            <TableCell>{item.dob}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8">No data available</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="original" className="space-y-4">
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(originalData)}>
-                    <Clipboard className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button variant="default" size="sm" onClick={() => handleExport(originalData)}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export
-                  </Button>
-                </div>
-                
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>First Name</TableHead>
-                        <TableHead>Last Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>SSN</TableHead>
-                        <TableHead>Address</TableHead>
-                        <TableHead>Credit Card</TableHead>
-                        <TableHead>DOB</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {originalData.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.id}</TableCell>
-                          <TableCell>{item.firstName}</TableCell>
-                          <TableCell>{item.lastName}</TableCell>
-                          <TableCell>{item.email}</TableCell>
-                          <TableCell>{item.phoneNumber}</TableCell>
-                          <TableCell>{item.ssn}</TableCell>
-                          <TableCell className="max-w-xs truncate">{item.address}</TableCell>
-                          <TableCell>{item.creditCard}</TableCell>
-                          <TableCell>{item.dob}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </motion.div>
-      
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle>About PII Handling</CardTitle>
-            <CardDescription>Understanding PII and its importance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p>
-                Personally Identifiable Information (PII) is any data that could potentially identify a specific individual. 
-                Organizations must handle PII with care to comply with privacy regulations such as GDPR, CCPA, and HIPAA.
-              </p>
-              
-              <h3 className="text-lg font-medium">PII Masking Techniques:</h3>
-              <ul className="list-disc list-inside space-y-2">
-                <li>
-                  <strong>Character masking:</strong> Replace characters with symbols (e.g., converting "John" to "J***")
-                  <span className="ml-1 text-blue-600 dark:text-blue-400">- Now enhanced with AI to generate realistic fictional replacements</span>
-                </li>
-                <li>
-                  <strong>Truncation:</strong> Remove portions of data (e.g., showing only last 4 digits of credit card)
-                  <span className="ml-1 text-blue-600 dark:text-blue-400">- AI determines optimal truncation patterns</span>
-                </li>
-                <li><strong>Tokenization:</strong> Replace sensitive data with non-sensitive placeholders</li>
-                <li><strong>Encryption:</strong> Transform data using algorithms that require keys to decrypt</li>
-                <li><strong>Data redaction:</strong> Completely remove sensitive information from view</li>
-              </ul>
-              
-              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
-                <h4 className="font-medium text-blue-800 dark:text-blue-300 flex items-center">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  AI-Enhanced PII Masking
-                </h4>
-                <p className="mt-2 text-sm">
-                  This demo now features AI-powered masking that can generate realistic but completely fictional
-                  replacements for sensitive data. Unlike traditional masking techniques that use obvious patterns
-                  (like asterisks), AI masking maintains the natural look and feel of the data while ensuring privacy.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
-  );
-};
-
-export default PiiHandling;

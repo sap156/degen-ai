@@ -25,7 +25,25 @@ export interface AiMaskingOptions {
   maskingPrompt?: string;
   preserveFormat?: boolean;
   randomizationLevel?: 'low' | 'medium' | 'high';
+  maskingTechnique?: MaskingTechnique;
+  encryptionMethod?: EncryptionMethod;
 }
+
+export type MaskingTechnique = 
+  | 'character-masking'
+  | 'truncation'
+  | 'tokenization'
+  | 'encryption'
+  | 'redaction'
+  | 'synthetic-replacement';
+
+export type EncryptionMethod = 
+  | 'aes-256'
+  | 'rsa'
+  | 'sha-256'
+  | 'md5'
+  | 'base64'
+  | 'ai-recommended';
 
 export interface PiiAnalysisResult {
   identifiedPii: string[];
@@ -47,7 +65,7 @@ export const generateSamplePiiData = (count: number = 10): PiiData[] => {
   }));
 };
 
-// Standard masking functions for different PII types
+// Enhanced masking functions for different PII types with AI support
 const standardMaskingFunctions = {
   firstName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
   lastName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
@@ -75,7 +93,7 @@ const standardMaskingFunctions = {
   }
 };
 
-// Apply masking based on selected options
+// Apply masking based on selected options with enhanced AI capabilities
 export const maskPiiData = async (
   data: PiiData[], 
   options: MaskingOptions, 
@@ -94,6 +112,29 @@ export const maskPiiData = async (
       
       const sampleData = data.slice(0, Math.min(5, data.length));
       
+      // Enhance prompts based on selected masking technique
+      let technique = "";
+      switch (aiOptions.maskingTechnique) {
+        case 'character-masking':
+          technique = "Replace characters but maintain recognizability";
+          break;
+        case 'truncation':
+          technique = "Intelligently truncate data while maintaining usability";
+          break;
+        case 'tokenization':
+          technique = "Replace with consistent token identifiers";
+          break;
+        case 'encryption':
+          technique = `Apply ${aiOptions.encryptionMethod || 'appropriate'} encryption simulation`;
+          break;
+        case 'redaction':
+          technique = "Completely redact sensitive parts while keeping structure";
+          break;
+        case 'synthetic-replacement':
+        default:
+          technique = "Generate realistic but fictional replacements";
+      }
+      
       const aiMaskedData = await generateMaskedDataWithAI(
         apiKey,
         sampleData,
@@ -101,7 +142,7 @@ export const maskPiiData = async (
         {
           preserveFormat: aiOptions.preserveFormat || true,
           randomizationLevel: aiOptions.randomizationLevel || 'medium',
-          customPrompt: aiOptions.maskingPrompt
+          customPrompt: `${technique}. ${aiOptions.maskingPrompt || ''}`
         }
       );
       
