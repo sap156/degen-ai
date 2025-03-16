@@ -14,7 +14,7 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
-import { Info, Check } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const modelInfo = {
@@ -77,9 +77,8 @@ const ModelSelector: React.FC = () => {
         </SelectTrigger>
         <SelectContent position="popper" className="w-full">
           {Object.entries(modelInfo).map(([id, info]) => (
-            <SelectItem key={id} value={id} className="flex items-center justify-between py-2.5">
+            <SelectItem key={id} value={id} className="py-2.5">
               <span>{info.name}</span>
-              {id === 'gpt-4-turbo' && <Check className="h-4 w-4 ml-1 text-primary" />}
             </SelectItem>
           ))}
         </SelectContent>
