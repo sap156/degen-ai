@@ -84,13 +84,24 @@ const ModelTester: React.FC<ModelTesterProps> = ({
     );
   }
 
+  // Ensure needed properties exist to prevent null/undefined errors
+  const results = {
+    overallAccuracy: testResults.overallAccuracy || "0",
+    edgeCaseAccuracy: testResults.edgeCaseAccuracy || "0", 
+    falsePositives: testResults.falsePositives || 0,
+    falseNegatives: testResults.falseNegatives || 0,
+    robustnessScore: testResults.robustnessScore || "0",
+    impactedFeatures: testResults.impactedFeatures || [],
+    recommendations: testResults.recommendations || []
+  };
+
   // Prepare chart data
   const chartData = {
     labels: ['Regular Data', 'Edge Cases'],
     datasets: [
       {
         label: 'Accuracy (%)',
-        data: [testResults.overallAccuracy, testResults.edgeCaseAccuracy],
+        data: [results.overallAccuracy, results.edgeCaseAccuracy],
         backgroundColor: ['rgba(34, 197, 94, 0.6)', 'rgba(249, 115, 22, 0.6)'],
         borderColor: ['rgb(34, 197, 94)', 'rgb(249, 115, 22)'],
         borderWidth: 1,
@@ -152,10 +163,10 @@ const ModelTester: React.FC<ModelTesterProps> = ({
             <div>
               <div className="flex justify-between mb-1">
                 <span className="text-sm">Robustness Score</span>
-                <span className="text-sm font-medium">{testResults.robustnessScore}/10</span>
+                <span className="text-sm font-medium">{results.robustnessScore}/10</span>
               </div>
               <Progress 
-                value={Number(testResults.robustnessScore) * 10} 
+                value={Number(results.robustnessScore) * 10} 
                 className="h-2"
               />
             </div>
@@ -166,7 +177,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
                   <XCircle className="h-4 w-4 text-red-500 mr-1" />
                   <span className="text-sm">False Positives</span>
                 </div>
-                <p className="text-2xl font-semibold">{testResults.falsePositives}</p>
+                <p className="text-2xl font-semibold">{results.falsePositives}</p>
               </div>
               
               <div className="border rounded-md p-3">
@@ -174,7 +185,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
                   <XCircle className="h-4 w-4 text-amber-500 mr-1" />
                   <span className="text-sm">False Negatives</span>
                 </div>
-                <p className="text-2xl font-semibold">{testResults.falseNegatives}</p>
+                <p className="text-2xl font-semibold">{results.falseNegatives}</p>
               </div>
             </div>
             
@@ -183,7 +194,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
             <div>
               <h3 className="text-sm font-medium mb-2">Impacted Features</h3>
               <div className="flex flex-wrap gap-2">
-                {testResults.impactedFeatures.map((feature: string, index: number) => (
+                {results.impactedFeatures.map((feature: string, index: number) => (
                   <Badge key={index} variant="outline" className="bg-blue-50">
                     {feature}
                   </Badge>
@@ -196,7 +207,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
         <div className="mt-6">
           <h3 className="text-sm font-medium mb-3">Recommendations</h3>
           <div className="space-y-2 border rounded-md p-4 bg-muted/50">
-            {testResults.recommendations.map((recommendation: string, index: number) => (
+            {results.recommendations.map((recommendation: string, index: number) => (
               <div key={index} className="flex items-start">
                 <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5" />
                 <p className="text-sm">{recommendation}</p>

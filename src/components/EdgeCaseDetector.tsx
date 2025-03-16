@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -52,7 +51,6 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
     }, 1500);
   };
 
-  // Get colors for scores
   const getScoreColor = (score: number) => {
     if (score >= 70) return 'bg-red-100 text-red-800';
     if (score >= 50) return 'bg-amber-100 text-amber-800';
@@ -105,10 +103,8 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
     );
   }
 
-  // Visualizations component for the dialog
   const Visualizations = () => (
     <div className="space-y-8">
-      {/* Score Distribution Chart */}
       <div>
         <h3 className="text-sm font-medium mb-4">Edge Case Score Distribution</h3>
         <div className="h-48 border rounded-md p-4">
@@ -129,12 +125,10 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
         </div>
       </div>
 
-      {/* Confidence vs Score Scatter Plot */}
       <div>
         <h3 className="text-sm font-medium mb-4">Confidence vs Score</h3>
         <div className="h-64 border rounded-md p-4 relative">
           <div className="absolute inset-0 p-4">
-            {/* Y-axis (confidence) */}
             <div className="absolute left-0 top-0 h-full w-px bg-gray-300"></div>
             <div className="absolute left-0 bottom-0 transform -translate-y-1/2 -translate-x-3">
               <span className="text-xs">0</span>
@@ -146,7 +140,6 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
               Confidence
             </span>
             
-            {/* X-axis (score) */}
             <div className="absolute left-0 bottom-0 w-full h-px bg-gray-300"></div>
             <div className="absolute left-0 bottom-0 transform -translate-y-3">
               <span className="text-xs">0</span>
@@ -158,7 +151,6 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
               Edge Case Score
             </span>
             
-            {/* Plot points */}
             {detectedEdgeCases.map((item, index) => {
               const x = `${Math.min(95, Math.max(5, Number(item.score)))}%`;
               const y = `${100 - Math.min(95, Math.max(5, Number(item.confidence) * 100))}%`;
@@ -226,7 +218,7 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
                 <TableHead>Score</TableHead>
                 <TableHead>Target ({targetColumn})</TableHead>
                 <TableHead>Confidence</TableHead>
-                <TableHead>Reason</TableHead>
+                <TableHead className="w-full">Reason</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,10 +234,8 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
                   </TableCell>
                   <TableCell className="font-medium">{item[targetColumn]}</TableCell>
                   <TableCell>{item.confidence}</TableCell>
-                  <TableCell>
-                    <div className="max-w-xs truncate" title={item.reason}>
-                      {item.reason}
-                    </div>
+                  <TableCell className="break-words whitespace-normal max-w-xl">
+                    {item.reason}
                   </TableCell>
                 </TableRow>
               ))}
