@@ -1,11 +1,14 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, ArrowRight, Upload, Download, KeyRound, Sparkles } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, ArrowRight, KeyRound, Sparkles } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
+import ModelSelector from '@/components/ModelSelector';
+
 const container = {
   hidden: {
     opacity: 0
@@ -18,6 +21,7 @@ const container = {
     }
   }
 };
+
 const item = {
   hidden: {
     opacity: 0,
@@ -33,6 +37,7 @@ const item = {
     }
   }
 };
+
 const features = [{
   title: 'Synthetic Data',
   description: 'Generate realistic synthetic data for testing and development',
@@ -84,6 +89,7 @@ const features = [{
   icon: <Search className="h-5 w-5" />,
   path: '/data-query'
 }];
+
 const FeatureCard = ({
   feature
 }: {
@@ -107,11 +113,13 @@ const FeatureCard = ({
       </CardFooter>
     </Card>
   </motion.div>;
+
 const Index: React.FC = () => {
   const {
     isKeySet
   } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+
   return <div className="container px-4 mx-auto py-8 max-w-7xl">
       <div className="flex flex-col items-center text-center mb-16 space-y-3">
         <motion.div initial={{
@@ -158,17 +166,13 @@ const Index: React.FC = () => {
         duration: 0.5,
         delay: 0.3
       }}>
-          <Button size="lg" className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Data
-          </Button>
           <Button size="lg" variant="outline" className="gap-2">
             <Database className="h-4 w-4" />
             Connect Database
           </Button>
         </motion.div>
         
-        {/* API Key Status Card */}
+        {/* API Key & Model Selection Card */}
         <motion.div className="w-full max-w-md mt-6" initial={{
         opacity: 0,
         y: 20
@@ -186,10 +190,16 @@ const Index: React.FC = () => {
                 AI Integration
               </CardTitle>
               <CardDescription>
-                {isKeySet ? "Your OpenAI API key is set. All AI-powered features are enabled!" : "Set up your OpenAI API key to unlock AI-powered features across all tools."}
+                {isKeySet 
+                  ? "Your OpenAI API key is set. Configure your preferred AI model below."
+                  : "Set up your OpenAI API key to unlock AI-powered features across all tools."
+                }
               </CardDescription>
             </CardHeader>
-            <CardFooter className="pt-2">
+            <CardContent className="pb-0">
+              {isKeySet && <ModelSelector />}
+            </CardContent>
+            <CardFooter className="pt-4">
               <Button onClick={() => setApiKeyDialogOpen(true)} variant={isKeySet ? "outline" : "default"} className="w-full gap-2">
                 <KeyRound className="h-4 w-4" />
                 {isKeySet ? "Manage API Key" : "Set Up API Key"}
@@ -206,4 +216,5 @@ const Index: React.FC = () => {
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
     </div>;
 };
+
 export default Index;

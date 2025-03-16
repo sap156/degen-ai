@@ -1,42 +1,61 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { toast } from "sonner";
+
+type OpenAIModel = 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo';
 
 interface ApiKeyContextType {
   apiKey: string | null;
-  setApiKey: (key: string) => void;
   isKeySet: boolean;
+  setApiKey: (key: string) => void;
   clearApiKey: () => void;
+  selectedModel: OpenAIModel;
+  setSelectedModel: (model: OpenAIModel) => void;
 }
 
 const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [apiKey, setApiKeyState] = useState<string | null>(() => {
-    const storedKey = localStorage.getItem('openai_api_key');
-    return storedKey;
-  });
+  const [apiKey, setApiKeyState] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4-turbo');
+
+  useEffect(() => {
+    const storedKey = localStorage.getItem('openai-api-key');
+    if (storedKey) {
+      setApiKeyState(storedKey);
+    }
+    
+    const storedModel = localStorage.getItem('openai-model') as OpenAIModel | null;
+    if (storedModel) {
+      setSelectedModel(storedModel);
+    }
+  }, []);
 
   const setApiKey = (key: string) => {
-    if (key.startsWith('sk-') && key.length > 20) {
-      localStorage.setItem('openai_api_key', key);
-      setApiKeyState(key);
-      toast.success('API key saved successfully');
-    } else {
-      toast.error('Invalid OpenAI API key format');
-    }
+    localStorage.setItem('openai-api-key', key);
+    setApiKeyState(key);
   };
 
   const clearApiKey = () => {
-    localStorage.removeItem('openai_api_key');
+    localStorage.removeItem('openai-api-key');
     setApiKeyState(null);
-    toast.info('API key removed');
   };
 
-  const isKeySet = Boolean(apiKey);
+  const handleSetSelectedModel = (model: OpenAIModel) => {
+    localStorage.setItem('openai-model', model);
+    setSelectedModel(model);
+  };
 
   return (
-    <ApiKeyContext.Provider value={{ apiKey, setApiKey, isKeySet, clearApiKey }}>
+    <ApiKeyContext.Provider 
+      value={{ 
+        apiKey, 
+        isKeySet: !!apiKey, 
+        setApiKey, 
+        clearApiKey,
+        selectedModel,
+        setSelectedModel: handleSetSelectedModel
+      }}
+    >
       {children}
     </ApiKeyContext.Provider>
   );

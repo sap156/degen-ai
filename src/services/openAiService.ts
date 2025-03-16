@@ -29,6 +29,12 @@ export const getCompletion = async (
     throw new Error("API key is not set");
   }
 
+  // Get the model from localStorage if not provided in options
+  if (!options.model) {
+    const storedModel = localStorage.getItem('openai-model');
+    options.model = storedModel || defaultOptions.model;
+  }
+
   const mergedOptions = { ...defaultOptions, ...options };
   
   try {
@@ -123,8 +129,12 @@ export const generateSyntheticDataWithAI = async (
     { role: 'user', content: formattedPrompt }
   ];
   
+  // Get the model from localStorage
+  const model = localStorage.getItem('openai-model') || defaultOptions.model;
+  
   try {
     return await getCompletion(apiKey, messages, {
+      model,
       temperature: 0.5, // Lower temperature for more consistent output
       max_tokens: Math.min(4000, count * 50) // Adjust token count based on requested row count
     });
@@ -149,8 +159,12 @@ export const analyzePiiWithAI = async (
     2. "suggestions": a string with recommendations for handling this data safely` }
   ];
   
+  // Get the model from localStorage
+  const model = localStorage.getItem('openai-model') || defaultOptions.model;
+  
   try {
     const response = await getCompletion(apiKey, messages, {
+      model,
       temperature: 0.3,
       max_tokens: 1000
     });
