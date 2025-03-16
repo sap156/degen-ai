@@ -1,16 +1,18 @@
 
-import React, { useState } from 'react';
-import { Bot, ChevronRight, Sparkles, BarChart, ChevronLeft } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { DatasetAnalysis, DatasetPreferences } from '@/services/aiDatasetAnalysisService';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 interface AIDatasetConfigurationProps {
   datasetAnalysis: DatasetAnalysis | null;
@@ -19,269 +21,311 @@ interface AIDatasetConfigurationProps {
   apiKeyAvailable: boolean;
 }
 
-const AIDatasetConfiguration: React.FC<AIDatasetConfigurationProps> = ({
+const AIDatasetConfiguration = ({
   datasetAnalysis,
   isLoading,
   onConfigurationComplete,
-  apiKeyAvailable,
-}) => {
-  const [step, setStep] = useState<number>(1);
-  const [targetColumn, setTargetColumn] = useState<string>('');
-  const [classLabels, setClassLabels] = useState<string[]>([]);
-  const [majorityClass, setMajorityClass] = useState<string>('');
-  const [minorityClass, setMinorityClass] = useState<string>('');
-  const [datasetContext, setDatasetContext] = useState<string>('');
-  const [newClassName, setNewClassName] = useState<string>('');
-  
-  const handleAddClass = () => {
-    if (newClassName.trim() && !classLabels.includes(newClassName.trim())) {
-      setClassLabels([...classLabels, newClassName.trim()]);
-      setNewClassName('');
+  apiKeyAvailable
+}: AIDatasetConfigurationProps) => {
+  const [step, setStep] = useState<'target' | 'classes' | 'context'>('target');
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<DatasetPreferences>({
+    defaultValues: {
+      targetColumn: datasetAnalysis?.detectedTarget || '',
+      classLabels: [],
+      datasetContext: ''
     }
-  };
-  
-  const handleRemoveClass = (className: string) => {
-    setClassLabels(classLabels.filter(c => c !== className));
-    if (majorityClass === className) setMajorityClass('');
-    if (minorityClass === className) setMinorityClass('');
-  };
-  
-  const handleComplete = () => {
-    const preferences: DatasetPreferences = {
-      targetColumn,
-      classLabels,
-      majorityClass,
-      minorityClass,
-      datasetContext,
-    };
+  });
+
+  const targetColumn = watch('targetColumn');
+
+  // Get unique values for the selected target column
+  const getUniqueClassValues = (): string[] => {
+    if (!datasetAnalysis || !targetColumn) return [];
     
-    onConfigurationComplete(preferences);
-    setStep(4); // Move to completion step
+    const uniqueValues = new Set<string>();
+    datasetAnalysis.preview.forEach(item => {
+      if (targetColumn in item) {
+        uniqueValues.add(String(item[targetColumn]));
+      }
+    });
+    
+    return Array.from(uniqueValues);
   };
+
+  const uniqueClassValues = getUniqueClassValues();
   
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
+  // For the detected target column, show frequency of each value
+  const getValueFrequency = (value: string): number => {
+    if (!datasetAnalysis || !targetColumn) return 0;
+    
+    return datasetAnalysis.preview.filter(item => 
+      String(item[targetColumn]) === value
+    ).length;
+  };
+
+  const handleTargetSelection = () => {
+    if (!targetColumn) {
+      toast.error("Please select a target column");
+      return;
     }
+    
+    // Auto-select the unique values as class labels
+    setValue('classLabels', uniqueClassValues);
+    setStep('classes');
   };
-  
-  const resetConfiguration = () => {
-    setStep(1);
+
+  const handleClassesSelection = () => {
+    setStep('context');
   };
-  
-  if (isLoading) {
+
+  const handleBackToTarget = () => {
+    setStep('target');
+  };
+
+  const handleBackToClasses = () => {
+    setStep('classes');
+  };
+
+  const handleComplete = (data: DatasetPreferences) => {
+    // Determine majority and minority classes
+    if (datasetAnalysis && targetColumn) {
+      const classCounts: Record<string, number> = {};
+      datasetAnalysis.preview.forEach(item => {
+        const className = String(item[targetColumn]);
+        classCounts[className] = (classCounts[className] || 0) + 1;
+      });
+      
+      let maxCount = 0;
+      let minCount = Infinity;
+      let majorityClass = '';
+      let minorityClass = '';
+      
+      Object.entries(classCounts).forEach(([className, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          majorityClass = className;
+        }
+        if (count < minCount) {
+          minCount = count;
+          minorityClass = className;
+        }
+      });
+      
+      data.majorityClass = majorityClass;
+      data.minorityClass = minorityClass;
+    }
+    
+    onConfigurationComplete(data);
+  };
+
+  if (!datasetAnalysis) {
     return (
       <Card className="mt-6">
         <CardContent className="pt-6">
-          <div className="space-y-3">
-            <div className="flex items-center text-sm">
-              <Bot className="mr-2 h-4 w-4 animate-spin" />
-              Analyzing dataset structure...
-            </div>
-            <Progress value={70} className="h-2" />
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <FileSearch className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No Dataset Loaded</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+              Please upload a dataset to configure AI-assisted analysis
+            </p>
           </div>
         </CardContent>
       </Card>
     );
   }
-  
+
   return (
     <Card className="mt-6">
-      <CardHeader className="pb-3">
+      <CardHeader>
         <CardTitle className="flex items-center">
-          <Bot className="mr-2 h-5 w-5 text-primary" />
+          <Brain className="mr-2 h-5 w-5 text-primary" />
           Dataset Configuration
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="space-y-4">
+      <CardContent>
         {!apiKeyAvailable && (
-          <Alert>
-            <AlertDescription>
-              OpenAI API key is recommended for better dataset analysis.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {step === 1 && (
-          <div className="space-y-4">
-            <h3 className="font-medium">Step 1: Target Column</h3>
-            <div className="space-y-2">
-              <Label htmlFor="targetColumn">Class/Target Column Name</Label>
-              <Input 
-                id="targetColumn" 
-                placeholder="e.g., class, label, target, y"
-                value={targetColumn}
-                onChange={(e) => setTargetColumn(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                This is the column that contains your class labels
-              </p>
-            </div>
+          <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-md text-sm">
+            <p className="font-medium">OpenAI API Key Required</p>
+            <p className="mt-1">Set your OpenAI API key to enable AI-powered analysis features.</p>
           </div>
         )}
         
-        {step === 2 && (
+        {step === 'target' && (
           <div className="space-y-4">
-            <h3 className="font-medium">Step 2: Class Labels</h3>
-            <div className="space-y-2">
-              <Label>Add Class Labels</Label>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Enter class name"
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddClass();
-                    }
-                  }}
-                />
-                <Button onClick={handleAddClass}>Add</Button>
-              </div>
+            <div className="flex items-center space-x-2 mb-4">
+              <Target className="h-5 w-5 text-blue-500" />
+              <h3 className="text-lg font-medium">1. Select Target Variable</h3>
             </div>
             
-            {classLabels.length > 0 && (
-              <div className="space-y-2">
-                <Label>Current Class Labels</Label>
-                <div className="border rounded-md p-3 space-y-2">
-                  {classLabels.map((className) => (
-                    <div key={className} className="flex items-center justify-between">
-                      <span>{className}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleRemoveClass(className)}
-                      >
-                        Remove
-                      </Button>
+            <div className="space-y-3">
+              <Label htmlFor="targetColumn">Which column represents your target/label variable?</Label>
+              <Select 
+                value={targetColumn} 
+                onValueChange={(value) => setValue('targetColumn', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target column" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(datasetAnalysis.schema).map(column => (
+                    <SelectItem key={column} value={column}>
+                      {column}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({datasetAnalysis.schema[column]})
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {targetColumn && (
+                <div className="mt-4 space-y-3">
+                  <Label>Preview of target values:</Label>
+                  <div className="border rounded-md p-3">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {uniqueClassValues.map(value => (
+                        <div key={value} className="flex justify-between items-center">
+                          <Badge variant="outline">{value}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {getValueFrequency(value)} occurrences
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <Button 
+              onClick={handleTargetSelection} 
+              className="mt-4"
+              disabled={!targetColumn}
+            >
+              Continue
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
+        {step === 'classes' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 mb-4">
+              <Tag className="h-5 w-5 text-green-500" />
+              <h3 className="text-lg font-medium">2. Confirm Class Labels</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <Label>Confirm the class values in your target variable</Label>
+              <p className="text-sm text-muted-foreground">
+                These are the unique values found in your selected target column. 
+                Please confirm they are correct.
+              </p>
+              
+              <div className="border rounded-md p-3">
+                <div className="grid grid-cols-1 gap-2">
+                  {uniqueClassValues.map(value => (
+                    <div key={value} className="flex items-center">
+                      <Switch 
+                        id={`class-${value}`}
+                        checked={watch('classLabels').includes(value)}
+                        onCheckedChange={(checked) => {
+                          const current = watch('classLabels');
+                          if (checked) {
+                            setValue('classLabels', [...current, value]);
+                          } else {
+                            setValue('classLabels', current.filter(v => v !== value));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`class-${value}`} className="ml-2">
+                        {value}
+                      </Label>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-        
-        {step === 3 && (
-          <div className="space-y-4">
-            <h3 className="font-medium">Step 3: Class Distribution</h3>
-            
-            {classLabels.length >= 2 ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="majorityClass">Majority Class</Label>
-                  <Select value={majorityClass} onValueChange={setMajorityClass}>
-                    <SelectTrigger id="majorityClass">
-                      <SelectValue placeholder="Select majority class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classLabels.map((className) => (
-                        <SelectItem key={className} value={className}>
-                          {className}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="minorityClass">Minority Class</Label>
-                  <Select value={minorityClass} onValueChange={setMinorityClass}>
-                    <SelectTrigger id="minorityClass">
-                      <SelectValue placeholder="Select minority class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classLabels.map((className) => (
-                        <SelectItem key={className} value={className}>
-                          {className}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="datasetContext">Dataset Context (Optional)</Label>
-                  <Textarea
-                    id="datasetContext"
-                    placeholder="e.g., Credit card fraud detection, medical diagnosis, customer churn prediction"
-                    value={datasetContext}
-                    onChange={(e) => setDatasetContext(e.target.value)}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground">
-                  Please add at least two class labels in the previous step.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {step === 4 && (
-          <div className="space-y-4 py-6 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-4">
-              <Sparkles className="h-6 w-6 text-green-600" />
             </div>
-            <h3 className="text-lg font-medium">Configuration Complete</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Your dataset configuration has been saved. You can now proceed with AI analysis.
-            </p>
-            <Button 
-              variant="outline" 
-              className="mt-2" 
-              onClick={resetConfiguration}
-            >
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Reconfigure Dataset
-            </Button>
+            
+            <div className="flex justify-between mt-4">
+              <Button
+                variant="outline"
+                onClick={handleBackToTarget}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button 
+                onClick={handleClassesSelection} 
+                disabled={watch('classLabels').length < 2}
+              >
+                Continue
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </div>
+        )}
+        
+        {step === 'context' && (
+          <form onSubmit={handleSubmit(handleComplete)} className="space-y-4">
+            <div className="flex items-center space-x-2 mb-4">
+              <FileText className="h-5 w-5 text-purple-500" />
+              <h3 className="text-lg font-medium">3. Add Context (Optional)</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <Label htmlFor="datasetContext">Dataset Context</Label>
+              <p className="text-sm text-muted-foreground">
+                Providing context about your data helps our AI provide more relevant recommendations. 
+                For example: "customer churn prediction", "fraud detection", "medical diagnosis".
+              </p>
+              <Textarea
+                id="datasetContext"
+                placeholder="Describe what this dataset represents and what you're trying to predict..."
+                className="min-h-[100px]"
+                {...register('datasetContext')}
+              />
+            </div>
+            
+            <div className="flex justify-between pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleBackToClasses}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button type="submit">
+                <Bot className="mr-2 h-4 w-4" />
+                Complete Configuration
+              </Button>
+            </div>
+          </form>
         )}
       </CardContent>
-      
-      {step < 4 && (
-        <CardFooter className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={step === 1}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          
-          <Button
-            onClick={() => {
-              if (step < 3) {
-                setStep(step + 1);
-              } else {
-                handleComplete();
-              }
-            }}
-            disabled={
-              (step === 1 && !targetColumn) ||
-              (step === 2 && classLabels.length < 2) ||
-              (step === 3 && (!majorityClass || !minorityClass))
-            }
-          >
-            {step === 3 ? (
-              <>
-                Complete
-                <Sparkles className="ml-2 h-4 w-4" />
-              </>
-            ) : (
-              <>
-                Next
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      )}
+
+      <CardFooter className="bg-muted/50 flex flex-col items-start px-6 py-4">
+        <h4 className="text-sm font-medium mb-2">Dataset Summary</h4>
+        <div className="w-full grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div><span className="text-muted-foreground">Total Samples:</span> {datasetAnalysis.summary.totalSamples}</div>
+          <div><span className="text-muted-foreground">Missing Values:</span> {datasetAnalysis.summary.missingValues}</div>
+          <div><span className="text-muted-foreground">Duplicates:</span> {datasetAnalysis.summary.duplicates}</div>
+          <div><span className="text-muted-foreground">Outliers:</span> {datasetAnalysis.summary.outliers}</div>
+        </div>
+        
+        {datasetAnalysis.potentialIssues.length > 0 && (
+          <div className="mt-3 w-full">
+            <Separator className="my-2" />
+            <h4 className="text-sm font-medium mb-1">Potential Issues</h4>
+            <ul className="text-xs space-y-1">
+              {datasetAnalysis.potentialIssues.map((issue, index) => (
+                <li key={index} className="text-orange-600">{issue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardFooter>
     </Card>
   );
 };

@@ -36,6 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
+// Register Chart.js components
 ChartJS.register(
   ArcElement,
   Tooltip,
@@ -54,12 +55,14 @@ type FormValues = {
 };
 
 const ImbalancedData = () => {
+  // Original state from the component
   const [originalDataset, setOriginalDataset] = useState<DatasetInfo | null>(null);
   const [balancedDataset, setBalancedDataset] = useState<DatasetInfo | null>(null);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   
+  // New state for AI integration
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [datasetAnalysis, setDatasetAnalysis] = useState<DatasetAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -68,6 +71,7 @@ const ImbalancedData = () => {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [featureEngineering, setFeatureEngineering] = useState<any | null>(null);
   
+  // Get API key from context
   const { apiKey } = useApiKey();
 
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
@@ -80,10 +84,12 @@ const ImbalancedData = () => {
     },
   });
 
+  // Generate sample dataset on mount (keep existing code)
   useEffect(() => {
     generateDataset();
   }, []);
 
+  // Existing function to generate dataset
   const generateDataset = (customParams?: Partial<FormValues>) => {
     const params = {
       classes: customParams?.classes || watch('classes'),
@@ -101,19 +107,17 @@ const ImbalancedData = () => {
     setBalancedDataset(null);
   };
 
-  const handleBalanceDataset = async (options: BalancingOptions) => {
+  // Function to handle dataset balancing
+  const handleBalanceDataset = (options: BalancingOptions) => {
     if (!originalDataset) return;
 
-    try {
-      const balanced = await balanceDataset(originalDataset, options, apiKey);
-      setBalancedDataset(balanced);
-      toast.success(`Applied ${options.method} balancing technique`);
-    } catch (error) {
-      console.error("Error balancing dataset:", error);
-      toast.error("Failed to balance dataset");
-    }
+    const balanced = balanceDataset(originalDataset, options);
+    setBalancedDataset(balanced);
+
+    toast.success(`Applied ${options.method} balancing technique`);
   };
 
+  // Function to handle data export
   const handleExport = (dataset: DatasetInfo, format: 'json' | 'csv') => {
     const filename = `imbalanced-data-${format === 'json' ? 'json' : 'csv'}`;
     const data = format === 'json' ? exportAsJson(dataset) : exportAsCsv(dataset);
@@ -122,6 +126,7 @@ const ImbalancedData = () => {
     toast.success(`Exported data as ${format.toUpperCase()}`);
   };
 
+  // Function to handle download of balanced dataset
   const handleDownloadBalanced = (format: 'json' | 'csv') => {
     if (!balancedDataset) return;
     
@@ -132,6 +137,7 @@ const ImbalancedData = () => {
     toast.success(`Downloaded balanced dataset as ${format.toUpperCase()}`);
   };
 
+  // Enhanced file upload handler
   const handleFileUpload = async (file: File) => {
     try {
       setUploadedFile(file);
@@ -154,12 +160,15 @@ const ImbalancedData = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
+      // Process data into the format expected by the app
       const processedData = processUploadedData(parsedData);
       setOriginalDataset(processedData);
       setBalancedDataset(null);
       
+      // Store the parsed data for AI analysis
       setParsedData(Array.isArray(parsedData) ? parsedData : []);
       
+      // Run AI analysis if API key is available
       if (apiKey) {
         analyzeUploadedData(Array.isArray(parsedData) ? parsedData : []);
       }
@@ -173,6 +182,7 @@ const ImbalancedData = () => {
     }
   };
 
+  // Function to analyze uploaded data with AI
   const analyzeUploadedData = async (data: any[]) => {
     if (!data.length || !apiKey) return;
     
@@ -191,11 +201,13 @@ const ImbalancedData = () => {
     }
   };
 
+  // Function to handle dataset configuration
   const handleDatasetConfigurationComplete = (preferences: DatasetPreferences) => {
     setDatasetPreferences(preferences);
     toast.success('Dataset configuration saved');
   };
 
+  // Function to get AI recommendations
   const getAIRecommendations = async () => {
     if (!datasetPreferences || !parsedData.length || !apiKey) return;
     
@@ -234,6 +246,7 @@ const ImbalancedData = () => {
       
       setAiRecommendations(recommendations);
       
+      // Also fetch feature engineering suggestions
       const featureSuggestions = await getFeatureEngineeringSuggestions(
         parsedData,
         datasetPreferences,
@@ -252,22 +265,29 @@ const ImbalancedData = () => {
     }
   };
 
+  // Process uploaded data into the expected format (existing code)
   const processUploadedData = (data: any): DatasetInfo => {
+    // Handle array format (most common case)
     if (Array.isArray(data)) {
+      // Try to detect class distribution from data
+      // Assuming there's a "class" or "label" field in the data
       const classField = detectClassField(data);
       
       if (!classField) {
         throw new Error('Could not identify class field in the data');
       }
       
+      // Count occurrences of each class
       const classCounts: Record<string, number> = {};
       data.forEach(item => {
         const className = String(item[classField]);
         classCounts[className] = (classCounts[className] || 0) + 1;
       });
       
+      // Calculate total samples
       const totalSamples = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
       
+      // Create class distribution array
       const classColors = [
         '#4f46e5', '#0891b2', '#16a34a', '#ca8a04', 
         '#dc2626', '#9333ea', '#2563eb', '#059669', 
@@ -281,8 +301,10 @@ const ImbalancedData = () => {
         color: classColors[index % classColors.length]
       }));
       
+      // Sort by count (descending)
       classes.sort((a, b) => b.count - a.count);
       
+      // Calculate imbalance ratio
       const maxClassSize = classes[0].count;
       const minClassSize = classes[classes.length - 1].count;
       const imbalanceRatio = parseFloat((maxClassSize / minClassSize).toFixed(2));
@@ -294,17 +316,21 @@ const ImbalancedData = () => {
         imbalanceRatio
       };
     } else if (data && typeof data === 'object' && 'classes' in data && 'totalSamples' in data) {
+      // The uploaded data is already in the expected format
       return data as DatasetInfo;
     } else {
       throw new Error('Unsupported data format. Please check the file structure.');
     }
   };
 
+  // Detect class field in uploaded data (existing code)
   const detectClassField = (data: any[]): string | null => {
     if (data.length === 0) return null;
     
+    // Common class field names
     const possibleClassFields = ['class', 'label', 'category', 'target', 'y', 'Class', 'Label', 'Category', 'Target'];
     
+    // Check if any of these fields exist in the data
     const firstItem = data[0];
     for (const field of possibleClassFields) {
       if (field in firstItem) {
@@ -312,11 +338,15 @@ const ImbalancedData = () => {
       }
     }
     
+    // If no common class field is found, look for fields with categorical values
+    // that have a small number of unique values compared to the dataset size
     const fields = Object.keys(firstItem);
     
     for (const field of fields) {
       const uniqueValues = new Set(data.map(item => item[field])).size;
       
+      // If the field has a reasonable number of unique values compared to dataset size
+      // it might be a class field (heuristic)
       if (uniqueValues > 1 && uniqueValues <= Math.min(10, data.length / 5)) {
         return field;
       }
@@ -325,6 +355,7 @@ const ImbalancedData = () => {
     return null;
   };
 
+  // Prepare chart data for visualization (existing code)
   const prepareChartData = (dataset: DatasetInfo) => {
     return {
       labels: dataset.classes.map(c => c.className),
@@ -355,6 +386,7 @@ const ImbalancedData = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column - Controls */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
@@ -437,6 +469,7 @@ const ImbalancedData = () => {
             </CardContent>
           </Card>
           
+          {/* AI Configuration Component */}
           <AIDatasetConfiguration
             datasetAnalysis={datasetAnalysis}
             isLoading={isAnalyzing}
@@ -444,15 +477,20 @@ const ImbalancedData = () => {
             apiKeyAvailable={!!apiKey}
           />
           
-          <DataBalancingControls
-            originalDataset={originalDataset}
-            onBalanceDataset={handleBalanceDataset}
-            onDownloadBalanced={handleDownloadBalanced}
-            hasBalancedData={!!balancedDataset}
-          />
+          {/* Data Balancing Controls */}
+          {originalDataset && (
+            <DataBalancingControls
+              originalDataset={originalDataset}
+              onBalanceDataset={handleBalanceDataset}
+              onDownloadBalanced={handleDownloadBalanced}
+              hasBalancedData={!!balancedDataset}
+            />
+          )}
         </div>
 
+        {/* Right column - Visualization and Analysis */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Original visualization card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
@@ -667,6 +705,7 @@ const ImbalancedData = () => {
             </CardContent>
           </Card>
           
+          {/* AI Analysis Component */}
           <AIDatasetAnalysis
             datasetAnalysis={datasetAnalysis}
             preferences={datasetPreferences}
