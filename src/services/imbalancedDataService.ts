@@ -1,4 +1,4 @@
-import { getCompletion } from "./openAiService";
+import { getCompletion, OpenAiMessage } from "./openAiService";
 
 // Interfaces for imbalanced data operations
 export interface ClassDistribution {
@@ -190,7 +190,7 @@ export const getAIRecommendations = async (
   }
   
   try {
-    const messages = [
+    const messages: OpenAiMessage[] = [
       {
         role: "system",
         content: "You are an expert in machine learning and data science specializing in handling imbalanced datasets. Provide practical recommendations for the given dataset."
