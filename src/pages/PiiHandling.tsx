@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -862,3 +863,168 @@ const PiiHandling = () => {
               
               <div className="space-y-2">
                 {Object.keys(maskingOptions).map((field) => (
+                  <div key={field} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id={`mask-${field}`}
+                      checked={maskingOptions[field as keyof MaskingOptions]}
+                      onCheckedChange={() => toggleMaskingOption(field as keyof MaskingOptions)}
+                    />
+                    <Label htmlFor={`mask-${field}`} className="text-sm cursor-pointer">
+                      {field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="pt-4 space-y-3">
+                <h3 className="text-sm font-medium">Export Settings</h3>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="export-json"
+                      checked={exportFormat === 'json'}
+                      onChange={() => setExportFormat('json')}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="export-json" className="text-sm cursor-pointer">JSON</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="export-csv"
+                      checked={exportFormat === 'csv'}
+                      onChange={() => setExportFormat('csv')}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="export-csv" className="text-sm cursor-pointer">CSV</Label>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col space-y-2 mt-2">
+                  <Button 
+                    onClick={() => handleExport(maskedData)} 
+                    size="sm" 
+                    className="w-full"
+                    disabled={maskedData.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Masked Data
+                  </Button>
+                  <Button 
+                    onClick={() => copyToClipboard(maskedData)} 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full"
+                    disabled={maskedData.length === 0}
+                  >
+                    <Clipboard className="h-4 w-4 mr-2" />
+                    Copy to Clipboard
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>PII Data Viewer</CardTitle>
+            <CardDescription>
+              View original and masked PII data side by side
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="original">
+              <div className="flex justify-between items-center mb-4">
+                <TabsList>
+                  <TabsTrigger value="original">Original Data</TabsTrigger>
+                  <TabsTrigger value="masked">Masked Data</TabsTrigger>
+                </TabsList>
+                
+                {isMaskingData && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                    {aiMaskingOptions.useAi ? "AI masking in progress..." : "Masking data..."}
+                  </div>
+                )}
+              </div>
+              
+              <TabsContent value="original">
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>First Name</TableHead>
+                        <TableHead>Last Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>SSN</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Credit Card</TableHead>
+                        <TableHead>DOB</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {originalData.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.id}</TableCell>
+                          <TableCell>{item.firstName}</TableCell>
+                          <TableCell>{item.lastName}</TableCell>
+                          <TableCell>{item.email}</TableCell>
+                          <TableCell>{item.phoneNumber}</TableCell>
+                          <TableCell>{item.ssn}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{item.address}</TableCell>
+                          <TableCell>{item.creditCard}</TableCell>
+                          <TableCell>{item.dob}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="masked">
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>First Name</TableHead>
+                        <TableHead>Last Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>SSN</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Credit Card</TableHead>
+                        <TableHead>DOB</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {maskedData.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.id}</TableCell>
+                          <TableCell>{item.firstName}</TableCell>
+                          <TableCell>{item.lastName}</TableCell>
+                          <TableCell>{item.email}</TableCell>
+                          <TableCell>{item.phoneNumber}</TableCell>
+                          <TableCell>{item.ssn}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{item.address}</TableCell>
+                          <TableCell>{item.creditCard}</TableCell>
+                          <TableCell>{item.dob}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export default PiiHandling;
