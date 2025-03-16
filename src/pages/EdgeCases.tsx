@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Bug, Upload, BarChart3, GitBranch, BrainCircuit, AlertTriangle, FileDown, Settings, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -278,17 +279,25 @@ const EdgeCases = () => {
       return;
     }
     
-    const reportData = {
-      detectedCases: detectedEdgeCases,
-      generatedCases: generatedEdgeCases,
-      testResults: modelTestResults,
-      metadata: {
+    // Create an array of report data objects instead of a single object
+    const reportData = [
+      {
+        type: 'metadata',
         targetColumn,
         edgeCaseType,
         complexityLevel,
         timestamp: new Date().toISOString()
-      }
-    };
+      },
+      ...detectedEdgeCases.map(item => ({
+        type: 'detected',
+        ...item
+      })),
+      ...generatedEdgeCases.map(item => ({
+        type: 'generated',
+        ...item
+      })),
+      ...(modelTestResults ? [{ type: 'testResults', ...modelTestResults }] : [])
+    ];
     
     const formattedData = formatData(reportData, 'json');
     downloadData(formattedData, 'edge_case_report', 'json');
