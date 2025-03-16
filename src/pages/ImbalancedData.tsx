@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PieChart, BarChart, Save, RefreshCw, Download, FileText, Brain } from 'lucide-react';
+import { PieChart, BarChart, Save, RefreshCw, Download, FileText, Brain, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';

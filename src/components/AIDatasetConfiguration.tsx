@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +33,11 @@ const AIDatasetConfiguration: React.FC<AIDatasetConfigurationProps> = ({
   
   useEffect(() => {
     if (datasetAnalysis) {
-      setTargetColumn(datasetAnalysis.targetColumn || '');
-      setClassLabels(datasetAnalysis.classLabels || []);
+      // Using optional chaining with the detectedTarget property
+      setTargetColumn(datasetAnalysis.detectedTarget || '');
+      
+      // Initialize class labels as empty array since it's not in DatasetAnalysis
+      setClassLabels([]);
     }
   }, [datasetAnalysis]);
   
