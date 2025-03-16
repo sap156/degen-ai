@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Download, BarChart, Loader } from 'lucide-react';
+import { AlertTriangle, Download, BarChart, Loader, Plus } from 'lucide-react';
 import { formatData, downloadData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import {
@@ -29,6 +29,7 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
 }) => {
   const [exporting, setExporting] = useState(false);
   const [visualizationsOpen, setVisualizationsOpen] = useState(false);
+  const [generatingMore, setGeneratingMore] = useState(false);
 
   const handleExport = () => {
     if (detectedEdgeCases.length > 0) {
@@ -40,6 +41,15 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
         toast.success('Edge cases exported successfully');
       }, 800);
     }
+  };
+
+  const handleGenerateMore = () => {
+    setGeneratingMore(true);
+    // Simulate generating more edge cases
+    setTimeout(() => {
+      toast.success('More edge cases would be generated via the OpenAI API in a full implementation');
+      setGeneratingMore(false);
+    }, 1500);
   };
 
   // Get colors for scores
@@ -179,19 +189,34 @@ const EdgeCaseDetector: React.FC<EdgeCaseDetectorProps> = ({
             {detectedEdgeCases.length} potential edge cases found in your dataset
           </CardDescription>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleExport}
-          disabled={exporting}
-        >
-          {exporting ? (
-            <Loader className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Export
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleGenerateMore}
+            disabled={generatingMore}
+          >
+            {generatingMore ? (
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            Generate More
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Export
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="border rounded-md overflow-hidden">
