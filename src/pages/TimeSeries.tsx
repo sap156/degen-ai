@@ -1,26 +1,42 @@
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, DownloadCloud, Copy, Save, BarChart, RefreshCw } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, 
+  DownloadCloud, 
+  Copy, 
+  Save, 
+  BarChart, 
+  RefreshCw,
+  Sparkles,
+  Upload
+} from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useApiKey } from '@/contexts/ApiKeyContext';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 
 import {
   generateTimeSeriesData,
+  generateTimeSeriesWithAI,
+  addAINoiseToTimeSeries,
   formatAsCSV,
   formatAsJSON,
   downloadData,
@@ -33,15 +49,21 @@ type FormValues = TimeSeriesOptions & {
   outputFormat: 'json' | 'csv';
   datasetName: string;
   additionalFieldCount: number;
+  aiPrompt?: string;
+  useAi?: boolean;
 };
 
 const TimeSeries = () => {
+  const { apiKey } = useApiKey();
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesDataPoint[]>([]);
   const [formattedData, setFormattedData] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [aiNoisePrompt, setAiNoisePrompt] = useState<string>('');
+  const [isApplyingAiNoise, setIsApplyingAiNoise] = useState<boolean>(false);
+  const [activeSubTab, setActiveSubTab] = useState<string>('manual'); // 'manual' or 'ai'
   
   const { handleSubmit, control, watch, setValue, register, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -56,13 +78,16 @@ const TimeSeries = () => {
       additionalFieldCount: 0,
       additionalFields: [],
       categories: ['category-A', 'category-B', 'category-C', 'category-D'],
-      seed: Math.floor(Math.random() * 10000)
+      seed: Math.floor(Math.random() * 10000),
+      aiPrompt: '',
+      useAi: false
     }
   });
   
   const outputFormat = watch('outputFormat');
   const additionalFieldCount = watch('additionalFieldCount');
   const additionalFields = watch('additionalFields') || [];
+  const useAi = watch('useAi');
   
   useEffect(() => {
     const currentCount = additionalFields?.length || 0;
@@ -81,7 +106,25 @@ const TimeSeries = () => {
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
     try {
-      const generatedData = generateTimeSeriesData(data);
+      let generatedData: TimeSeriesDataPoint[];
+      
+      if (data.useAi && data.aiPrompt) {
+        // Generate data using AI
+        generatedData = await generateTimeSeriesWithAI({
+          apiKey,
+          prompt: data.aiPrompt,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          interval: data.interval,
+          dataPoints: data.dataPoints,
+          additionalFields: data.additionalFields,
+          existingData: timeSeriesData.length > 0 ? timeSeriesData : undefined
+        });
+      } else {
+        // Generate data using traditional method
+        generatedData = generateTimeSeriesData(data);
+      }
+      
       setTimeSeriesData(generatedData);
       
       const formatted = data.outputFormat === 'csv'
@@ -135,6 +178,45 @@ const TimeSeries = () => {
     navigator.clipboard.writeText(formattedData)
       .then(() => toast.success('Data copied to clipboard'))
       .catch(() => toast.error('Failed to copy data'));
+  };
+  
+  const handleApplyAiNoise = async () => {
+    if (!timeSeriesData.length) {
+      toast.warning('No data to modify. Please generate or upload data first.');
+      return;
+    }
+    
+    if (!aiNoisePrompt) {
+      toast.warning('Please provide instructions for AI noise generation.');
+      return;
+    }
+    
+    setIsApplyingAiNoise(true);
+    
+    try {
+      const noiseLevel = watch('noiseLevel');
+      const modifiedData = await addAINoiseToTimeSeries(
+        apiKey,
+        timeSeriesData,
+        aiNoisePrompt,
+        noiseLevel
+      );
+      
+      setTimeSeriesData(modifiedData);
+      
+      const formatted = outputFormat === 'csv'
+        ? formatAsCSV(modifiedData)
+        : formatAsJSON(modifiedData);
+        
+      setFormattedData(formatted);
+      
+      toast.success('Applied AI-generated noise to time series data');
+    } catch (error) {
+      console.error('Error applying AI noise:', error);
+      toast.error('Failed to apply AI noise');
+    } finally {
+      setIsApplyingAiNoise(false);
+    }
   };
   
   const handleFileUpload = async (file: File) => {
@@ -348,6 +430,34 @@ const TimeSeries = () => {
                       )}
                     </div>
                     
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        id="useAi" 
+                        checked={useAi} 
+                        onCheckedChange={(checked) => setValue('useAi', checked)} 
+                      />
+                      <Label htmlFor="useAi" className="font-medium">
+                        Use AI Generation
+                      </Label>
+                    </div>
+                    
+                    {useAi && (
+                      <ApiKeyRequirement>
+                        <div className="space-y-2">
+                          <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
+                          <Textarea
+                            id="aiPrompt"
+                            placeholder="Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data with weekend peaks and seasonal trends')"
+                            className="h-24"
+                            {...register('aiPrompt')}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Describe domain, patterns, seasonality, trends, and any specific characteristics
+                          </p>
+                        </div>
+                      </ApiKeyRequirement>
+                    )}
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Start Date</Label>
@@ -457,61 +567,65 @@ const TimeSeries = () => {
                       )}
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="trend">Trend Pattern</Label>
-                      <Controller
-                        control={control}
-                        name="trend"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select trend" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="random">Random</SelectItem>
-                              <SelectItem value="upward">Upward</SelectItem>
-                              <SelectItem value="downward">Downward</SelectItem>
-                              <SelectItem value="seasonal">Seasonal</SelectItem>
-                              <SelectItem value="cyclical">Cyclical</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="noiseLevel">Noise Level</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {Math.round(watch('noiseLevel') * 100)}%
-                        </span>
-                      </div>
-                      <Controller
-                        control={control}
-                        name="noiseLevel"
-                        render={({ field: { value, onChange } }) => (
-                          <Slider
-                            defaultValue={[value]}
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            onValueChange={(vals) => onChange(vals[0])}
+                    {!useAi && (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="trend">Trend Pattern</Label>
+                          <Controller
+                            control={control}
+                            name="trend"
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select trend" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="random">Random</SelectItem>
+                                  <SelectItem value="upward">Upward</SelectItem>
+                                  <SelectItem value="downward">Downward</SelectItem>
+                                  <SelectItem value="seasonal">Seasonal</SelectItem>
+                                  <SelectItem value="cyclical">Cyclical</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           />
-                        )}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="seed">Random Seed</Label>
-                      <Input
-                        id="seed"
-                        type="number"
-                        {...register('seed', { valueAsNumber: true })}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Use the same seed to generate reproducible results
-                      </p>
-                    </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <Label htmlFor="noiseLevel">Noise Level</Label>
+                            <span className="text-sm text-muted-foreground">
+                              {Math.round(watch('noiseLevel') * 100)}%
+                            </span>
+                          </div>
+                          <Controller
+                            control={control}
+                            name="noiseLevel"
+                            render={({ field: { value, onChange } }) => (
+                              <Slider
+                                defaultValue={[value]}
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                onValueChange={(vals) => onChange(vals[0])}
+                              />
+                            )}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="seed">Random Seed</Label>
+                          <Input
+                            id="seed"
+                            type="number"
+                            {...register('seed', { valueAsNumber: true })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Use the same seed to generate reproducible results
+                          </p>
+                        </div>
+                      </>
+                    )}
                     
                     <div className="space-y-2">
                       <Label htmlFor="additionalFieldCount">Additional Fields</Label>
@@ -608,6 +722,65 @@ const TimeSeries = () => {
                       </div>
                     )}
                     
+                    {timeSeriesData.length > 0 && (
+                      <ApiKeyRequirement>
+                        <Card className="mt-4">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base">AI Enhancements</CardTitle>
+                            <CardDescription>Enhance uploaded data with AI</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="aiNoisePrompt">AI Enhancement Prompt</Label>
+                              <Textarea
+                                id="aiNoisePrompt"
+                                placeholder="Describe how you want to enhance this time series (e.g., 'Add seasonal patterns, realistic noise, and occasional outliers')"
+                                className="h-24"
+                                value={aiNoisePrompt}
+                                onChange={(e) => setAiNoisePrompt(e.target.value)}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <Label htmlFor="noiseLevel">Effect Intensity</Label>
+                                <span className="text-sm text-muted-foreground">
+                                  {Math.round(watch('noiseLevel') * 100)}%
+                                </span>
+                              </div>
+                              <Controller
+                                control={control}
+                                name="noiseLevel"
+                                render={({ field: { value, onChange } }) => (
+                                  <Slider
+                                    defaultValue={[value]}
+                                    min={0}
+                                    max={1}
+                                    step={0.01}
+                                    onValueChange={(vals) => onChange(vals[0])}
+                                  />
+                                )}
+                              />
+                            </div>
+                            
+                            <Button 
+                              type="button" 
+                              onClick={handleApplyAiNoise}
+                              disabled={isApplyingAiNoise || !aiNoisePrompt}
+                              className="w-full"
+                            >
+                              {isApplyingAiNoise ? (
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                              )}
+                              Apply AI Enhancements
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </ApiKeyRequirement>
+                    )}
+                    
                     <div className="space-y-2 pt-4">
                       <Label htmlFor="export-format">Export Format</Label>
                       <Select 
@@ -642,8 +815,17 @@ const TimeSeries = () => {
                   </div>
                 ) : (
                   <div className="flex items-center">
-                    <BarChart className="mr-2 h-4 w-4" />
-                    Generate Time Series
+                    {useAi ? (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate with AI
+                      </>
+                    ) : (
+                      <>
+                        <BarChart className="mr-2 h-4 w-4" />
+                        Generate Time Series
+                      </>
+                    )}
                   </div>
                 )}
               </Button>
