@@ -82,9 +82,9 @@ export const generateSyntheticDataWithAI = async (
   prompt: string,
   format: string = 'json',
   count: number = 10,
-  options: { sampleData?: any[] } = {}
+  options: { sampleData?: any[], startId?: number } = {}
 ): Promise<string> => {
-  const { sampleData } = options;
+  const { sampleData, startId } = options;
   
   // Create a more structured system message to enforce format compliance
   const systemMessage = `You are a synthetic data generator specialized in creating ${format === 'json' ? 'JSON' : 'CSV'} data. 
@@ -97,7 +97,8 @@ export const generateSyntheticDataWithAI = async (
   3. For JSON, ensure all property names are properly quoted.
   4. For CSV, include a header row.
   5. Follow field type requirements precisely.
-  6. Generate exactly ${count} rows of data unless explicitly told otherwise.`;
+  6. Generate exactly ${count} rows of data unless explicitly told otherwise.
+  ${startId !== undefined ? `7. Start IDs at ${startId} and increment sequentially.` : ''}`;
   
   // Create a more structured user prompt
   let formattedPrompt = `Generate ${count} rows of synthetic data with the following requirements:\n\n${prompt}`;
@@ -108,6 +109,11 @@ export const generateSyntheticDataWithAI = async (
     sampleData.forEach(item => {
       formattedPrompt += `\n${JSON.stringify(item)}`;
     });
+  }
+  
+  // Add specific instruction for ID continuity if startId is provided
+  if (startId !== undefined) {
+    formattedPrompt += `\n\nCRITICAL: Start generating IDs from ${startId} and continue sequentially.`;
   }
   
   formattedPrompt += `\n\nYou MUST return ONLY the raw ${format === 'json' ? 'JSON array' : 'CSV data'} with NO additional text.`;

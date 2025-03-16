@@ -98,6 +98,7 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
       const chunkSize = 50; // Maximum rows per chunk
       const chunks = Math.ceil(rowCount / chunkSize);
       let allData: any[] = [];
+      let highestId = 0; // Track the highest ID generated
       
       for (let i = 0; i < chunks; i++) {
         const remainingRows = rowCount - (i * chunkSize);
@@ -119,14 +120,33 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
             aiPrompt, 
             outputFormat, 
             currentChunkSize,
-            // Provide sample data from previous chunk if available
-            allData.length > 0 ? { sampleData: allData.slice(-3) } : undefined
+            {
+              // Provide sample data from previous chunk if available
+              sampleData: allData.length > 0 ? allData.slice(-3) : undefined,
+              // Start ID for this chunk based on the highest ID from previous chunks
+              startId: allData.length > 0 ? highestId + 1 : undefined
+            }
           );
           
           // Parse the chunk
           const parsedChunk = parseDataFromString(chunkResult, outputFormat);
           
           if (Array.isArray(parsedChunk) && parsedChunk.length > 0) {
+            // Update the highest ID if we find one higher in this chunk
+            parsedChunk.forEach(item => {
+              // Check for all possible ID field names
+              const idFields = ["id", "ID", "Id", "user_id", "transaction_id", "product_id", "patient_id"];
+              
+              for (const field of idFields) {
+                if (item[field] !== undefined) {
+                  const itemId = parseInt(item[field]);
+                  if (!isNaN(itemId) && itemId > highestId) {
+                    highestId = itemId;
+                  }
+                }
+              }
+            });
+            
             allData = [...allData, ...parsedChunk];
           } else {
             console.error("Invalid chunk data received:", chunkResult);
@@ -243,6 +263,7 @@ const parseDataFromString = (data: string, format: string): any[] => {
         const parsed = JSON.parse(data);
         return Array.isArray(parsed) ? parsed : [parsed];
       } catch (e) {
+        console.error("Error parsing data:", e);
         // Try to fix and parse
         const fixedJson = fixJsonString(data);
         const parsed = JSON.parse(fixedJson);
