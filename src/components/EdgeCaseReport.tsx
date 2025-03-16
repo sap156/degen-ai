@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { FileText, Download, AlertTriangle, GitBranch, BarChart3, CheckCircle, Loader } from 'lucide-react';
@@ -8,6 +7,8 @@ import { Separator } from '@/components/ui/separator';
 import { formatData, downloadData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import { edgeCaseService } from '@/services/edgeCaseService';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import {
   Dialog,
   DialogContent,
@@ -38,9 +39,20 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
 
-  // Function to generate and download a comprehensive report
+  const renderMarkdown = (content: string | null) => {
+    if (!content) return '';
+    
+    try {
+      const html = marked.parse(content, { breaks: true });
+      const sanitizedHtml = DOMPurify.sanitize(html);
+      return sanitizedHtml;
+    } catch (error) {
+      console.error("Error rendering markdown:", error);
+      return content;
+    }
+  };
+
   const handleExportReport = () => {
-    // Prepare a report object with all findings
     const report = {
       summary: {
         detectedCount: detectedEdgeCases.length,
@@ -345,7 +357,6 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
         </CardFooter>
       </Card>
 
-      {/* Detailed Report Dialog */}
       <Dialog open={detailedReportOpen} onOpenChange={setDetailedReportOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -363,7 +374,10 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
           ) : (
             <div className="prose prose-sm max-w-none">
               {detailedReport ? (
-                <div className="markdown-content" dangerouslySetInnerHTML={{ __html: detailedReport.replace(/\n/g, '<br/>') }} />
+                <div 
+                  className="markdown-content" 
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(detailedReport) }} 
+                />
               ) : (
                 <p>Failed to generate report. Please try again.</p>
               )}
@@ -395,7 +409,6 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Recommendations Implementation Dialog */}
       <Dialog open={recommendationsOpen} onOpenChange={setRecommendationsOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -413,7 +426,10 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
           ) : (
             <div className="prose prose-sm max-w-none">
               {recommendationsImpl ? (
-                <div className="markdown-content" dangerouslySetInnerHTML={{ __html: recommendationsImpl.replace(/\n/g, '<br/>') }} />
+                <div 
+                  className="markdown-content" 
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(recommendationsImpl) }} 
+                />
               ) : (
                 <p>Failed to generate implementation steps. Please try again.</p>
               )}
