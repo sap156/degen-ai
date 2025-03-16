@@ -52,6 +52,7 @@ type FormValues = TimeSeriesOptions & {
   additionalFieldCount: number;
   aiPrompt?: string;
   useAi?: boolean;
+  excludeDefaultValue?: boolean;
 };
 
 const TimeSeries = () => {
@@ -84,7 +85,7 @@ const TimeSeries = () => {
       seed: Math.floor(Math.random() * 10000),
       aiPrompt: '',
       useAi: false,
-      excludeDefaultValue: false // Add new option
+      excludeDefaultValue: false
     }
   });
   
@@ -955,4 +956,4 @@ const TimeSeries = () => {
                       <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="text-lg font-medium">No Data to Display</h3>
                       <p className="text-muted-foreground mt-2">
-                        Configure the settings and click "
+                        Configure the
