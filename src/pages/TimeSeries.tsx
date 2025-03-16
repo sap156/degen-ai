@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
   Calendar as CalendarIcon, 
@@ -434,12 +433,7 @@ const TimeSeries = () => {
   }, [timeSeriesData, excludeDefaultValue]);
   
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="container mx-auto py-6"
-    >
+    <div className="container mx-auto py-6">
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-1/3">
           <Card>
@@ -956,4 +950,66 @@ const TimeSeries = () => {
                       <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="text-lg font-medium">No Data to Display</h3>
                       <p className="text-muted-foreground mt-2">
-                        Configure the
+                        Configure and generate time series data to visualize it here
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="data" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Raw Data</h2>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleCopyToClipboard}
+                    disabled={!timeSeriesData.length}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleDownload}
+                    disabled={!timeSeriesData.length}
+                  >
+                    <DownloadCloud className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+              
+              {timeSeriesData.length > 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="relative h-[400px] overflow-auto">
+                      <pre className="text-xs">{formattedData}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="flex items-center justify-center h-[400px]">
+                    <div className="text-center">
+                      <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium">No Data to Display</h3>
+                      <p className="text-muted-foreground mt-2">
+                        Generate or upload time series data to see the raw content
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TimeSeries;

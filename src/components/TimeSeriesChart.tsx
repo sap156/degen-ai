@@ -43,8 +43,8 @@ const TimeSeriesChart = ({
     const fields: string[] = [];
     const firstPoint = data[0];
     
-    // Add the default value field if it exists
-    if (hasDefaultValue) {
+    // Add the default value field if it exists and is not excluded
+    if (hasDefaultValue && defaultValue) {
       fields.push(defaultValue);
     }
     
