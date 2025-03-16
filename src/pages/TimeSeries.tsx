@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -109,7 +108,6 @@ const TimeSeries = () => {
       let generatedData: TimeSeriesDataPoint[];
       
       if (data.useAi && data.aiPrompt) {
-        // Generate data using AI
         generatedData = await generateTimeSeriesWithAI({
           apiKey,
           prompt: data.aiPrompt,
@@ -121,7 +119,6 @@ const TimeSeries = () => {
           existingData: timeSeriesData.length > 0 ? timeSeriesData : undefined
         });
       } else {
-        // Generate data using traditional method
         generatedData = generateTimeSeriesData(data);
       }
       

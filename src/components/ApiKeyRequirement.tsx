@@ -9,16 +9,18 @@ import ApiKeyDialog from './ApiKeyDialog';
 interface ApiKeyRequirementProps {
   title?: string;
   description?: string;
+  children?: React.ReactNode; // Add children prop
 }
 
 const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
   title = "OpenAI API Key Required",
-  description = "To use AI-powered features, please set up your OpenAI API key."
+  description = "To use AI-powered features, please set up your OpenAI API key.",
+  children
 }) => {
   const { isKeySet } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   
-  if (isKeySet) return null;
+  if (isKeySet) return <>{children}</>; // Return children directly if key is set
   
   return (
     <>
@@ -43,6 +45,9 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
           </Button>
         </CardFooter>
       </Card>
+      
+      {/* Render children even if key is not set, so user can see UI */}
+      {children}
       
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
     </>
