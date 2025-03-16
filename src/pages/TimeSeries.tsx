@@ -30,7 +30,7 @@ import { Progress } from '@/components/ui/progress';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import FileUploader from '@/components/FileUploader';
-import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
+import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema, SchemaFieldType } from '@/utils/fileUploadUtils';
 
 import {
   generateTimeSeriesData,
@@ -67,8 +67,11 @@ const TimeSeries = () => {
   const [activeSubTab, setActiveSubTab] = useState<string>('manual'); // 'manual' or 'ai'
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
   const [showProgress, setShowProgress] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>('generate');
+  const [detectedSchema, setDetectedSchema] = useState<Record<string, SchemaFieldType> | null>(null);
+  const [uploadedTimestampField, setUploadedTimestampField] = useState<string | null>(null);
   
-  const { handleSubmit, control, watch, setValue, register, formState: { errors } } = useForm<FormValues>({
+  const { handleSubmit, control, watch, setValue, register, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
       startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
       endDate: new Date(),
@@ -264,22 +267,120 @@ const TimeSeries = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
+      // Process the data and detect schema
       const timeSeriesData = processUploadedTimeSeriesData(parsedData);
       setTimeSeriesData(timeSeriesData);
       
+      // Generate formatted data for display
       const formatted = outputFormat === 'csv'
         ? formatAsCSV(timeSeriesData)
         : formatAsJSON(timeSeriesData);
-        
+      
       setFormattedData(formatted);
       
-      toast.success(`Processed ${timeSeriesData.length} time series data points`);
+      // Extract schema from the data
+      const schema = generateSchema(timeSeriesData);
+      setDetectedSchema(schema);
+      
+      // Set detected dataset properties to the form
+      updateFormWithDetectedSchema(timeSeriesData, schema);
+      
+      // Automatically switch to generate tab
+      setActiveTab('generate');
+      
+      toast.success(`Processed ${timeSeriesData.length} time series data points and detected schema`);
     } catch (error) {
       console.error('Error processing file:', error);
       toast.error((error as Error).message || 'Failed to process file');
     } finally {
       setIsProcessingFile(false);
     }
+  };
+  
+  // New function to update form with detected schema
+  const updateFormWithDetectedSchema = (data: TimeSeriesDataPoint[], schema: Record<string, SchemaFieldType>) => {
+    if (!data.length) return;
+    
+    try {
+      // Detect date range from the data
+      const timestamps = data.map(item => new Date(item.timestamp));
+      const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
+      
+      // Set start and end dates based on the data
+      setValue('startDate', minDate);
+      setValue('endDate', maxDate);
+      
+      // Detect interval (daily, hourly, etc.)
+      const detectedInterval = detectTimeInterval(timestamps);
+      if (detectedInterval) {
+        setValue('interval', detectedInterval);
+      }
+      
+      // Update dataset name based on file
+      if (uploadedFile) {
+        const fileName = uploadedFile.name.split('.')[0];
+        setValue('datasetName', fileName);
+      }
+      
+      // Extract additional fields from the schema
+      const additionalFields = Object.entries(schema)
+        .filter(([key, type]) => {
+          // Exclude timestamp and default value fields
+          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
+        })
+        .map(([key, type]) => {
+          // Convert schema type to additionalField type
+          let fieldType: 'number' | 'boolean' | 'category' = 'number';
+          
+          if (type === 'boolean') {
+            fieldType = 'boolean';
+          } else if (type === 'string' || type === 'address' || type === 'name') {
+            fieldType = 'category';
+          }
+          
+          return { name: key, type: fieldType };
+        });
+      
+      // Update the additionalFields in the form
+      setValue('additionalFields', additionalFields);
+      setValue('additionalFieldCount', additionalFields.length);
+      
+      // Exclude default value if specified
+      setValue('excludeDefaultValue', schema['value'] ? false : true);
+      
+      // Get data points count
+      setValue('dataPoints', data.length);
+    } catch (error) {
+      console.error('Error updating form with detected schema:', error);
+    }
+  };
+  
+  // Helper function to detect time interval in the data
+  const detectTimeInterval = (timestamps: Date[]): 'hourly' | 'daily' | 'weekly' | 'monthly' | undefined => {
+    if (timestamps.length < 2) return undefined;
+    
+    // Sort dates chronologically
+    timestamps.sort((a, b) => a.getTime() - b.getTime());
+    
+    // Calculate average difference between consecutive timestamps in milliseconds
+    let totalDiff = 0;
+    for (let i = 1; i < Math.min(10, timestamps.length); i++) {
+      totalDiff += timestamps[i].getTime() - timestamps[i-1].getTime();
+    }
+    
+    const avgDiffMs = totalDiff / Math.min(9, timestamps.length - 1);
+    
+    // Convert to appropriate interval
+    const hourMs = 60 * 60 * 1000;
+    const dayMs = 24 * hourMs;
+    const weekMs = 7 * dayMs;
+    const monthMs = 30 * dayMs; // Approximate
+    
+    if (avgDiffMs < 2 * hourMs) return 'hourly';
+    if (avgDiffMs < 2 * dayMs) return 'daily';
+    if (avgDiffMs < 2 * weekMs) return 'weekly';
+    return 'monthly';
   };
   
   const processUploadedTimeSeriesData = (data: any[]): TimeSeriesDataPoint[] => {
@@ -332,6 +433,11 @@ const TimeSeries = () => {
       const dateB = new Date(b.timestamp);
       return dateA.getTime() - dateB.getTime();
     });
+    
+    // Store the detected timestamp field for later use
+    if (timestampField) {
+      setUploadedTimestampField(timestampField);
+    }
     
     return processedData;
   };
@@ -445,7 +551,7 @@ const TimeSeries = () => {
             </CardHeader>
             
             <CardContent>
-              <Tabs defaultValue="generate">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="generate">Generate</TabsTrigger>
                   <TabsTrigger value="upload">Upload</TabsTrigger>
@@ -453,6 +559,18 @@ const TimeSeries = () => {
                 
                 <TabsContent value="generate">
                   <form id="time-series-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    {/* Schema detection notification */}
+                    {detectedSchema && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md mb-4">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                          Using schema from uploaded file
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          {uploadedFile?.name} · {Object.keys(detectedSchema).length} fields detected
+                        </p>
+                      </div>
+                    )}
+                    
                     <div className="space-y-2">
                       <Label htmlFor="datasetName">Dataset Name</Label>
                       <Input
@@ -482,12 +600,16 @@ const TimeSeries = () => {
                           <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
                           <Textarea
                             id="aiPrompt"
-                            placeholder="Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data with weekend peaks and seasonal trends')"
+                            placeholder={timeSeriesData.length > 0 
+                              ? "Describe how to enhance this existing data (e.g., 'Add seasonal patterns and extend by 30 days')" 
+                              : "Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data')"}
                             className="h-24"
                             {...register('aiPrompt')}
                           />
                           <p className="text-xs text-muted-foreground">
-                            Describe domain, patterns, seasonality, trends, and any specific characteristics
+                            {timeSeriesData.length > 0 
+                              ? "Describe how you want to enhance or extend the uploaded data" 
+                              : "Describe domain, patterns, seasonality, trends, and any specific characteristics"}
                           </p>
                         </div>
                       </ApiKeyRequirement>
@@ -565,13 +687,20 @@ const TimeSeries = () => {
                       </div>
                     </div>
                     
+                    {/* Conditional heading based on whether data is uploaded or being created */}
+                    <div className="border-t pt-4 mt-4">
+                      <h3 className="font-medium mb-2">
+                        {timeSeriesData.length > 0 ? "Modification Options" : "Generation Options"}
+                      </h3>
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label htmlFor="interval">Time Interval</Label>
                       <Controller
                         control={control}
                         name="interval"
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <SelectTrigger>
                               <SelectValue placeholder="Select interval" />
                             </SelectTrigger>
@@ -587,7 +716,9 @@ const TimeSeries = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="dataPoints">Number of Data Points</Label>
+                      <Label htmlFor="dataPoints">
+                        {timeSeriesData.length > 0 ? "Additional Data Points" : "Number of Data Points"}
+                      </Label>
                       <Input
                         id="dataPoints"
                         type="number"
@@ -600,17 +731,24 @@ const TimeSeries = () => {
                       {errors.dataPoints && (
                         <p className="text-sm text-destructive">{errors.dataPoints.message}</p>
                       )}
+                      {timeSeriesData.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Current dataset: {timeSeriesData.length} points
+                        </p>
+                      )}
                     </div>
                     
                     {!useAi && (
                       <>
                         <div className="space-y-2">
-                          <Label htmlFor="trend">Trend Pattern</Label>
+                          <Label htmlFor="trend">
+                            {timeSeriesData.length > 0 ? "Modification Pattern" : "Trend Pattern"}
+                          </Label>
                           <Controller
                             control={control}
                             name="trend"
                             render={({ field }) => (
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <Select onValueChange={field.onChange} value={field.value}>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select trend" />
                                 </SelectTrigger>
@@ -620,6 +758,9 @@ const TimeSeries = () => {
                                   <SelectItem value="downward">Downward</SelectItem>
                                   <SelectItem value="seasonal">Seasonal</SelectItem>
                                   <SelectItem value="cyclical">Cyclical</SelectItem>
+                                  {timeSeriesData.length > 0 && (
+                                    <SelectItem value="extend">Extend Similar Pattern</SelectItem>
+                                  )}
                                 </SelectContent>
                               </Select>
                             )}
@@ -738,7 +879,7 @@ const TimeSeries = () => {
                         control={control}
                         name="outputFormat"
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -774,242 +915,4 @@ const TimeSeries = () => {
                         <Card className="mt-4">
                           <CardHeader className="pb-2">
                             <CardTitle className="text-base">AI Enhancements</CardTitle>
-                            <CardDescription>Enhance uploaded data with AI</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="aiNoisePrompt">AI Enhancement Prompt</Label>
-                              <Textarea
-                                id="aiNoisePrompt"
-                                placeholder="Describe how you want to enhance this time series (e.g., 'Add seasonal patterns, realistic noise, and occasional outliers')"
-                                className="h-24"
-                                value={aiNoisePrompt}
-                                onChange={(e) => setAiNoisePrompt(e.target.value)}
-                              />
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex justify-between">
-                                <Label htmlFor="noiseLevel">Effect Intensity</Label>
-                                <span className="text-sm text-muted-foreground">
-                                  {Math.round(watch('noiseLevel') * 100)}%
-                                </span>
-                              </div>
-                              <Controller
-                                control={control}
-                                name="noiseLevel"
-                                render={({ field: { value, onChange } }) => (
-                                  <Slider
-                                    defaultValue={[value]}
-                                    min={0}
-                                    max={1}
-                                    step={0.01}
-                                    onValueChange={(vals) => onChange(vals[0])}
-                                  />
-                                )}
-                              />
-                            </div>
-                            
-                            <Button 
-                              type="button" 
-                              onClick={handleApplyAiNoise}
-                              disabled={isApplyingAiNoise || !aiNoisePrompt}
-                              className="w-full"
-                            >
-                              {isApplyingAiNoise ? (
-                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Sparkles className="mr-2 h-4 w-4" />
-                              )}
-                              Apply AI Enhancements
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </ApiKeyRequirement>
-                    )}
-                    
-                    <div className="space-y-2 pt-4">
-                      <Label htmlFor="export-format">Export Format</Label>
-                      <Select 
-                        defaultValue={outputFormat} 
-                        onValueChange={(value) => setValue('outputFormat', value as 'json' | 'csv')}
-                      >
-                        <SelectTrigger id="export-format">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="json">JSON</SelectItem>
-                          <SelectItem value="csv">CSV</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              
-              {/* Add progress bar */}
-              {showProgress && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Processing</span>
-                    <span>{progressPercentage}%</span>
-                  </div>
-                  <Progress value={progressPercentage} className="h-2" />
-                </div>
-              )}
-            </CardContent>
-            
-            <CardFooter>
-              <Button 
-                type="submit" 
-                form="time-series-form" 
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="flex items-center">
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </div>
-                ) : (
-                  <div className="flex items-center">
-                    {useAi ? (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate with AI
-                      </>
-                    ) : (
-                      <>
-                        <BarChart className="mr-2 h-4 w-4" />
-                        Generate Time Series
-                      </>
-                    )}
-                  </div>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-        
-        <div className="w-full md:w-2/3">
-          <Tabs defaultValue="preview">
-            <TabsList className="mb-4">
-              <TabsTrigger value="preview">Chart Preview</TabsTrigger>
-              <TabsTrigger value="data">Data Preview</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="preview" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Time Series Preview</h2>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleCopyToClipboard}
-                    disabled={!timeSeriesData.length}
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleDownload}
-                    disabled={!timeSeriesData.length}
-                  >
-                    <DownloadCloud className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={handleSave}
-                    disabled={!timeSeriesData.length || saving}
-                  >
-                    {saving ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4 mr-2" />
-                    )}
-                    Save
-                  </Button>
-                </div>
-              </div>
-              
-              {timeSeriesData.length > 0 ? (
-                <TimeSeriesChart 
-                  data={timeSeriesData} 
-                  additionalFields={additionalFieldNames}
-                  // Don't show 'value' field if excludeDefaultValue is true
-                  defaultValue={excludeDefaultValue ? '' : 'value'}
-                />
-              ) : (
-                <Card>
-                  <CardContent className="flex items-center justify-center h-[400px]">
-                    <div className="text-center">
-                      <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium">No Data to Display</h3>
-                      <p className="text-muted-foreground mt-2">
-                        Configure and generate time series data to visualize it here
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="data" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Raw Data</h2>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleCopyToClipboard}
-                    disabled={!timeSeriesData.length}
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleDownload}
-                    disabled={!timeSeriesData.length}
-                  >
-                    <DownloadCloud className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-              
-              {timeSeriesData.length > 0 ? (
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="relative h-[400px] overflow-auto">
-                      <pre className="text-xs">{formattedData}</pre>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="flex items-center justify-center h-[400px]">
-                    <div className="text-center">
-                      <BarChart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium">No Data to Display</h3>
-                      <p className="text-muted-foreground mt-2">
-                        Generate or upload time series data to see the raw content
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default TimeSeries;
+                            <CardDescription>Enhance uploaded data with

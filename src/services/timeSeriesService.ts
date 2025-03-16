@@ -2,24 +2,28 @@ import { toast } from 'sonner';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
 import { Progress } from '@/components/ui/progress';
 
-export type TimeSeriesDataPoint = {
+export interface TimeSeriesDataPoint {
   timestamp: string;
-  value?: number; // Make value optional
+  value?: number;
   [key: string]: any;
-};
+}
 
-export type TimeSeriesOptions = {
+export interface TimeSeriesOptions {
   startDate: Date;
   endDate: Date;
   interval: 'hourly' | 'daily' | 'weekly' | 'monthly';
-  trend: 'random' | 'upward' | 'downward' | 'seasonal' | 'cyclical';
-  noiseLevel: number; // 0-1 scale
-  dataPoints?: number;
-  additionalFields?: { name: string; type: 'number' | 'boolean' | 'category' }[];
-  categories?: string[];
+  dataPoints: number;
+  trend?: 'random' | 'upward' | 'downward' | 'seasonal' | 'cyclical' | 'extend';
+  noiseLevel?: number;
   seed?: number;
-  excludeDefaultValue?: boolean; // Add option to exclude default value field
-};
+  categories?: string[];
+  additionalFields?: Array<{
+    name: string;
+    type: 'number' | 'boolean' | 'category';
+  }>;
+  existingData?: TimeSeriesDataPoint[];
+  excludeDefaultValue?: boolean;
+}
 
 // Helper to generate a random value between min and max
 const getRandomValue = (min: number, max: number, seed?: number): number => {
@@ -285,12 +289,15 @@ export interface AITimeSeriesOptions {
   prompt: string;
   startDate: Date;
   endDate: Date;
-  interval: 'hourly' | 'daily' | 'weekly' | 'monthly';
-  dataPoints?: number;
+  interval: string;
+  dataPoints: number;
+  additionalFields?: Array<{
+    name: string;
+    type: 'number' | 'boolean' | 'category';
+  }>;
   existingData?: TimeSeriesDataPoint[];
-  additionalFields?: { name: string; type: 'number' | 'boolean' | 'category' }[];
-  excludeDefaultValue?: boolean; // Add option to exclude default value
-  onProgressUpdate?: (progress: number) => void; // Add progress callback
+  excludeDefaultValue?: boolean;
+  onProgressUpdate?: (progress: number) => void;
 }
 
 /**
@@ -305,8 +312,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       endDate,
       interval,
       dataPoints,
-      existingData,
       additionalFields,
+      existingData,
       excludeDefaultValue = false,
       onProgressUpdate
     } = options;
@@ -486,7 +493,7 @@ export interface AINoiseOptions {
   data: TimeSeriesDataPoint[];
   prompt: string;
   noiseLevel: number;
-  onProgressUpdate?: (progress: number) => void; // Add progress callback
+  onProgressUpdate?: (progress: number) => void;
 }
 
 /**
@@ -705,4 +712,255 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     toast.error(`Failed to add AI noise: ${(error as Error).message}`);
     throw error;
   }
+};
+
+export const extendTimeSeriesData = (
+  originalData: TimeSeriesDataPoint[],
+  options: TimeSeriesOptions
+): TimeSeriesDataPoint[] => {
+  if (!originalData.length) {
+    throw new Error('No original data provided for extension');
+  }
+
+  const {
+    startDate,
+    endDate,
+    interval,
+    dataPoints,
+    noiseLevel = 0.3,
+    trend = 'extend',
+    additionalFields = [],
+    excludeDefaultValue = false,
+  } = options;
+
+  // Use the original data to determine the pattern to extend
+  const sortedOriginalData = [...originalData].sort((a, b) => 
+    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  // Analyze the original data to determine trends, patterns, and seasonality
+  const analysis = analyzeTimeSeries(sortedOriginalData);
+  
+  // Generate new timestamps based on the last timestamp in the original data
+  const lastTimestamp = new Date(sortedOriginalData[sortedOriginalData.length - 1].timestamp);
+  const newTimestamps = generateTimestampsAfter(lastTimestamp, interval, dataPoints, endDate);
+  
+  // Create new data points by extending the patterns from original data
+  const newDataPoints: TimeSeriesDataPoint[] = newTimestamps.map((timestamp, index) => {
+    // Base data point with timestamp
+    const dataPoint: TimeSeriesDataPoint = {
+      timestamp: timestamp.toISOString(),
+    };
+    
+    // Add value field if not excluded
+    if (!excludeDefaultValue) {
+      dataPoint.value = predictNextValue(sortedOriginalData, index, analysis, noiseLevel, trend);
+    }
+    
+    // Add additional fields based on the original data patterns
+    additionalFields.forEach(field => {
+      const fieldName = field.name;
+      
+      if (field.type === 'number') {
+        // For numeric fields, predict based on patterns
+        dataPoint[fieldName] = predictNextValue(
+          sortedOriginalData.map(d => ({ 
+            timestamp: d.timestamp, 
+            value: typeof d[fieldName] === 'number' ? d[fieldName] : 0 
+          })), 
+          index, 
+          analysis, 
+          noiseLevel, 
+          trend
+        );
+      } else if (field.type === 'boolean') {
+        // For boolean fields, use probability based on original data
+        const booleanValues = sortedOriginalData
+          .filter(d => typeof d[fieldName] === 'boolean')
+          .map(d => d[fieldName]);
+          
+        if (booleanValues.length) {
+          const trueCount = booleanValues.filter(v => v === true).length;
+          const trueProb = trueCount / booleanValues.length;
+          dataPoint[fieldName] = Math.random() < trueProb;
+        } else {
+          dataPoint[fieldName] = Math.random() < 0.5;
+        }
+      } else if (field.type === 'category') {
+        // For categorical fields, sample from the original categories
+        const categories = sortedOriginalData
+          .filter(d => d[fieldName] !== undefined)
+          .map(d => d[fieldName]);
+          
+        if (categories.length) {
+          const randomIndex = Math.floor(Math.random() * categories.length);
+          dataPoint[fieldName] = categories[randomIndex];
+        }
+      }
+    });
+    
+    return dataPoint;
+  });
+  
+  return newDataPoints;
+};
+
+// Helper function to analyze time series data for patterns
+const analyzeTimeSeries = (data: TimeSeriesDataPoint[]) => {
+  if (!data.length || data.length < 3) {
+    return { trend: 0, seasonality: [], mean: 0, stdDev: 0 };
+  }
+  
+  // Extract values, handling potential missing values
+  const values = data.map(d => typeof d.value === 'number' ? d.value : 0);
+  
+  // Calculate basic statistics
+  const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+  const squaredDiffs = values.map(v => Math.pow(v - mean, 2));
+  const variance = squaredDiffs.reduce((sum, v) => sum + v, 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  
+  // Detect trend (basic linear regression slope)
+  let trend = 0;
+  if (values.length > 2) {
+    const n = values.length;
+    const indices = Array.from({ length: n }, (_, i) => i);
+    const sumX = indices.reduce((sum, i) => sum + i, 0);
+    const sumY = values.reduce((sum, v) => sum + v, 0);
+    const sumXY = indices.reduce((sum, i) => sum + i * values[i], 0);
+    const sumXX = indices.reduce((sum, i) => sum + i * i, 0);
+    trend = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  }
+  
+  // Simple seasonality detection (looking for repeating patterns)
+  // This is a simplified approach - real seasonality detection would be more complex
+  const seasonalityPeriods = [7, 12, 24, 30]; // Common periods: weekly, monthly, daily, monthly
+  const seasonality = seasonalityPeriods.map(period => {
+    // Skip if not enough data
+    if (values.length <= period * 2) return 0;
+    
+    let seasonalityStrength = 0;
+    for (let i = 0; i < period; i++) {
+      const seasonalPoints = [];
+      for (let j = i; j < values.length; j += period) {
+        seasonalPoints.push(values[j]);
+      }
+      
+      if (seasonalPoints.length > 1) {
+        const seasonalMean = seasonalPoints.reduce((sum, v) => sum + v, 0) / seasonalPoints.length;
+        seasonalityStrength += Math.abs(seasonalMean - mean);
+      }
+    }
+    return seasonalityStrength / period;
+  });
+  
+  const detectedSeasonality = seasonalityPeriods[
+    seasonality.indexOf(Math.max(...seasonality))
+  ];
+  
+  return { 
+    trend, 
+    seasonality: seasonality.length > 0 ? seasonality : [], 
+    detectedPeriod: detectedSeasonality,
+    mean, 
+    stdDev 
+  };
+};
+
+// Helper function to generate timestamps after a given date
+const generateTimestampsAfter = (
+  startAfter: Date, 
+  interval: string, 
+  count: number, 
+  endDate?: Date
+): Date[] => {
+  const timestamps: Date[] = [];
+  let currentDate = new Date(startAfter);
+  
+  for (let i = 0; i < count; i++) {
+    // Move to next interval
+    if (interval === 'hourly') {
+      currentDate = new Date(currentDate.getTime() + 60 * 60 * 1000);
+    } else if (interval === 'daily') {
+      currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+    } else if (interval === 'weekly') {
+      currentDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    } else if (interval === 'monthly') {
+      currentDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        currentDate.getDate()
+      );
+    }
+    
+    // Check if we've gone past the end date
+    if (endDate && currentDate > endDate) {
+      break;
+    }
+    
+    timestamps.push(new Date(currentDate));
+  }
+  
+  return timestamps;
+};
+
+// Helper function to predict the next value based on patterns in original data
+const predictNextValue = (
+  data: TimeSeriesDataPoint[], 
+  index: number, 
+  analysis: any, 
+  noiseLevel: number,
+  trend: string
+): number => {
+  if (!data.length) return 0;
+  
+  const values = data.map(d => typeof d.value === 'number' ? d.value : 0);
+  const { mean, stdDev, trend: trendValue, detectedPeriod } = analysis;
+  
+  let baseValue: number;
+  
+  // Use the last value as a starting point
+  const lastValue = values[values.length - 1];
+  
+  // Add trend component
+  let trendComponent = 0;
+  if (trend === 'upward') {
+    trendComponent = (stdDev / 10) * (1 + Math.random());
+  } else if (trend === 'downward') {
+    trendComponent = -(stdDev / 10) * (1 + Math.random());
+  } else if (trend === 'extend') {
+    trendComponent = trendValue;
+  }
+  
+  // Add seasonal component if applicable
+  let seasonalComponent = 0;
+  if (detectedPeriod && (trend === 'seasonal' || trend === 'extend' || trend === 'cyclical')) {
+    // Find the position in the seasonal cycle
+    const position = index % detectedPeriod;
+    
+    // If we have enough data, use the value from previous cycles
+    if (values.length > detectedPeriod) {
+      const seasonalValues = [];
+      for (let i = position; i < values.length; i += detectedPeriod) {
+        seasonalValues.push(values[i]);
+      }
+      
+      if (seasonalValues.length > 0) {
+        const seasonalMean = seasonalValues.reduce((sum, v) => sum + v, 0) / seasonalValues.length;
+        seasonalComponent = seasonalMean - mean;
+      }
+    }
+  }
+  
+  // Add random noise component
+  const noiseComponent = stdDev * noiseLevel * (Math.random() * 2 - 1);
+  
+  // Calculate base value using the various components
+  baseValue = lastValue + trendComponent + seasonalComponent;
+  
+  // Add noise
+  const predictedValue = baseValue + noiseComponent;
+  
+  // Ensure non-negative values for certain types of data
+  return Math.max(0, predictedValue);
 };
