@@ -60,7 +60,7 @@ const FeatureEngineeringPanel: React.FC<FeatureEngineeringPanelProps> = ({
       
       <CardContent className="space-y-4">
         {!apiKeyAvailable && (
-          <Alert>
+          <Alert variant="warning">
             <AlertDescription>
               OpenAI API key is required for AI-assisted feature engineering.
             </AlertDescription>
