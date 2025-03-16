@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -461,15 +462,6 @@ const ImbalancedData = () => {
             apiKeyAvailable={!!apiKey}
           />
           
-          <AIDatasetAnalysis
-            datasetAnalysis={datasetAnalysis}
-            preferences={datasetPreferences}
-            apiKeyAvailable={!!apiKey}
-            onRequestAnalysis={getAIRecommendations}
-            isLoading={isLoadingRecommendations}
-            aiRecommendations={aiRecommendations}
-          />
-          
           {originalDataset && (
             <DataBalancingControls
               originalDataset={originalDataset}
@@ -702,6 +694,15 @@ const ImbalancedData = () => {
               </Tabs>
             </CardContent>
           </Card>
+
+          <AIDatasetAnalysis
+            datasetAnalysis={datasetAnalysis}
+            preferences={datasetPreferences}
+            apiKeyAvailable={!!apiKey}
+            onRequestAnalysis={getAIRecommendations}
+            isLoading={isLoadingRecommendations}
+            aiRecommendations={aiRecommendations}
+          />
         </div>
       </div>
     </motion.div>
@@ -709,4 +710,3 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
-

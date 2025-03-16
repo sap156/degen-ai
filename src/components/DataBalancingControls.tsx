@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { RefreshCw, Download, Save } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { BalancingOptions, DatasetInfo } from '@/services/imbalancedDataService';
 import { toast } from 'sonner';
 
@@ -146,7 +146,7 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
         )}
       </CardContent>
       
-      <CardFooter className="flex flex-col space-y-3">
+      <CardFooter>
         {isImbalanced && (
           <Button 
             className="w-full" 
@@ -165,27 +165,6 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
               </>
             )}
           </Button>
-        )}
-        
-        {hasBalancedData && (
-          <div className="flex w-full space-x-2">
-            <Button 
-              variant="outline" 
-              className="w-1/2" 
-              onClick={() => onDownloadBalanced('csv')}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-1/2" 
-              onClick={() => onDownloadBalanced('json')}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              JSON
-            </Button>
-          </div>
         )}
       </CardFooter>
     </Card>
