@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { FileText, Download, AlertTriangle, GitBranch, BarChart3, CheckCircle, Loader } from 'lucide-react';
@@ -42,8 +43,7 @@ const EdgeCaseReport: React.FC<EdgeCaseReportProps> = ({
   // Configure marked options for proper header and bold text rendering
   marked.setOptions({
     breaks: true, 
-    gfm: true,
-    smartypants: true
+    gfm: true
   });
 
   const renderMarkdown = (content: string | null) => {
