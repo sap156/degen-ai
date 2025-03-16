@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -313,18 +312,6 @@ const AIDatasetConfiguration = ({
           <div><span className="text-muted-foreground">Duplicates:</span> {datasetAnalysis.summary.duplicates}</div>
           <div><span className="text-muted-foreground">Outliers:</span> {datasetAnalysis.summary.outliers}</div>
         </div>
-        
-        {datasetAnalysis.potentialIssues.length > 0 && (
-          <div className="mt-3 w-full">
-            <Separator className="my-2" />
-            <h4 className="text-sm font-medium mb-1">Potential Issues</h4>
-            <ul className="text-xs space-y-1">
-              {datasetAnalysis.potentialIssues.map((issue, index) => (
-                <li key={index} className="text-orange-600">{issue}</li>
-              ))}
-            </ul>
-          </div>
-        )}
       </CardFooter>
     </Card>
   );
