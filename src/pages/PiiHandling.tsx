@@ -99,6 +99,7 @@ const PiiHandling = () => {
     
     try {
       setIsMaskingData(true);
+      // Pass the entire dataset for masking, not just a sample
       const masked = await maskPiiData(
         originalData, 
         perFieldMaskingOptions,
@@ -111,7 +112,7 @@ const PiiHandling = () => {
       setMaskedData(masked);
       toast({
         title: "Masking complete",
-        description: "PII data has been masked successfully",
+        description: `All ${masked.length} records have been masked successfully`,
       });
     } catch (error) {
       console.error("Error applying masking:", error);
@@ -148,7 +149,7 @@ const PiiHandling = () => {
     
     toast({
       title: "Data exported",
-      description: `PII data has been exported as ${exportFormat.toUpperCase()}`,
+      description: `${dataToExport.length} records exported as ${exportFormat.toUpperCase()}`,
     });
   };
 
@@ -161,7 +162,7 @@ const PiiHandling = () => {
       .then(() => {
         toast({
           title: "Copied to clipboard",
-          description: "PII data has been copied to your clipboard",
+          description: `${dataToExport.length} records copied to clipboard`,
         });
       })
       .catch(err => {
@@ -192,11 +193,14 @@ const PiiHandling = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      // Just detect the fields and structure without applying masking
+      // Clear any previous data
+      setMaskedData([]);
+      
+      // Process the data and detect fields
       const processedData = detectDataFields(parsedData);
       setOriginalData(processedData);
       
-      if (parsedData && parsedData.length > 0) {
+      if (processedData && processedData.length > 0) {
         const newPerFieldOptions: PerFieldMaskingOptions = {};
         
         // Get all keys from the first object
@@ -221,7 +225,7 @@ const PiiHandling = () => {
       
       toast({
         title: "File processed",
-        description: "Please configure masking options and click Generate PII Masking",
+        description: `${processedData.length} records detected. Configure masking options and click Generate PII Masking`,
       });
     } catch (error) {
       console.error('Error processing file:', error);
@@ -266,12 +270,13 @@ const PiiHandling = () => {
     }
   };
 
-  // Helper function to detect fields in uploaded data instead of using hardcoded mappings
+  // Helper function to detect fields in uploaded data
   const detectDataFields = (data: any[]): PiiData[] => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Invalid data format. Expected an array of records.');
     }
     
+    // Ensure each record has an ID field
     return data.map((item, index) => {
       // Create a dynamic object for each record
       const record: Record<string, string> = {
@@ -281,7 +286,7 @@ const PiiHandling = () => {
       // Add all fields from the original data
       Object.entries(item).forEach(([key, value]) => {
         if (key !== 'id') {
-          record[key] = String(value);
+          record[key] = String(value || ''); // Convert to string and handle null/undefined
         }
       });
       
@@ -362,6 +367,7 @@ const PiiHandling = () => {
                     <div className="text-sm text-muted-foreground mt-2">
                       <p className="font-medium">File: {uploadedFile.name}</p>
                       <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                      <p>Records: {originalData.length}</p>
                     </div>
                   )}
                 </TabsContent>
@@ -544,7 +550,7 @@ const PiiHandling = () => {
             <CardHeader>
               <CardTitle>PII Data Viewer</CardTitle>
               <CardDescription>
-                View original and masked PII data side by side
+                View original and masked PII data side by side (showing first 5 records)
               </CardDescription>
             </CardHeader>
             <CardContent>

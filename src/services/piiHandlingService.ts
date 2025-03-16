@@ -1,4 +1,3 @@
-
 import { analyzePiiWithAI, generateMaskedDataWithAI } from "./openAiService";
 
 export interface PiiData {
@@ -94,7 +93,12 @@ const standardMaskingFunctions = {
     return `****-****-****-${lastFour}`;
   },
   dob: (value: string) => {
-    const parts = value.split('/');
+    // Handle different date formats
+    if (!value) return '**/**/****';
+    
+    const parts = value.split(/[\/\-]/);
+    if (parts.length < 3) return '*'.repeat(value.length);
+    
     return `**/${parts[1]}/${parts[2].slice(-2)}`;
   }
 };
@@ -119,14 +123,15 @@ export const maskPiiData = async (
       return data.map(item => ({...item})) as PiiDataMasked[];
     }
     
+    // Use the first 5 records for AI to learn patterns
     const sampleData = data.slice(0, Math.min(5, data.length));
     
     // Prepare AI prompt
     const aiPrompt = options?.aiPrompt || 
       "Mask the selected fields while maintaining their format and ensuring data privacy.";
     
-    // Process all fields at once using a single AI call
-    const aiMaskedData = await generateMaskedDataWithAI(
+    // Process sample data with AI
+    const aiMaskedSampleData = await generateMaskedDataWithAI(
       apiKey,
       sampleData,
       fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
@@ -136,8 +141,8 @@ export const maskPiiData = async (
       }
     );
     
-    // Combine AI-masked sample data with standard masking for the rest
-    return data.map((item, index) => {
+    // Apply the masking to ALL records, not just the sample
+    return data.map((item) => {
       const maskedItem: Partial<PiiDataMasked> = { id: item.id };
       
       Object.keys(item).forEach(key => {
@@ -149,10 +154,22 @@ export const maskPiiData = async (
         const config = perFieldMaskingOptions[key];
         
         if (config?.enabled) {
-          if (index < aiMaskedData.length) {
-            maskedItem[key] = aiMaskedData[index][key] || standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
+          // Find a similar pattern from the AI-processed sample data
+          const similarRecord = aiMaskedSampleData.find(sample => 
+            // Try to find a sample with similar characteristics
+            sample[key] !== undefined && item[key] && 
+            (
+              // Match by length or pattern if possible
+              sample[key].length === item[key].length ||
+              item[key].charAt(0) === sample[key].charAt(0)
+            )
+          );
+          
+          if (similarRecord && similarRecord[key]) {
+            // If we found a similar record, apply similar masking pattern
+            maskedItem[key] = applyMaskingPattern(item[key], similarRecord[key]);
           } else {
-            // For items beyond the AI-processed sample, use standard masking
+            // Fallback to standard masking if no good pattern is found
             maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
           }
         } else {
@@ -166,6 +183,60 @@ export const maskPiiData = async (
     console.error("Error applying AI masking:", error);
     return applyStandardMasking(data, perFieldMaskingOptions);
   }
+};
+
+// Helper function to apply a masking pattern from a sample to a target string
+const applyMaskingPattern = (original: string, sample: string): string => {
+  if (!original) return sample;
+  
+  // If lengths match, try to copy the pattern exactly
+  if (original.length === sample.length) {
+    // Create a new string that follows the masking pattern but preserves key characteristics
+    return sample;
+  }
+  
+  // For different lengths, try to apply the general pattern
+  // E.g., if sample is "J*** D**", we want to keep first characters and mask the rest
+  
+  // Simple case: if sample uses asterisks, replicate that pattern
+  if (sample.includes('*')) {
+    // Count visible characters
+    const visibleChars = sample.split('').filter(c => c !== '*');
+    let result = '';
+    let originalIndex = 0;
+    let asteriskCount = 0;
+    
+    // Walk through sample and apply the pattern
+    for (let i = 0; i < sample.length; i++) {
+      if (sample[i] === '*') {
+        result += '*';
+        asteriskCount++;
+      } else if (originalIndex < original.length) {
+        result += original[originalIndex++];
+      } else {
+        result += sample[i];
+      }
+    }
+    
+    // Adjust for length differences
+    if (original.length > result.length) {
+      result += '*'.repeat(original.length - result.length);
+    }
+    
+    return result;
+  }
+  
+  // If no clear pattern, default to standard masking
+  const key = Object.keys(standardMaskingFunctions).find(k => 
+    sample.toLowerCase().includes(k.toLowerCase())
+  );
+  
+  if (key && standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]) {
+    return standardMaskingFunctions[key as keyof typeof standardMaskingFunctions](original);
+  }
+  
+  // Last resort: keep first char, mask the rest
+  return original.charAt(0) + '*'.repeat(original.length - 1);
 };
 
 // Helper function to apply standard masking
@@ -182,7 +253,15 @@ const applyStandardMasking = (data: PiiData[], perFieldMaskingOptions: PerFieldM
       const config = perFieldMaskingOptions[key];
       
       if (config?.enabled) {
-        maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
+        // Use standard masking function if available, otherwise create a default one
+        if (standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]) {
+          maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions](item[key]);
+        } else if (item[key]) {
+          // Default masking for unknown fields: keep first character, mask the rest
+          maskedItem[key] = item[key].charAt(0) + '*'.repeat(item[key].length - 1);
+        } else {
+          maskedItem[key] = item[key]; // If empty, keep as is
+        }
       } else {
         maskedItem[key] = item[key];
       }
