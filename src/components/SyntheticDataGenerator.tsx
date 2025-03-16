@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4 } from 'lucide-react';
@@ -51,20 +50,16 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       setLoading(true);
       setProgress(10);
       
-      // Simulated generation process with progress updates
       const totalToGenerate = modelOptions.syntheticDataPreferences.volume || 100;
       const batchSize = 20;
       let generatedSamples: any[] = [];
       
       for (let i = 0; i < totalToGenerate; i += batchSize) {
-        // Update progress
         const currentProgress = Math.min(Math.round((i / totalToGenerate) * 100), 90);
         setProgress(currentProgress);
         setGeneratedCount(i);
         
-        // In a real implementation, this would call the backend service
-        // For now, we'll create some dummy data based on the original minority class samples
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         const batchCount = Math.min(batchSize, totalToGenerate - i);
         const currentBatch = createDummySyntheticSamples(
@@ -81,7 +76,6 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       setProgress(100);
       setGeneratedCount(generatedSamples.length);
       
-      // Wait a bit to show 100% completion, then notify parent
       setTimeout(() => {
         onSyntheticDataGenerated(generatedSamples);
         toast.success(`Generated ${generatedSamples.length} synthetic samples`);
@@ -95,8 +89,6 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     }
   };
   
-  // This is a placeholder function - in reality, we would call the OpenAI service
-  // This is just for UI demonstration without actual API calls
   const createDummySyntheticSamples = (
     data: any[], 
     targetColumn: string,
@@ -104,26 +96,21 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     count: number,
     diversity: 'low' | 'medium' | 'high' = 'medium'
   ): any[] => {
-    // Find minority class samples
     const minoritySamples = data.filter(item => 
       String(item[targetColumn]) === minorityClass
     );
     
     if (minoritySamples.length === 0) return [];
     
-    // Create synthetic samples based on minority class
     const syntheticSamples = [];
     const diversityFactor = diversity === 'low' ? 0.05 : diversity === 'medium' ? 0.15 : 0.25;
     
     for (let i = 0; i < count; i++) {
-      // Pick a random sample to use as base
       const baseSample = minoritySamples[Math.floor(Math.random() * minoritySamples.length)];
       const syntheticSample = { ...baseSample };
       
-      // Add synthetic_id
       syntheticSample.synthetic_id = `syn_${i + 1}`;
       
-      // Vary numeric features slightly based on diversity setting
       for (const key in syntheticSample) {
         if (key !== targetColumn && typeof syntheticSample[key] === 'number') {
           const originalValue = syntheticSample[key];
@@ -138,7 +125,6 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     return syntheticSamples;
   };
   
-  // Find the minority class in the original dataset
   const minorityClassName = preferences.minorityClass || '';
   const minorityClassInfo = originalDataset.classes.find(c => c.className === minorityClassName);
   const minorityClassCount = minorityClassInfo?.count || 0;
@@ -155,7 +141,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       
       <CardContent className="space-y-4">
         {!apiKeyAvailable && (
-          <Alert variant="warning">
+          <Alert>
             <AlertDescription>
               OpenAI API key is required for synthetic data generation.
             </AlertDescription>

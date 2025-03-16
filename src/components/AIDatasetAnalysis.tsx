@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -16,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   DatasetPreferences, 
   PerformancePreferences, 
@@ -94,7 +94,6 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
     onAnalysisComplete(data.performancePrefs, data.modelOptions);
   };
 
-  // Format feature importance for display
   const formatFeatureImportance = () => {
     if (!aiAnalysis?.featureImportance) return [];
     
@@ -119,7 +118,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
 
       <CardContent className="space-y-6">
         {!apiKeyAvailable && (
-          <Alert variant="warning" className="mb-4">
+          <Alert>
             <AlertDescription>
               OpenAI API key is required for AI analysis. Please set it up first.
             </AlertDescription>
