@@ -13,11 +13,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import FileUploader from '@/components/FileUploader';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import { applyAugmentation } from '@/services/dataAugmentationService';
 import { 
   ArrowRight, 
   BarChart3, 
@@ -25,7 +29,8 @@ import {
   Upload, 
   PlusCircle, 
   Trash2, 
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 
 const augmentationMethods = [
@@ -38,9 +43,11 @@ const augmentationMethods = [
 ];
 
 const DataAugmentationPage: React.FC = () => {
+  const { apiKey } = useApiKey();
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<string | null>(null);
   const [selectedMethods, setSelectedMethods] = useState<string[]>(['noise']);
+  const [aiPrompt, setAiPrompt] = useState<string>('');
   const [augmentationSettings, setAugmentationSettings] = useState({
     noise: {
       intensity: 0.2,
@@ -61,7 +68,8 @@ const DataAugmentationPage: React.FC = () => {
     },
     categorical: {
       categories: ['sunny', 'rainy'],
-      multiplier: 2
+      multiplier: 2,
+      fields: ['weather']
     },
     text: {
       method: 'synonym',
@@ -71,23 +79,83 @@ const DataAugmentationPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [augmentedData, setAugmentedData] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState('original');
+  const [parsedData, setParsedData] = useState<any[]>([]);
   
   const handleFileUpload = (file: File) => {
     setSourceFile(file);
     
-    // Simulate reading the file
-    setTimeout(() => {
-      const mockData = `timestamp,temperature,humidity,pressure,weather,description
-2023-01-01 00:00:00,22.5,65,1013.2,sunny,"Clear sky, light breeze"
-2023-01-01 01:00:00,21.8,67,1013.0,sunny,"Clear conditions"
-2023-01-01 02:00:00,21.2,70,1012.8,cloudy,"Partly cloudy"
-2023-01-01 03:00:00,20.5,72,1012.5,cloudy,"Increasing clouds"
-2023-01-01 04:00:00,20.1,75,1012.3,rainy,"Light rain starting"
-...and 95 more rows`;
-      
-      setPreviewData(mockData);
-      toast.success('File uploaded successfully');
-    }, 1000);
+    // Read the actual file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        setPreviewData(content);
+        
+        // Parse the data
+        let parsedData;
+        if (file.name.endsWith('.json')) {
+          parsedData = JSON.parse(content);
+          if (!Array.isArray(parsedData)) {
+            parsedData = [parsedData]; // Convert to array if not already
+          }
+        } else if (file.name.endsWith('.csv')) {
+          // Simple CSV parsing
+          const lines = content.split('\n');
+          const headers = lines[0].split(',');
+          parsedData = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '') continue;
+            
+            const values = lines[i].split(',');
+            const item: Record<string, any> = {};
+            
+            headers.forEach((header, index) => {
+              item[header.trim()] = values[index]?.trim() || '';
+            });
+            
+            parsedData.push(item);
+          }
+        }
+        
+        setParsedData(parsedData || []);
+        
+        // Update augmentation settings based on detected fields
+        if (parsedData && parsedData.length > 0) {
+          const sampleItem = parsedData[0];
+          const numericFields: string[] = [];
+          const textFields: string[] = [];
+          const categoricalFields: string[] = [];
+          
+          Object.entries(sampleItem).forEach(([field, value]) => {
+            if (typeof value === 'number' || !isNaN(Number(value))) {
+              numericFields.push(field);
+            } else if (typeof value === 'string' && value.length > 20) {
+              textFields.push(field);
+            } else {
+              categoricalFields.push(field);
+            }
+          });
+          
+          setAugmentationSettings(prev => ({
+            ...prev,
+            noise: { ...prev.noise, fields: numericFields.slice(0, 3) },
+            scaling: { ...prev.scaling, fields: numericFields.slice(0, 2) },
+            outliers: { ...prev.outliers, fields: numericFields.slice(0, 2) },
+            missing: { ...prev.missing, fields: [...numericFields.slice(0, 2), ...textFields.slice(0, 1)] },
+            categorical: { ...prev.categorical, fields: categoricalFields.slice(0, 2) },
+            text: { ...prev.text, fields: textFields.slice(0, 2) }
+          }));
+        }
+        
+        toast.success('File uploaded successfully');
+      } catch (error) {
+        console.error('Error parsing file:', error);
+        toast.error('Failed to parse the file');
+      }
+    };
+    
+    reader.readAsText(file);
   };
   
   const toggleMethod = (methodId: string) => {
@@ -108,45 +176,71 @@ const DataAugmentationPage: React.FC = () => {
     }));
   };
   
-  const handleProcessData = () => {
-    if (!sourceFile) {
+  const handleUpdateFields = (method: string, newFields: string[]) => {
+    setAugmentationSettings(prev => ({
+      ...prev,
+      [method]: {
+        ...prev[method as keyof typeof prev],
+        fields: newFields
+      }
+    }));
+  };
+  
+  const handleProcessData = async () => {
+    if (!sourceFile || parsedData.length === 0) {
       toast.error('Please upload a file first');
+      return;
+    }
+    
+    if (!apiKey) {
+      toast.error('OpenAI API key is required for data augmentation');
       return;
     }
     
     setIsProcessing(true);
     
-    // Simulate processing delay
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      let allAugmentedData: any[] = [];
       
-      const mockAugmentedData = `timestamp,temperature,humidity,pressure,weather,description
-2023-01-01 00:00:00,23.1,66.3,1014.5,sunny,"Clear sky, gentle breeze"
-2023-01-01 00:00:00,22.0,64.2,1012.9,sunny,"Clear sky, light breeze"
-2023-01-01 00:00:00,22.9,67.1,1015.0,sunny,"Clear sky, calm conditions"
-2023-01-01 01:00:00,20.9,68.2,1011.8,sunny,"Clear conditions"
-2023-01-01 01:00:00,22.4,65.9,1014.1,sunny,"Clear conditions with good visibility"
-2023-01-01 02:00:00,null,72.5,1013.6,cloudy,"Partly cloudy"
-2023-01-01 02:00:00,20.8,69.4,1011.5,cloudy,"Some clouds forming"
-2023-01-01 03:00:00,19.9,73.1,1010.2,cloudy,"Increasing clouds"
-2023-01-01 03:00:00,21.2,70.8,1014.0,cloudy,"Clouds developing"
-2023-01-01 04:00:00,20.5,77.2,1013.5,rainy,"Light rain beginning"
-...and 195 more rows`;
+      // Process each selected method sequentially
+      for (const method of selectedMethods) {
+        try {
+          const augmentedData = await applyAugmentation(
+            apiKey,
+            parsedData,
+            method,
+            augmentationSettings,
+            aiPrompt
+          );
+          
+          allAugmentedData = [...allAugmentedData, ...augmentedData];
+        } catch (error) {
+          console.error(`Error applying ${method}:`, error);
+          toast.error(`Failed to apply ${method}`);
+        }
+      }
       
-      setAugmentedData(mockAugmentedData);
+      // Format the data for display
+      const formattedData = JSON.stringify(allAugmentedData, null, 2);
+      setAugmentedData(formattedData);
       setPreviewTab('augmented');
       toast.success('Data augmentation completed');
-    }, 2500);
+    } catch (error) {
+      console.error('Error processing data:', error);
+      toast.error('Failed to process data augmentation');
+    } finally {
+      setIsProcessing(false);
+    }
   };
   
   const handleDownload = () => {
     if (!augmentedData) return;
     
-    const blob = new Blob([augmentedData], { type: 'text/csv' });
+    const blob = new Blob([augmentedData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `augmented_data_${Date.now()}.csv`;
+    a.download = `augmented_data_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -192,12 +286,32 @@ const DataAugmentationPage: React.FC = () => {
                 />
               </CardContent>
             </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Sparkles className="h-5 w-5 mr-2 text-primary" />
+                  AI Augmentation Prompt
+                </CardTitle>
+                <CardDescription>
+                  Describe how you want to augment your data in natural language
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  placeholder="Example: Generate realistic variations for a retail dataset, focusing on seasonal patterns and regional differences. For numeric fields, ensure they follow normal distributions typical for retail sales."
+                  className="min-h-[100px]"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                />
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle>Augmentation Methods</CardTitle>
                 <CardDescription>
-                  Select and configure data augmentation techniques
+                  Select and configure AI-powered data augmentation techniques
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -239,6 +353,37 @@ const DataAugmentationPage: React.FC = () => {
                           <CardTitle className="text-base">{method.label} Settings</CardTitle>
                         </CardHeader>
                         <CardContent>
+                          {/* Fields multi-select for each method */}
+                          {parsedData.length > 0 && (
+                            <div className="mb-4">
+                              <Label className="mb-2 block">Fields to Augment</Label>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {Object.keys(parsedData[0]).map(field => (
+                                  <div key={field} className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id={`${methodId}-field-${field}`}
+                                      checked={augmentationSettings[methodId as keyof typeof augmentationSettings]?.fields?.includes(field)}
+                                      onCheckedChange={(checked) => {
+                                        const currentFields = augmentationSettings[methodId as keyof typeof augmentationSettings]?.fields || [];
+                                        if (checked) {
+                                          handleUpdateFields(methodId, [...currentFields, field]);
+                                        } else {
+                                          handleUpdateFields(methodId, currentFields.filter(f => f !== field));
+                                        }
+                                      }}
+                                    />
+                                    <Label 
+                                      htmlFor={`${methodId}-field-${field}`}
+                                      className="text-sm cursor-pointer"
+                                    >
+                                      {field}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
                           {methodId === 'noise' && (
                             <div className="space-y-4">
                               <div>
@@ -359,7 +504,7 @@ const DataAugmentationPage: React.FC = () => {
               <CardFooter>
                 <Button 
                   onClick={handleProcessData}
-                  disabled={!sourceFile || isProcessing}
+                  disabled={!sourceFile || isProcessing || !apiKey}
                   className="w-full gap-2"
                 >
                   {isProcessing ? (
@@ -369,8 +514,8 @@ const DataAugmentationPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <PlusCircle className="h-4 w-4" />
-                      Augment Data
+                      <Sparkles className="h-4 w-4" />
+                      Augment Data with AI
                     </>
                   )}
                 </Button>
