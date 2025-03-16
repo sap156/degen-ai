@@ -40,19 +40,20 @@ import {
   downloadSyntheticData, 
   saveSyntheticDataToDatabase, 
   SyntheticDataOptions,
-  detectSchemaFromData
+  detectSchemaFromData,
+  defaultSchemas
 } from "@/services/syntheticDataService";
-import { Code, Database, Download, FileJson, FilePlus2, Sparkles, Upload } from "lucide-react";
+import { Code, Database, Download, FileJson, FilePlus2, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import FileUploader from '@/components/FileUploader';
 import { readFileContent, parseCSV, parseJSON } from '@/utils/fileUploadUtils';
 
 const dataTypes = [
-  { value: 'personal', label: 'Personal Information' },
-  { value: 'financial', label: 'Financial Data' },
-  { value: 'healthcare', label: 'Healthcare Records' },
-  { value: 'ecommerce', label: 'E-commerce Transactions' },
+  { value: 'user', label: 'User Data' },
+  { value: 'transaction', label: 'Transaction Data' },
+  { value: 'product', label: 'Product Data' },
+  { value: 'health', label: 'Health Data' },
   { value: 'custom', label: 'Custom Schema' },
 ];
 
@@ -60,13 +61,7 @@ function SyntheticData() {
   const { apiKey, isKeySet } = useApiKey();
   const [generatedData, setGeneratedData] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [dataFields, setDataFields] = useState<DataField[]>([
-    { name: "id", type: "id", included: true },
-    { name: "full_name", type: "name", included: true },
-    { name: "email", type: "email", included: true },
-    { name: "age", type: "number", included: true },
-    { name: "created_at", type: "date", included: true },
-  ]);
+  const [dataFields, setDataFields] = useState<DataField[]>(defaultSchemas.user);
   const [activeTab, setActiveTab] = useState("generator");
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -83,6 +78,14 @@ function SyntheticData() {
       aiPrompt: "Generate a dataset of fictional users with realistic names, emails, addresses, and numerical attributes"
     },
   });
+  
+  // Watch for dataType changes to update the schema fields
+  useEffect(() => {
+    const dataType = form.watch("dataType");
+    if (dataType in defaultSchemas) {
+      setDataFields(defaultSchemas[dataType]);
+    }
+  }, [form.watch("dataType")]);
 
   const onSubmit = async (values: any) => {
     if (!isKeySet) {
@@ -188,6 +191,23 @@ function SyntheticData() {
     updatedFields[index].type = type;
     setDataFields(updatedFields);
   };
+  
+  // Function to add a new field to the schema
+  const addNewField = () => {
+    setDataFields([...dataFields, { name: "", type: "string", included: true }]);
+  };
+  
+  // Function to update a field's name
+  const updateFieldName = (index: number, name: string) => {
+    const updatedFields = [...dataFields];
+    updatedFields[index].name = name;
+    setDataFields(updatedFields);
+  };
+  
+  // Function to remove a field from the schema
+  const removeField = (index: number) => {
+    setDataFields(dataFields.filter((_, i) => i !== index));
+  };
 
   return (
     <div className="container px-4 py-6 max-w-7xl">
@@ -276,6 +296,7 @@ function SyntheticData() {
                               <Select 
                                 onValueChange={field.onChange} 
                                 defaultValue={field.value}
+                                value={field.value}
                               >
                                 <FormControl>
                                   <SelectTrigger>
@@ -283,10 +304,11 @@ function SyntheticData() {
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="user">User Data</SelectItem>
-                                  <SelectItem value="transaction">Transaction Data</SelectItem>
-                                  <SelectItem value="product">Product Data</SelectItem>
-                                  <SelectItem value="custom">Custom Schema</SelectItem>
+                                  {dataTypes.map((type) => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                      {type.label}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                               <FormDescription>
@@ -299,7 +321,19 @@ function SyntheticData() {
                         
                         {dataFields.length > 0 && (
                           <div className="space-y-2">
-                            <FormLabel>Schema Fields</FormLabel>
+                            <div className="flex justify-between items-center">
+                              <FormLabel>Schema Fields</FormLabel>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addNewField}
+                                className="flex items-center gap-1"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add Field
+                              </Button>
+                            </div>
                             <div className="border rounded-md overflow-hidden">
                               <table className="w-full">
                                 <thead>
@@ -307,12 +341,20 @@ function SyntheticData() {
                                     <th className="text-left p-2 text-xs font-medium">Field</th>
                                     <th className="text-left p-2 text-xs font-medium">Type</th>
                                     <th className="text-left p-2 text-xs font-medium">Include</th>
+                                    <th className="text-left p-2 text-xs font-medium w-10"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {dataFields.map((field, index) => (
                                     <tr key={index} className="border-t">
-                                      <td className="p-2 text-sm">{field.name}</td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8"
+                                          value={field.name}
+                                          placeholder="Field name"
+                                          onChange={(e) => updateFieldName(index, e.target.value)}
+                                        />
+                                      </td>
                                       <td className="p-2">
                                         <Select 
                                           value={field.type} 
@@ -331,6 +373,8 @@ function SyntheticData() {
                                             <SelectItem value="phone">Phone</SelectItem>
                                             <SelectItem value="address">Address</SelectItem>
                                             <SelectItem value="id">ID</SelectItem>
+                                            <SelectItem value="integer">Integer</SelectItem>
+                                            <SelectItem value="float">Float</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </td>
@@ -339,6 +383,17 @@ function SyntheticData() {
                                           checked={field.included} 
                                           onCheckedChange={() => toggleFieldInclusion(index)} 
                                         />
+                                      </td>
+                                      <td className="p-2">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removeField(index)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
                                       </td>
                                     </tr>
                                   ))}

@@ -22,6 +22,45 @@ export type SyntheticDataOptions = {
   uploadedData?: any[];
 };
 
+// Default schemas for different data types
+export const defaultSchemas: Record<string, DataField[]> = {
+  user: [
+    { name: "id", type: "id", included: true },
+    { name: "full_name", type: "name", included: true },
+    { name: "email", type: "email", included: true },
+    { name: "age", type: "number", included: true },
+    { name: "created_at", type: "date", included: true },
+  ],
+  transaction: [
+    { name: "transaction_id", type: "id", included: true },
+    { name: "user_id", type: "id", included: true },
+    { name: "amount", type: "float", included: true },
+    { name: "currency", type: "string", included: true },
+    { name: "transaction_date", type: "date", included: true },
+    { name: "status", type: "string", included: true },
+  ],
+  product: [
+    { name: "product_id", type: "id", included: true },
+    { name: "name", type: "string", included: true },
+    { name: "description", type: "string", included: true },
+    { name: "price", type: "float", included: true },
+    { name: "category", type: "string", included: true },
+    { name: "stock", type: "integer", included: true },
+    { name: "created_at", type: "date", included: true },
+  ],
+  health: [
+    { name: "patient_id", type: "id", included: true },
+    { name: "name", type: "name", included: true },
+    { name: "dob", type: "date", included: true },
+    { name: "blood_type", type: "string", included: true },
+    { name: "heart_rate", type: "integer", included: true },
+    { name: "blood_pressure", type: "string", included: true },
+    { name: "diagnosis", type: "string", included: true },
+    { name: "admission_date", type: "date", included: true },
+  ],
+  custom: [], // Empty for custom schemas
+};
+
 // Main function to generate synthetic data
 export const generateSyntheticData = async (options: SyntheticDataOptions, apiKey: string | null = null): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -155,3 +194,4 @@ export const detectSchemaFromData = (data: any[]): DataField[] => {
   
   return detectedFields;
 };
+
