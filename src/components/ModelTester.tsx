@@ -38,6 +38,21 @@ const ModelTester: React.FC<ModelTesterProps> = ({
   testResults,
   targetColumn
 }) => {
+  const handleExportReport = () => {
+    if (testResults) {
+      // Here you would handle the export functionality
+      console.log("Exporting test results:", testResults);
+      // For demonstration purposes, download as JSON
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(testResults, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "model_test_results.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -101,7 +116,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
     datasets: [
       {
         label: 'Accuracy (%)',
-        data: [results.overallAccuracy, results.edgeCaseAccuracy],
+        data: [parseFloat(results.overallAccuracy), parseFloat(results.edgeCaseAccuracy)],
         backgroundColor: ['rgba(34, 197, 94, 0.6)', 'rgba(249, 115, 22, 0.6)'],
         borderColor: ['rgb(34, 197, 94)', 'rgb(249, 115, 22)'],
         borderWidth: 1,
@@ -143,7 +158,7 @@ const ModelTester: React.FC<ModelTesterProps> = ({
             Performance evaluation on regular data vs. edge cases
           </CardDescription>
         </div>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={handleExportReport}>
           <Download className="mr-2 h-4 w-4" />
           Export Report
         </Button>
