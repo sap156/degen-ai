@@ -81,13 +81,36 @@ export const generateSyntheticDataWithAI = async (
   apiKey: string | null,
   prompt: string,
   format: string = 'json',
-  count: number = 10
+  count: number = 10,
+  options: { sampleData?: any[] } = {}
 ): Promise<string> => {
-  const systemMessage = `You are a synthetic data generator. Generate realistic ${format === 'json' ? 'JSON' : 'CSV'} data based on the user's request. 
-  The data should be valid and properly formatted.`;
+  const { sampleData } = options;
   
-  const formattedPrompt = `Generate ${count} rows of synthetic data with the following requirements: ${prompt}. 
-  Return ONLY the raw ${format === 'json' ? 'JSON array' : 'CSV data'} with no additional text or explanation.`;
+  // Create a more structured system message to enforce format compliance
+  const systemMessage = `You are a synthetic data generator specialized in creating ${format === 'json' ? 'JSON' : 'CSV'} data. 
+  You must ONLY output valid ${format.toUpperCase()} data with no additional text, explanations, or markdown formatting.
+  The data must be realistic, consistent, and properly formatted.
+  
+  Rules:
+  1. ONLY output raw ${format.toUpperCase()} data.
+  2. Do not include markdown code blocks, explanations, or any text outside the data.
+  3. For JSON, ensure all property names are properly quoted.
+  4. For CSV, include a header row.
+  5. Follow field type requirements precisely.
+  6. Generate exactly ${count} rows of data unless explicitly told otherwise.`;
+  
+  // Create a more structured user prompt
+  let formattedPrompt = `Generate ${count} rows of synthetic data with the following requirements:\n\n${prompt}`;
+  
+  // If we have sample data, include it
+  if (sampleData && sampleData.length > 0) {
+    formattedPrompt += `\n\nHere are examples of the expected format and style:`;
+    sampleData.forEach(item => {
+      formattedPrompt += `\n${JSON.stringify(item)}`;
+    });
+  }
+  
+  formattedPrompt += `\n\nYou MUST return ONLY the raw ${format === 'json' ? 'JSON array' : 'CSV data'} with NO additional text.`;
   
   const messages: OpenAiMessage[] = [
     { role: 'system', content: systemMessage },
@@ -96,8 +119,8 @@ export const generateSyntheticDataWithAI = async (
   
   try {
     return await getCompletion(apiKey, messages, {
-      temperature: 0.8,
-      max_tokens: 2000
+      temperature: 0.5, // Lower temperature for more consistent output
+      max_tokens: Math.min(4000, count * 50) // Adjust token count based on requested row count
     });
   } catch (error) {
     console.error("Error generating synthetic data with AI:", error);
