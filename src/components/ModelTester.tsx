@@ -5,6 +5,7 @@ import { BarChart3, Download, AlertCircle, CheckCircle, XCircle } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import {
   Chart as ChartJS,
   CategoryScale,
