@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
-import { ApiKeyContext } from '@/contexts/ApiKeyContext';
+import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
   DatasetPreferences, 
@@ -71,7 +72,7 @@ const ImbalancedData = () => {
   const [featureEngineering, setFeatureEngineering] = useState<any | null>(null);
   
   // Get API key from context
-  const { apiKey } = useContext(ApiKeyContext);
+  const { apiKey } = useApiKey();
 
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
     defaultValues: {

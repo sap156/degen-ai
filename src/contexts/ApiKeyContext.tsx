@@ -12,7 +12,7 @@ interface ApiKeyContextType {
   setSelectedModel: (model: OpenAIModel) => void;
 }
 
-const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
+export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);

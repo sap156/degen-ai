@@ -24,6 +24,16 @@ export interface DatasetPreferences {
   datasetContext?: string;
 }
 
+// Model options interface
+export interface ModelOptions {
+  syntheticDataPreferences?: {
+    enabled: boolean;
+    volume: number;
+    diversity: 'low' | 'medium' | 'high';
+  };
+  modelType?: string;
+}
+
 /**
  * Analyze dataset using OpenAI API
  * @param data Dataset to analyze
@@ -83,17 +93,20 @@ const generateSchema = (data: any[]): Record<string, string> => {
     
     // Enhanced type detection
     if (type === 'number') {
-      type = Number.isInteger(value) ? 'integer' : 'float';
+      // Use string representation for the schema type rather than actual TypeScript types
+      schema[key] = Number.isInteger(value) ? 'integer_type' : 'float_type';
     } else if (type === 'string') {
       // Check for date
       if (!isNaN(Date.parse(value))) {
-        type = 'date';
+        schema[key] = 'date_type';
       } else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        type = 'email';
+        schema[key] = 'email_type';
+      } else {
+        schema[key] = 'string';
       }
+    } else {
+      schema[key] = type;
     }
-    
-    schema[key] = type;
   });
   
   return schema;

@@ -155,7 +155,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       
       <CardContent className="space-y-4">
         {!apiKeyAvailable && (
-          <Alert variant="warning">
+          <Alert>
             <AlertDescription>
               OpenAI API key is required for synthetic data generation.
             </AlertDescription>
