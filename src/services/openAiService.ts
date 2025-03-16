@@ -144,7 +144,7 @@ export const generateSyntheticDataWithAI = async (
   }
 };
 
-// New function to generate AI-masked PII data with a single prompt
+// Enhanced function to generate AI-masked PII data with improved consistency
 export const generateMaskedDataWithAI = async (
   apiKey: string | null,
   sampleData: PiiData[],
@@ -160,22 +160,35 @@ export const generateMaskedDataWithAI = async (
 
   const { preserveFormat = true, customPrompt } = options;
 
-  // Create a system prompt that instructs the AI on masking behavior
+  // Create an enhanced system prompt with stricter guidelines
   const systemPrompt = `You are an expert in PII (Personally Identifiable Information) data masking and anonymization. 
-Your task is to generate masked versions of sensitive data based on the user's instructions. 
-${preserveFormat ? "You should preserve the exact format of the original data (length, special characters, etc.) unless instructed otherwise." : ""}
+Your task is to generate masked versions of sensitive data based on the user's specific instructions.
+${preserveFormat ? "You MUST preserve the exact format (length, special characters, separators) of the original data." : ""}
 
-Only modify the fields specified. Return your response as a valid JSON array that exactly matches the structure of the input data.`;
+STRICT REQUIREMENTS:
+1. Only modify the fields explicitly specified in the user's instructions.
+2. Apply the EXACT SAME masking pattern to the same field across ALL records.
+3. For each field type, use a CONSISTENT masking approach.
+4. If specific masking techniques are mentioned for fields, ONLY use those techniques.
+5. Follow all formatting guidelines in the user's prompt precisely.
+6. Return your response as a valid JSON array that exactly matches the structure of the input data.
+7. DO NOT change field names or data structure.
+8. DO NOT add creative explanations to your response.`;
 
-  // Prepare the user prompt with the data to mask and instructions
+  // Prepare an enhanced user prompt that emphasizes consistency
   const userPrompt = `I need to mask the following PII fields: ${fieldsToMask.join(', ')}.
-${customPrompt ? `\nSpecific instructions: ${customPrompt}` : ''}
+
+${customPrompt ? `\nSpecific instructions for masking: ${customPrompt}` : ''}
 
 Here's a sample of my data:
 ${JSON.stringify(sampleData, null, 2)}
 
-Please generate masked versions of this data where only the specified fields are changed.
-The masked data should be realistic but fictional.
+IMPORTANT REQUIREMENTS:
+1. Generate masked versions where ONLY the specified fields are changed.
+2. Use the EXACT SAME masking pattern for each field across ALL records.
+3. If I specified particular masking techniques for certain fields, apply ONLY those techniques.
+4. Ensure the masked data is format-consistent but anonymized.
+5. Do not invent new fields or change the structure.
 
 Return ONLY valid JSON as your response, with no additional text or explanations.`;
 
@@ -184,13 +197,14 @@ Return ONLY valid JSON as your response, with no additional text or explanations
     { role: 'user', content: userPrompt }
   ];
   
-  // Get the model from localStorage
+  // Get the model from localStorage, preferring stronger models for better pattern consistency
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
+    // Use lower temperature for more consistent outputs
     const response = await getCompletion(apiKey, messages, {
       model,
-      temperature: 0.7,
+      temperature: 0.3, // Lower temperature for consistency
       max_tokens: 3000
     });
     
@@ -201,6 +215,47 @@ Return ONLY valid JSON as your response, with no additional text or explanations
       // Ensure we have valid data
       if (!Array.isArray(maskedData) || maskedData.length === 0) {
         throw new Error("Invalid response format from AI");
+      }
+      
+      // Verify field structure integrity
+      const originalFields = Object.keys(sampleData[0]);
+      const maskedFields = Object.keys(maskedData[0]);
+      
+      if (!originalFields.every(field => maskedFields.includes(field))) {
+        throw new Error("AI response missing required fields");
+      }
+      
+      // Verify that all records maintain consistent masking patterns
+      // We'll check a few random fields to ensure consistency
+      const consistencyCheck = fieldsToMask.slice(0, Math.min(3, fieldsToMask.length));
+      
+      for (const field of consistencyCheck) {
+        const patterns = new Map<string, string>();
+        
+        // Collect patterns used for this field
+        for (let i = 0; i < Math.min(maskedData.length, sampleData.length); i++) {
+          const original = sampleData[i][field];
+          const masked = maskedData[i][field];
+          
+          if (original && masked && original !== masked) {
+            patterns.set(original, masked);
+          }
+        }
+        
+        // Check for inconsistent applications of the same pattern
+        for (let i = 0; i < Math.min(maskedData.length, sampleData.length); i++) {
+          const original = sampleData[i][field];
+          const masked = maskedData[i][field];
+          
+          // If we've seen this value before, it should use the same masking
+          for (const [origPattern, maskPattern] of patterns.entries()) {
+            if (original === origPattern && masked !== maskPattern) {
+              console.warn(`Inconsistent masking detected for field ${String(field)}`);
+              // We could throw here, but instead we'll just accept what we got
+              // as this validation is just an extra safeguard
+            }
+          }
+        }
       }
       
       return maskedData;

@@ -70,6 +70,9 @@ export const generateSamplePiiData = (count: number = 10): PiiData[] => {
   }));
 };
 
+// Enhanced masking pattern cache to ensure consistency
+const maskingPatternCache: Record<string, Record<string, (value: string) => string>> = {};
+
 // Standard masking functions for fallback when AI is not available
 const standardMaskingFunctions = {
   firstName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
@@ -123,12 +126,25 @@ export const maskPiiData = async (
       return data.map(item => ({...item})) as PiiDataMasked[];
     }
     
-    // Use the first 5 records for AI to learn patterns
-    const sampleData = data.slice(0, Math.min(5, data.length));
+    // Use more sample data for consistent pattern learning
+    const sampleSize = Math.min(10, data.length);
+    const sampleData = data.slice(0, sampleSize);
     
-    // Prepare AI prompt
+    // Add precise instruction enhancement to the AI prompt
     const aiPrompt = options?.aiPrompt || 
-      "Mask the selected fields while maintaining their format and ensuring data privacy.";
+      "Mask the selected fields while maintaining data format and ensuring privacy.";
+    
+    // Enhance the prompt with field-specific instructions
+    const enhancedPrompt = `
+${aiPrompt}
+
+IMPORTANT REQUIREMENTS:
+1. Apply EXACTLY THE SAME masking pattern to the same field across ALL records
+2. For each field type, use a consistent masking approach
+3. Preserve the format (length, special characters) of each field
+4. If specific masking is mentioned for a field, apply ONLY that technique
+5. Generate realistic but privacy-preserving masked data
+6. Do not add new fields or remove existing fields`;
     
     // Process sample data with AI
     const aiMaskedSampleData = await generateMaskedDataWithAI(
@@ -137,11 +153,58 @@ export const maskPiiData = async (
       fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
       {
         preserveFormat: options?.preserveFormat !== undefined ? options.preserveFormat : true,
-        customPrompt: aiPrompt
+        customPrompt: enhancedPrompt
       }
     );
     
-    // Apply the masking to ALL records, not just the sample
+    // Extract and cache masking patterns from AI sample results
+    const patternKey = JSON.stringify({ 
+      fields: fieldsToMask.sort(), 
+      prompt: enhancedPrompt
+    });
+    
+    if (!maskingPatternCache[patternKey]) {
+      maskingPatternCache[patternKey] = {};
+      
+      // For each field, extract a consistent masking function from the AI results
+      fieldsToMask.forEach(field => {
+        const patterns: Array<[string, string]> = [];
+        
+        // Collect original-to-masked pairs for this field
+        sampleData.forEach((original, index) => {
+          if (aiMaskedSampleData[index] && original[field] && aiMaskedSampleData[index][field]) {
+            patterns.push([original[field], aiMaskedSampleData[index][field]]);
+          }
+        });
+        
+        // Generate a masking function for this field
+        if (patterns.length > 0) {
+          maskingPatternCache[patternKey][field] = (value: string) => {
+            // Find the most similar pattern in our examples
+            let bestMatch = patterns[0];
+            let bestSimilarity = 0;
+            
+            for (const [orig, masked] of patterns) {
+              const similarity = calculateSimilarity(value, orig);
+              if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestMatch = [orig, masked];
+              }
+            }
+            
+            // Apply the masking pattern
+            return applyConsistentMasking(value, bestMatch[0], bestMatch[1]);
+          };
+        } else {
+          // Fallback to standard masking if no patterns were found
+          maskingPatternCache[patternKey][field] = 
+            standardMaskingFunctions[field as keyof typeof standardMaskingFunctions] || 
+            ((val: string) => val.charAt(0) + '*'.repeat(val.length - 1));
+        }
+      });
+    }
+    
+    // Apply the cached masking patterns to ALL records
     return data.map((item) => {
       const maskedItem: Partial<PiiDataMasked> = { id: item.id };
       
@@ -153,25 +216,8 @@ export const maskPiiData = async (
         
         const config = perFieldMaskingOptions[key];
         
-        if (config?.enabled) {
-          // Find a similar pattern from the AI-processed sample data
-          const similarRecord = aiMaskedSampleData.find(sample => 
-            // Try to find a sample with similar characteristics
-            sample[key] !== undefined && item[key] && 
-            (
-              // Match by length or pattern if possible
-              sample[key].length === item[key].length ||
-              item[key].charAt(0) === sample[key].charAt(0)
-            )
-          );
-          
-          if (similarRecord && similarRecord[key]) {
-            // If we found a similar record, apply similar masking pattern
-            maskedItem[key] = applyMaskingPattern(item[key], similarRecord[key]);
-          } else {
-            // Fallback to standard masking if no good pattern is found
-            maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]?.(item[key]) || item[key];
-          }
+        if (config?.enabled && maskingPatternCache[patternKey][key]) {
+          maskedItem[key] = maskingPatternCache[patternKey][key](item[key]);
         } else {
           maskedItem[key] = item[key];
         }
@@ -185,58 +231,102 @@ export const maskPiiData = async (
   }
 };
 
-// Helper function to apply a masking pattern from a sample to a target string
-const applyMaskingPattern = (original: string, sample: string): string => {
-  if (!original) return sample;
+// Calculate similarity between two strings for better pattern matching
+const calculateSimilarity = (str1: string, str2: string): number => {
+  // Length similarity
+  const lengthSim = 1 - Math.abs(str1.length - str2.length) / Math.max(str1.length, str2.length);
   
-  // If lengths match, try to copy the pattern exactly
-  if (original.length === sample.length) {
-    // Create a new string that follows the masking pattern but preserves key characteristics
-    return sample;
-  }
+  // Character type similarity (digit, letter, special char)
+  let typeSim = 0;
+  const minLength = Math.min(str1.length, str2.length);
   
-  // For different lengths, try to apply the general pattern
-  // E.g., if sample is "J*** D**", we want to keep first characters and mask the rest
-  
-  // Simple case: if sample uses asterisks, replicate that pattern
-  if (sample.includes('*')) {
-    // Count visible characters
-    const visibleChars = sample.split('').filter(c => c !== '*');
-    let result = '';
-    let originalIndex = 0;
-    let asteriskCount = 0;
+  for (let i = 0; i < minLength; i++) {
+    const char1 = str1.charAt(i);
+    const char2 = str2.charAt(i);
     
-    // Walk through sample and apply the pattern
-    for (let i = 0; i < sample.length; i++) {
-      if (sample[i] === '*') {
-        result += '*';
-        asteriskCount++;
-      } else if (originalIndex < original.length) {
-        result += original[originalIndex++];
-      } else {
-        result += sample[i];
-      }
+    const isDigit1 = /\d/.test(char1);
+    const isDigit2 = /\d/.test(char2);
+    const isLetter1 = /[a-zA-Z]/.test(char1);
+    const isLetter2 = /[a-zA-Z]/.test(char2);
+    
+    if ((isDigit1 && isDigit2) || (isLetter1 && isLetter2) || 
+        (!isDigit1 && !isLetter1 && !isDigit2 && !isLetter2)) {
+      typeSim++;
     }
-    
-    // Adjust for length differences
-    if (original.length > result.length) {
-      result += '*'.repeat(original.length - result.length);
+  }
+  
+  typeSim /= minLength || 1;
+  
+  // Format similarity (patterns of digits, letters, and special chars)
+  const format1 = str1.replace(/[0-9]/g, 'D').replace(/[a-zA-Z]/g, 'L').replace(/[^0-9a-zA-Z]/g, 'S');
+  const format2 = str2.replace(/[0-9]/g, 'D').replace(/[a-zA-Z]/g, 'L').replace(/[^0-9a-zA-Z]/g, 'S');
+  
+  let formatSim = 0;
+  for (let i = 0; i < minLength; i++) {
+    if (format1.charAt(i) === format2.charAt(i)) {
+      formatSim++;
     }
+  }
+  
+  formatSim /= minLength || 1;
+  
+  // Combine all factors, weighting format similarity highest
+  return (lengthSim * 0.3) + (typeSim * 0.3) + (formatSim * 0.4);
+};
+
+// Apply a consistent masking pattern based on a pattern example
+const applyConsistentMasking = (value: string, originalExample: string, maskedExample: string): string => {
+  if (!value) return maskedExample;
+  
+  // Special handling for full replacements
+  if (originalExample.length > 0 && 
+      maskedExample.length > 0 && 
+      !originalExample.split('').some(char => maskedExample.includes(char))) {
+    // Complete replacement, likely synthetic data
+    return maskedExample;
+  }
+  
+  // Pattern detection for character masking
+  const pattern: Array<'keep' | 'mask' | 'special'> = [];
+  
+  for (let i = 0; i < originalExample.length; i++) {
+    const origChar = originalExample.charAt(i);
+    const maskChar = i < maskedExample.length ? maskedExample.charAt(i) : '*';
     
-    return result;
+    if (origChar === maskChar) {
+      pattern.push('keep');
+    } else if (maskChar === '*' || maskChar === 'X' || maskChar === '#') {
+      pattern.push('mask');
+    } else {
+      pattern.push('special');
+    }
   }
   
-  // If no clear pattern, default to standard masking
-  const key = Object.keys(standardMaskingFunctions).find(k => 
-    sample.toLowerCase().includes(k.toLowerCase())
-  );
+  // Apply the detected pattern to the new value
+  let result = '';
   
-  if (key && standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]) {
-    return standardMaskingFunctions[key as keyof typeof standardMaskingFunctions](original);
+  for (let i = 0; i < value.length; i++) {
+    const patternIndex = Math.min(i, pattern.length - 1);
+    const patternType = pattern[patternIndex];
+    
+    if (patternType === 'keep') {
+      result += value.charAt(i);
+    } else if (patternType === 'mask') {
+      const maskChar = patternIndex < maskedExample.length ? maskedExample.charAt(patternIndex) : '*';
+      result += maskChar;
+    } else {
+      // For special replacement, use the character from masked example
+      const specialChar = patternIndex < maskedExample.length ? maskedExample.charAt(patternIndex) : '*';
+      result += specialChar;
+    }
   }
   
-  // Last resort: keep first char, mask the rest
-  return original.charAt(0) + '*'.repeat(original.length - 1);
+  // Handle length differences
+  if (result.length < value.length) {
+    result += maskedExample.slice(result.length) || '*'.repeat(value.length - result.length);
+  }
+  
+  return result;
 };
 
 // Helper function to apply standard masking

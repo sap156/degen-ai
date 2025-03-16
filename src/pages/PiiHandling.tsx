@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +9,8 @@ import {
   Download, 
   RefreshCw, 
   Sparkles,
-  Play
+  Play,
+  Info
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,12 @@ import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
 import { PerFieldMaskingOptions } from '@/types/piiHandling';
 import { Textarea } from '@/components/ui/textarea';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 
 import { 
   PiiData, 
@@ -56,6 +62,12 @@ const PiiHandling = () => {
     preserveFormat: true
   });
 
+  const examplePrompts = [
+    "Mask emails by keeping the domain but replacing the username with asterisks. Replace all digits in credit cards with X except the last 4. For names, keep first initial only.",
+    "Use encryption for SSN (format xxx-xx-xxxx), truncate addresses to only show city, replace all credit card digits with '*' but keep the dashes.",
+    "Replace all names with random synthetic names. Tokenize email addresses. Mask phone numbers as (XXX) XXX-1234 format, keeping last 4 digits only."
+  ];
+
   useEffect(() => {
     generateData();
   }, []);
@@ -64,7 +76,6 @@ const PiiHandling = () => {
     const data = generateSamplePiiData(dataCount);
     setOriginalData(data);
     
-    // Setup default masking options based on the schema
     const newMaskingOptions: PerFieldMaskingOptions = {};
     if (data.length > 0) {
       Object.keys(data[0])
@@ -99,7 +110,6 @@ const PiiHandling = () => {
     
     try {
       setIsMaskingData(true);
-      // Pass the entire dataset for masking, not just a sample
       const masked = await maskPiiData(
         originalData, 
         perFieldMaskingOptions,
@@ -193,20 +203,16 @@ const PiiHandling = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      // Clear any previous data
       setMaskedData([]);
       
-      // Process the data and detect fields
       const processedData = detectDataFields(parsedData);
       setOriginalData(processedData);
       
       if (processedData && processedData.length > 0) {
         const newPerFieldOptions: PerFieldMaskingOptions = {};
         
-        // Get all keys from the first object
         const fields = Object.keys(processedData[0]).filter(k => k !== 'id');
         
-        // Add each field to masking options with default settings
         fields.forEach(field => {
           newPerFieldOptions[field] = {
             enabled: true
@@ -270,23 +276,19 @@ const PiiHandling = () => {
     }
   };
 
-  // Helper function to detect fields in uploaded data
   const detectDataFields = (data: any[]): PiiData[] => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Invalid data format. Expected an array of records.');
     }
     
-    // Ensure each record has an ID field
     return data.map((item, index) => {
-      // Create a dynamic object for each record
       const record: Record<string, string> = {
         id: item.id || String(index + 1)
       };
       
-      // Add all fields from the original data
       Object.entries(item).forEach(([key, value]) => {
         if (key !== 'id') {
-          record[key] = String(value || ''); // Convert to string and handle null/undefined
+          record[key] = String(value || '');
         }
       });
       
@@ -416,17 +418,49 @@ const PiiHandling = () => {
               
               <div className="border rounded-md p-3 space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">AI Masking Instructions</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">
+                      AI Masking Instructions
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5">
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[300px]" align="end">
+                          <p className="text-xs">
+                            Provide specific instructions for how you want each field masked.
+                            For example: "Mask emails by keeping the domain but replace username with asterisks.
+                            Replace all digits in credit cards except the last 4."
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Textarea 
                     id="ai-masking-prompt"
-                    placeholder="Provide instructions on how to mask the data. Example: Mask emails with asterisks but keep domain, encrypt credit card numbers, etc."
+                    placeholder="Describe exactly how you want each field masked. Be specific about techniques and formats."
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     className="min-h-[120px]"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Describe how you want the AI to mask each field. Be specific about which fields need which masking techniques.
-                  </p>
+                  
+                  <div className="pt-2">
+                    <Label className="text-xs text-muted-foreground mb-2 block">Example instructions:</Label>
+                    <div className="space-y-2">
+                      {examplePrompts.map((prompt, index) => (
+                        <div 
+                          key={index}
+                          className="text-xs p-2 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors"
+                          onClick={() => setAiPrompt(prompt)}
+                        >
+                          {prompt.substring(0, 100)}...
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="flex items-center justify-between mt-3">
@@ -532,7 +566,6 @@ const PiiHandling = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Vertical stack of masking field controls */}
               <div className="space-y-2">
                 {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
                   <MaskingFieldControl 
