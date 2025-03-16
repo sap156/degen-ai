@@ -144,7 +144,76 @@ export const generateSyntheticDataWithAI = async (
   }
 };
 
-// Utility function for PII handling with OpenAI
+// New function to generate AI-masked PII data with a single prompt
+export const generateMaskedDataWithAI = async (
+  apiKey: string | null,
+  sampleData: PiiData[],
+  fieldsToMask: Array<keyof Omit<PiiData, 'id'>>,
+  options: {
+    preserveFormat?: boolean;
+    customPrompt?: string;
+  } = {}
+): Promise<PiiDataMasked[]> => {
+  if (!apiKey) {
+    throw new Error("API key is not set");
+  }
+
+  const { preserveFormat = true, customPrompt } = options;
+
+  // Create a system prompt that instructs the AI on masking behavior
+  const systemPrompt = `You are an expert in PII (Personally Identifiable Information) data masking and anonymization. 
+Your task is to generate masked versions of sensitive data based on the user's instructions. 
+${preserveFormat ? "You should preserve the exact format of the original data (length, special characters, etc.) unless instructed otherwise." : ""}
+
+Only modify the fields specified. Return your response as a valid JSON array that exactly matches the structure of the input data.`;
+
+  // Prepare the user prompt with the data to mask and instructions
+  const userPrompt = `I need to mask the following PII fields: ${fieldsToMask.join(', ')}.
+${customPrompt ? `\nSpecific instructions: ${customPrompt}` : ''}
+
+Here's a sample of my data:
+${JSON.stringify(sampleData, null, 2)}
+
+Please generate masked versions of this data where only the specified fields are changed.
+The masked data should be realistic but fictional.
+
+Return ONLY valid JSON as your response, with no additional text or explanations.`;
+
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
+  
+  // Get the model from localStorage
+  const model = localStorage.getItem('openai-model') || defaultOptions.model;
+  
+  try {
+    const response = await getCompletion(apiKey, messages, {
+      model,
+      temperature: 0.7,
+      max_tokens: 3000
+    });
+    
+    try {
+      // Parse and validate the response
+      const maskedData = JSON.parse(response) as PiiDataMasked[];
+      
+      // Ensure we have valid data
+      if (!Array.isArray(maskedData) || maskedData.length === 0) {
+        throw new Error("Invalid response format from AI");
+      }
+      
+      return maskedData;
+    } catch (parseError) {
+      console.error("Failed to parse AI response as JSON:", parseError);
+      throw new Error("Failed to parse AI-generated masked data");
+    }
+  } catch (error) {
+    console.error("Error generating masked PII data with AI:", error);
+    throw error;
+  }
+};
+
 export const analyzePiiWithAI = async (
   apiKey: string | null,
   data: string
@@ -180,80 +249,6 @@ export const analyzePiiWithAI = async (
     }
   } catch (error) {
     console.error("Error analyzing PII data with AI:", error);
-    throw error;
-  }
-};
-
-// New function to generate AI-masked PII data
-export const generateMaskedDataWithAI = async (
-  apiKey: string | null,
-  sampleData: PiiData[],
-  fieldsToMask: Array<keyof Omit<PiiData, 'id'>>,
-  options: {
-    preserveFormat?: boolean;
-    randomizationLevel?: 'low' | 'medium' | 'high';
-    customPrompt?: string;
-  } = {}
-): Promise<PiiDataMasked[]> => {
-  if (!apiKey) {
-    throw new Error("API key is not set");
-  }
-
-  const { preserveFormat = true, randomizationLevel = 'medium', customPrompt } = options;
-
-  // Create a system prompt that instructs the AI on masking behavior
-  const systemPrompt = `You are an expert in PII (Personally Identifiable Information) data masking and anonymization. 
-Your task is to generate realistic but fictional masked versions of sensitive data that:
-1. Maintain the same general format and pattern as the original
-2. Are completely fictional and cannot be traced back to the original data
-3. Follow field-specific patterns (emails look like emails, phone numbers look like phone numbers, etc.)
-4. Apply a ${randomizationLevel} level of randomization
-${preserveFormat ? "5. Preserve the exact format of the original data (length, special characters, etc.)" : ""}
-
-Only modify the fields specified. Return your response as a valid JSON array.`;
-
-  // Prepare the user prompt with the data to mask and instructions
-  const userPrompt = `I need to mask the following PII fields: ${fieldsToMask.join(', ')}.
-${customPrompt ? `Follow these specific instructions: ${customPrompt}` : ''}
-
-Here's a sample of my data:
-${JSON.stringify(sampleData, null, 2)}
-
-Please generate masked versions of this data where only the specified fields are changed.
-Return ONLY valid JSON as your response, with no additional text or explanations.`;
-
-  const messages: OpenAiMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt }
-  ];
-  
-  // Get the model from localStorage
-  const model = localStorage.getItem('openai-model') || defaultOptions.model;
-  
-  try {
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      // Higher temperature for more creative masking
-      temperature: randomizationLevel === 'low' ? 0.3 : randomizationLevel === 'medium' ? 0.7 : 1.0,
-      max_tokens: 3000
-    });
-    
-    try {
-      // Parse and validate the response
-      const maskedData = JSON.parse(response) as PiiDataMasked[];
-      
-      // Ensure we have valid data
-      if (!Array.isArray(maskedData) || maskedData.length === 0) {
-        throw new Error("Invalid response format from AI");
-      }
-      
-      return maskedData;
-    } catch (parseError) {
-      console.error("Failed to parse AI response as JSON:", parseError);
-      throw new Error("Failed to parse AI-generated masked data");
-    }
-  } catch (error) {
-    console.error("Error generating masked PII data with AI:", error);
     throw error;
   }
 };

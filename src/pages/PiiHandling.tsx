@@ -10,7 +10,6 @@ import {
   Download, 
   RefreshCw, 
   Sparkles,
-  Key,
   Play
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -21,13 +20,12 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
-import AddFieldForm from '@/components/AddFieldForm';
-import { AddFieldParams, PerFieldMaskingOptions } from '@/types/piiHandling';
+import { PerFieldMaskingOptions } from '@/types/piiHandling';
+import { Textarea } from '@/components/ui/textarea';
 
 import { 
   PiiData, 
   PiiDataMasked, 
-  MaskingTechnique,
   generateSamplePiiData, 
   maskPiiData, 
   exportAsJson, 
@@ -44,28 +42,18 @@ const PiiHandling = () => {
   const [dataCount, setDataCount] = useState<number>(10);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadDataSchema, setUploadDataSchema] = useState<Record<string, string>>({});
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isMaskingData, setIsMaskingData] = useState(false);
   const [isAnalyzingData, setIsAnalyzingData] = useState(false);
   const [piiAnalysisResult, setPiiAnalysisResult] = useState<{identifiedPii: string[], suggestions: string} | null>(null);
   const [activeTab, setActiveTab] = useState<string>('manual');
   const [dataReady, setDataReady] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState<string>("");
   
-  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({
-    firstName: { enabled: true, technique: 'character-masking' },
-    lastName: { enabled: true, technique: 'character-masking' },
-    email: { enabled: true, technique: 'character-masking' },
-    phoneNumber: { enabled: true, technique: 'character-masking' },
-    ssn: { enabled: true, technique: 'character-masking' },
-    address: { enabled: true, technique: 'character-masking' },
-    creditCard: { enabled: true, technique: 'character-masking' },
-    dob: { enabled: true, technique: 'character-masking' }
-  });
+  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({});
   
   const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
-    preserveFormat: true,
-    randomizationLevel: 'medium' as 'low' | 'medium' | 'high'
+    preserveFormat: true
   });
 
   useEffect(() => {
@@ -75,6 +63,18 @@ const PiiHandling = () => {
   const generateData = () => {
     const data = generateSamplePiiData(dataCount);
     setOriginalData(data);
+    
+    // Setup default masking options based on the schema
+    const newMaskingOptions: PerFieldMaskingOptions = {};
+    if (data.length > 0) {
+      Object.keys(data[0])
+        .filter(key => key !== 'id')
+        .forEach(field => {
+          newMaskingOptions[field] = { enabled: true };
+        });
+    }
+    
+    setPerFieldMaskingOptions(newMaskingOptions);
     setDataReady(true);
   };
 
@@ -88,9 +88,26 @@ const PiiHandling = () => {
       return;
     }
     
+    if (!apiKey) {
+      toast({
+        title: "API key required",
+        description: "Please set up your OpenAI API key to use AI-powered masking",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       setIsMaskingData(true);
-      const masked = await maskPiiData(originalData, perFieldMaskingOptions, globalMaskingPreferences, apiKey);
+      const masked = await maskPiiData(
+        originalData, 
+        perFieldMaskingOptions,
+        {
+          aiPrompt,
+          preserveFormat: globalMaskingPreferences.preserveFormat
+        },
+        apiKey
+      );
       setMaskedData(masked);
       toast({
         title: "Masking complete",
@@ -110,38 +127,12 @@ const PiiHandling = () => {
 
   const toggleFieldMasking = (field: string) => {
     setPerFieldMaskingOptions(prev => {
-      const config = prev[field] || { enabled: false, technique: 'character-masking' };
+      const config = prev[field] || { enabled: false };
       return {
         ...prev,
         [field]: {
           ...config,
           enabled: !config.enabled
-        }
-      };
-    });
-  };
-  
-  const updateFieldMaskingTechnique = (field: string, technique: MaskingTechnique) => {
-    setPerFieldMaskingOptions(prev => {
-      const config = prev[field] || { enabled: true, technique: 'character-masking' };
-      return {
-        ...prev,
-        [field]: {
-          ...config,
-          technique
-        }
-      };
-    });
-  };
-  
-  const updateFieldCustomPrompt = (field: string, customPrompt: string) => {
-    setPerFieldMaskingOptions(prev => {
-      const config = prev[field] || { enabled: true, technique: 'character-masking' };
-      return {
-        ...prev,
-        [field]: {
-          ...config,
-          customPrompt
         }
       };
     });
@@ -214,8 +205,7 @@ const PiiHandling = () => {
         // Add each field to masking options with default settings
         fields.forEach(field => {
           newPerFieldOptions[field] = {
-            enabled: true,
-            technique: 'character-masking'
+            enabled: true
           };
         });
         
@@ -297,78 +287,6 @@ const PiiHandling = () => {
       
       return record as unknown as PiiData;
     });
-  };
-
-  const handleAddField = ({ name, type }: AddFieldParams) => {
-    if (!name.trim()) {
-      toast({
-        title: "Error",
-        description: "Field name cannot be empty",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Add field to masking options
-    setPerFieldMaskingOptions(prev => ({
-      ...prev,
-      [name]: {
-        enabled: true,
-        technique: 'character-masking'
-      }
-    }));
-    
-    // Add the field to the original data with a default value
-    if (originalData.length > 0) {
-      const defaultValue = type === 'number' ? '0' : 
-                          type === 'email' ? 'example@domain.com' :
-                          type === 'phone' ? '000-000-0000' :
-                          'Sample value';
-      
-      setOriginalData(prev => 
-        prev.map(item => ({
-          ...item,
-          [name]: defaultValue
-        }))
-      );
-    }
-    
-    toast({
-      title: "Field added",
-      description: `Added new field: ${name}`,
-    });
-  };
-
-  const handleRemoveField = (fieldName: string) => {
-    // Remove from masking options
-    setPerFieldMaskingOptions(prev => {
-      const newOptions = { ...prev };
-      delete newOptions[fieldName];
-      return newOptions;
-    });
-    
-    // Remove from data
-    if (originalData.length > 0) {
-      setOriginalData(prev => 
-        prev.map(item => {
-          const newItem = { ...item };
-          delete newItem[fieldName];
-          return newItem;
-        })
-      );
-    }
-    
-    toast({
-      title: "Field removed",
-      description: `Removed field: ${fieldName}`,
-    });
-  };
-
-  const handleRandomizationLevelChange = (value: 'low' | 'medium' | 'high') => {
-    setGlobalMaskingPreferences(prev => ({
-      ...prev,
-      randomizationLevel: value
-    }));
   };
 
   const handlePreserveFormatToggle = (value: boolean) => {
@@ -475,7 +393,7 @@ const PiiHandling = () => {
                 </Button>
               </div>
               <CardDescription>
-                Add, edit, or remove fields from your data schema
+                Select fields to mask and provide instructions
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -490,44 +408,33 @@ const PiiHandling = () => {
                 </div>
               )}
               
-              <AddFieldForm onAddField={handleAddField} />
-              
-              <div className="border rounded-md p-3 space-y-3 mt-4">
-                <h3 className="text-sm font-medium">Global Masking Preferences</h3>
+              <div className="border rounded-md p-3 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">AI Masking Instructions</Label>
+                  <Textarea 
+                    id="ai-masking-prompt"
+                    placeholder="Provide instructions on how to mask the data. Example: Mask emails with asterisks but keep domain, encrypt credit card numbers, etc."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="min-h-[120px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Describe how you want the AI to mask each field. Be specific about which fields need which masking techniques.
+                  </p>
+                </div>
                 
-                <div className="space-y-4">
-                  <ApiKeyRequirement>
-                    <div className="space-y-2 mt-3">
-                      <Label htmlFor="randomization" className="text-xs">Randomization Level</Label>
-                      <Select 
-                        value={globalMaskingPreferences.randomizationLevel} 
-                        onValueChange={(v) => handleRandomizationLevelChange(v as 'low' | 'medium' | 'high')}
-                      >
-                        <SelectTrigger id="randomization" className="h-8 text-sm">
-                          <SelectValue placeholder="Select level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low - Subtle changes</SelectItem>
-                          <SelectItem value="medium">Medium - Balanced</SelectItem>
-                          <SelectItem value="high">High - Completely different</SelectItem>
-                        </SelectContent>
-                      </Select>
+                <div className="flex items-center justify-between mt-3">
+                  <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
+                  <div className="flex h-8 items-center space-x-2">
+                    <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(false)}>
+                      No
                     </div>
-                      
-                    <div className="flex items-center justify-between mt-3">
-                      <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
-                      <div className="flex h-8 items-center space-x-2">
-                        <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                            onClick={() => handlePreserveFormatToggle(false)}>
-                          No
-                        </div>
-                        <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                            onClick={() => handlePreserveFormatToggle(true)}>
-                          Yes
-                        </div>
-                      </div>
+                    <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(true)}>
+                      Yes
                     </div>
-                  </ApiKeyRequirement>
+                  </div>
                 </div>
               </div>
               
@@ -535,7 +442,7 @@ const PiiHandling = () => {
                 <Button 
                   className="w-full mt-4" 
                   onClick={applyMasking}
-                  disabled={isMaskingData || originalData.length === 0}
+                  disabled={isMaskingData || originalData.length === 0 || !apiKey}
                 >
                   {isMaskingData ? (
                     <>
@@ -606,7 +513,7 @@ const PiiHandling = () => {
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>Field Masking Configuration</CardTitle>
+                <CardTitle>Fields to Mask</CardTitle>
                 {isMaskingData && (
                   <div className="flex items-center text-sm text-muted-foreground">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
@@ -615,7 +522,7 @@ const PiiHandling = () => {
                 )}
               </div>
               <CardDescription>
-                Configure masking techniques for each field
+                Select which fields should be masked by the AI
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -626,14 +533,7 @@ const PiiHandling = () => {
                     key={field}
                     field={field}
                     enabled={config.enabled}
-                    maskingTechnique={config.technique}
-                    customPrompt={config.customPrompt}
                     onToggle={() => toggleFieldMasking(field)}
-                    onTechniqueChange={(technique) => updateFieldMaskingTechnique(field, technique)}
-                    onCustomPromptChange={(prompt) => updateFieldCustomPrompt(field, prompt)}
-                    onRemoveField={() => handleRemoveField(field)}
-                    canRemove={!['firstName', 'lastName', 'email', 'phoneNumber', 'ssn', 'address', 'creditCard', 'dob'].includes(field) || 
-                              !Object.keys(originalData[0] || {}).includes(field)}
                   />
                 ))}
               </div>
@@ -738,7 +638,7 @@ const PiiHandling = () => {
                         variant="outline" 
                         size="sm"
                         onClick={applyMasking}
-                        disabled={isMaskingData || originalData.length === 0}
+                        disabled={isMaskingData || originalData.length === 0 || !apiKey}
                       >
                         Generate PII Masking
                       </Button>

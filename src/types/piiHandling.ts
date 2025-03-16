@@ -3,9 +3,6 @@ import { MaskingTechnique, EncryptionMethod } from '@/services/piiHandlingServic
 
 export interface FieldMaskingConfig {
   enabled: boolean;
-  technique: MaskingTechnique;
-  customPrompt?: string;
-  encryptionMethod?: EncryptionMethod;
 }
 
 export interface PerFieldMaskingOptions {
