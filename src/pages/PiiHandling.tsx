@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -303,6 +303,14 @@ const PiiHandling = () => {
     }));
   };
 
+  // Convert unknown types to ReactNode where needed
+  const renderValue = (value: unknown): ReactNode => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value);
+  };
+  
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div>
@@ -616,7 +624,7 @@ const PiiHandling = () => {
                               .filter(([key]) => key !== 'id')
                               .map(([key, value]) => (
                                 <TableCell key={key} className="max-w-[200px] truncate">
-                                  {value}
+                                  {renderValue(value)}
                                 </TableCell>
                               ))
                             }
@@ -656,7 +664,7 @@ const PiiHandling = () => {
                                 .filter(([key]) => key !== 'id')
                                 .map(([key, value]) => (
                                   <TableCell key={key} className="max-w-[200px] truncate">
-                                    {value}
+                                    {renderValue(value)}
                                   </TableCell>
                                 ))
                               }

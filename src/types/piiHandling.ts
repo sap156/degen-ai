@@ -1,5 +1,17 @@
 
-import { MaskingTechnique, EncryptionMethod } from '@/services/piiHandlingService';
+// Type definitions for PII handling functionality
+
+export type MaskingMethod = 'redact' | 'hash' | 'partial' | 'tokenize' | 'synthetic';
+
+export type MaskingTechnique = {
+  method: MaskingMethod;
+  options?: {
+    preserveFormat?: boolean;
+    showPartial?: number;
+  };
+};
+
+export type EncryptionMethod = 'aes-256' | 'sha-256' | 'md5';
 
 export interface FieldMaskingConfig {
   enabled: boolean;
@@ -28,4 +40,20 @@ export interface MaskingPattern {
 
 export interface FieldMaskingPattern {
   [fieldName: string]: MaskingPattern[];
+}
+
+// Types for PII data
+export interface PiiData {
+  id: string;
+  [key: string]: string | number | boolean;
+}
+
+export interface PiiMaskingOptions {
+  aiPrompt?: string;
+  preserveFormat?: boolean;
+  methods?: Record<string, MaskingMethod>;
+}
+
+export interface PiiDataMasked extends PiiData {
+  [key: string]: string | number | boolean;
 }
