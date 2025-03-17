@@ -172,3 +172,37 @@ export const downloadData = (data: string, filename: string, format: 'json' | 'c
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
+
+// Add the missing generateSyntheticRecords function
+export const generateSyntheticRecords = async (
+  baseData: any[],
+  count: number,
+  options: {
+    preserveDistribution?: boolean;
+    targetColumn?: string;
+    apiKey: string;
+  }
+): Promise<any[]> => {
+  // Simple implementation that duplicates records with small variations
+  if (!baseData.length) return [];
+  
+  const result: any[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    // Get a random record from the base data
+    const baseRecord = {...baseData[Math.floor(Math.random() * baseData.length)]};
+    
+    // Add small variations to numeric fields
+    Object.keys(baseRecord).forEach(key => {
+      if (typeof baseRecord[key] === 'number') {
+        // Add +/- 10% variation
+        const variation = baseRecord[key] * (0.9 + Math.random() * 0.2);
+        baseRecord[key] = Number(variation.toFixed(2));
+      }
+    });
+    
+    result.push(baseRecord);
+  }
+  
+  return result;
+};

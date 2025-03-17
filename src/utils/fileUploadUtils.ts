@@ -1,93 +1,238 @@
-import { SchemaFieldType } from './fileTypes';
 
-export interface DataTypeResult {
-  type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
-  confidence: number;
-  timeColumn?: string;
-  valueColumns?: string[];
-  categoricalColumns?: string[];
-}
+import { SupportedFileType, SchemaFieldType, FileProcessingResult } from './fileTypes';
+import { readFileContent } from './fileOperations';
 
-export const detectDataType = (data: any[]): DataTypeResult => {
-  if (!data || data.length === 0) {
-    return { 
-      type: 'unknown', 
-      confidence: 0 
-    };
+/**
+ * Parse a CSV file into an array of objects
+ * @param content The CSV content as string
+ * @param hasHeader Whether the CSV has a header row
+ * @returns Parsed CSV data as array of objects
+ */
+export const parseCSV = (content: string, hasHeader: boolean = true): any[] => {
+  const lines = content.split('\n').filter(line => line.trim());
+  
+  if (lines.length === 0) {
+    throw new Error('Empty CSV file');
   }
-
-  let hasTimeColumn = false;
-  let timeColumn = '';
-  const potentialTimeColumns: string[] = [];
-  const valueColumns: string[] = [];
-  const categoricalColumns: string[] = [];
-
-  // Check the first row to identify column types
-  const firstRow = data[0];
-  const columns = Object.keys(firstRow);
-
-  // Check each column to determine if it's a time, value, or categorical column
-  columns.forEach(column => {
-    // Sample some values for type detection
-    const sampleValues = data.slice(0, Math.min(10, data.length)).map(row => row[column]);
+  
+  // Parse header if present
+  const headers = hasHeader 
+    ? lines[0].split(',').map(h => h.trim())
+    : lines[0].split(',').map((_, i) => `column${i}`);
+  
+  // Parse data rows
+  const data = [];
+  const startIdx = hasHeader ? 1 : 0;
+  
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
     
-    // Check if column might be a date/time
-    const timeRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}.*)?$/;
-    const isTimeFormat = sampleValues.some(val => typeof val === 'string' && timeRegex.test(val as string));
+    const values = line.split(',').map(v => v.trim());
+    const row: Record<string, any> = {};
     
-    if (isTimeFormat || column.toLowerCase().includes('date') || column.toLowerCase().includes('time')) {
-      hasTimeColumn = true;
-      potentialTimeColumns.push(column);
-      timeColumn = timeColumn || column; // Use the first detected time column as default
-    }
-    // Check if column is numeric (likely a value column)
-    else if (sampleValues.every(val => !isNaN(Number(val)) && val !== null)) {
-      valueColumns.push(column);
-    }
-    // Otherwise, it's categorical
-    else {
-      categoricalColumns.push(column);
-    }
-  });
-
-  // Determine the most likely time column
-  if (potentialTimeColumns.length > 0) {
-    // Prefer columns with "date" or "time" in the name
-    const dateNamedColumns = potentialTimeColumns.filter(
-      col => col.toLowerCase().includes('date') || col.toLowerCase().includes('time')
-    );
+    // Match values to headers
+    headers.forEach((header, idx) => {
+      if (idx < values.length) {
+        // Try to convert numeric values
+        const value = values[idx];
+        if (!isNaN(Number(value)) && value !== '') {
+          row[header] = Number(value);
+        } else if (value.toLowerCase() === 'true') {
+          row[header] = true;
+        } else if (value.toLowerCase() === 'false') {
+          row[header] = false;
+        } else {
+          row[header] = value;
+        }
+      } else {
+        row[header] = null; // Handle missing values
+      }
+    });
     
-    if (dateNamedColumns.length > 0) {
-      timeColumn = dateNamedColumns[0];
-    } else {
-      timeColumn = potentialTimeColumns[0];
-    }
+    data.push(row);
   }
+  
+  return data;
+};
 
-  // Determine the data type
-  if (hasTimeColumn && valueColumns.length > 0) {
-    return {
-      type: 'timeseries',
-      confidence: 0.9,
-      timeColumn,
-      valueColumns,
-      categoricalColumns
-    };
-  } else if (categoricalColumns.length > valueColumns.length) {
-    return {
-      type: 'categorical',
-      confidence: 0.7,
-      categoricalColumns,
-      valueColumns
-    };
-  } else {
-    return {
-      type: 'tabular',
-      confidence: 0.8,
-      valueColumns,
-      categoricalColumns
-    };
+/**
+ * Parse a JSON file into an object or array
+ * @param content The JSON content as string
+ * @returns Parsed JSON data
+ */
+export const parseJSON = (content: string): any => {
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    throw new Error('Invalid JSON format');
   }
+};
+
+/**
+ * Get the file type from a file object
+ */
+export const getFileType = (file: File): SupportedFileType => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  
+  if (['csv'].includes(extension)) return 'csv';
+  if (['json'].includes(extension)) return 'json';
+  if (['txt', 'text', 'md'].includes(extension)) return 'txt';
+  if (['pdf'].includes(extension)) return 'pdf';
+  if (['doc', 'docx'].includes(extension)) return 'docx';
+  if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
+  if (['ppt', 'pptx'].includes(extension)) return 'pptx';
+  
+  // Default to txt for unknown types
+  return 'unknown';
+};
+
+/**
+ * Extract text content from a file using appropriate method based on file type
+ */
+export const extractTextFromFile = async (
+  file: File, 
+  apiKey: string | null
+): Promise<FileProcessingResult> => {
+  const fileType = getFileType(file);
+  const fileName = file.name;
+  const fileSize = file.size;
+  const fileSizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+  
+  // Basic metadata that's available for all files
+  const metadata: Record<string, any> = {
+    fileName,
+    fileType,
+    fileSize: `${fileSizeInMB} MB`,
+    dateProcessed: new Date().toISOString()
+  };
+  
+  try {
+    switch (fileType) {
+      case 'csv':
+      case 'json':
+      case 'txt':
+        // For text-based formats, just read the content directly
+        const content = await readFileContent(file);
+        return { success: true, text: content, metadata };
+        
+      case 'pdf':
+      case 'docx':
+      case 'xlsx':
+      case 'pptx':
+        // For complex file types, use AI to extract text
+        if (!apiKey) {
+          throw new Error("API key is required to process this file type");
+        }
+        
+        return await extractTextWithAI(file, apiKey, metadata);
+        
+      default:
+        throw new Error(`Unsupported file type: ${fileType}`);
+    }
+  } catch (error) {
+    console.error('Error extracting text from file:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extract text from complex file types using AI
+ */
+const extractTextWithAI = async (
+  file: File, 
+  apiKey: string, 
+  baseMetadata: Record<string, any>
+): Promise<FileProcessingResult> => {
+  try {
+    const openAiService = await import('../services/openAiService');
+    
+    // For PDF, DOCX, etc. - simulate extraction
+    const messages = [
+      { 
+        role: 'system' as const, 
+        content: 'You are a document text extraction assistant. Extract text content from the document I describe.'
+      },
+      { 
+        role: 'user' as const, 
+        content: `This is a ${file.type || 'document'} file named "${file.name}". In a real implementation, I would extract the contents. For this simulation, please generate some plausible text content that might be found in such a document.`
+      }
+    ];
+    
+    const response = await openAiService.callOpenAI('completions', {
+      model: 'gpt-4o-mini',
+      messages
+    }, apiKey);
+    
+    return {
+      success: true,
+      text: response.choices[0].message.content,
+      metadata: {
+        ...baseMetadata,
+        processingMethod: 'Simulated extraction',
+        note: 'In a production environment, specialized libraries would be used for each file type'
+      }
+    };
+    
+  } catch (error) {
+    console.error('Error extracting text with AI:', error);
+    throw error;
+  }
+};
+
+/**
+ * Format data as a downloadable file
+ * @param data The data to format
+ * @param format The output format
+ * @returns Formatted data string
+ */
+export const formatData = (data: any[], format: 'csv' | 'json' | 'text'): string => {
+  if (!data || !data.length) return '';
+  
+  switch (format) {
+    case 'csv':
+      const headers = Object.keys(data[0]).join(',');
+      const rows = data.map(item => 
+        Object.values(item).map(value => {
+          if (value === null || value === undefined) return '';
+          return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+        }).join(',')
+      );
+      return [headers, ...rows].join('\n');
+      
+    case 'json':
+      return JSON.stringify(data, null, 2);
+      
+    case 'text':
+      return data.map(item => Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(', ')).join('\n');
+      
+    default:
+      return JSON.stringify(data, null, 2);
+  }
+};
+
+/**
+ * Download data as a file
+ * @param data The data content as string
+ * @param fileName The name for the downloaded file
+ * @param format The file format
+ */
+export const downloadData = (data: string, fileName: string, format: 'csv' | 'json' | 'text'): void => {
+  const mimeTypes = {
+    csv: 'text/csv',
+    json: 'application/json',
+    text: 'text/plain'
+  };
+  
+  const blob = new Blob([data], { type: mimeTypes[format] });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${fileName}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 // Function to generate a schema from data

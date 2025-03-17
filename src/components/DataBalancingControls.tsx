@@ -26,7 +26,7 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   hasBalancedData,
   aiRecommendationsAvailable
 }) => {
-  const [balancingMethod, setBalancingMethod] = useState<BalancingOptions['method']>('none');
+  const [balancingTechnique, setBalancingTechnique] = useState<BalancingOptions['technique']>('oversampling');
   const [targetRatio, setTargetRatio] = useState<number>(1.2);
   const [isBalancing, setIsBalancing] = useState(false);
   
@@ -37,8 +37,9 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
     
     try {
       onBalanceDataset({
-        method: balancingMethod,
-        targetRatio
+        technique: balancingTechnique,
+        ratio: targetRatio,
+        preserveDistribution: true
       }, parsedData);
     } catch (error) {
       console.error('Error balancing dataset:', error);
@@ -97,50 +98,44 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
             
             <div className="space-y-4 mt-2">
               <div className="space-y-2">
-                <Label>Balancing Method</Label>
+                <Label>Balancing Technique</Label>
                 <RadioGroup 
-                  value={balancingMethod} 
-                  onValueChange={(value) => setBalancingMethod(value as BalancingOptions['method'])}
+                  value={balancingTechnique}
+                  onValueChange={(value) => setBalancingTechnique(value as BalancingOptions['technique'])}
                   className="grid grid-cols-1 gap-2"
                 >
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="none" id="none" />
-                    <Label htmlFor="none">None (keep original)</Label>
+                    <RadioGroupItem value="oversampling" id="oversampling" />
+                    <Label htmlFor="oversampling">Oversampling (increase minority classes)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="undersample" id="undersample" />
-                    <Label htmlFor="undersample">Undersampling (reduce majority classes)</Label>
+                    <RadioGroupItem value="undersampling" id="undersampling" />
+                    <Label htmlFor="undersampling">Undersampling (reduce majority classes)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="oversample" id="oversample" />
-                    <Label htmlFor="oversample">Oversampling (increase minority classes)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="smote" id="smote" />
-                    <Label htmlFor="smote">SMOTE (Synthetic Minority Over-sampling)</Label>
+                    <RadioGroupItem value="hybrid" id="hybrid" />
+                    <Label htmlFor="hybrid">Hybrid (combine both techniques)</Label>
                   </div>
                 </RadioGroup>
               </div>
               
-              {balancingMethod !== "none" && (
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label htmlFor="targetRatio">Target Imbalance Ratio</Label>
-                    <span className="text-sm text-muted-foreground">{targetRatio}:1</span>
-                  </div>
-                  <Slider
-                    id="targetRatio"
-                    min={1}
-                    max={5}
-                    step={0.1}
-                    defaultValue={[targetRatio]}
-                    onValueChange={(values) => setTargetRatio(values[0])}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Lower values create more balanced datasets (1:1 is perfectly balanced)
-                  </p>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="targetRatio">Target Imbalance Ratio</Label>
+                  <span className="text-sm text-muted-foreground">{targetRatio}:1</span>
                 </div>
-              )}
+                <Slider
+                  id="targetRatio"
+                  min={1}
+                  max={5}
+                  step={0.1}
+                  defaultValue={[targetRatio]}
+                  onValueChange={(values) => setTargetRatio(values[0])}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Lower values create more balanced datasets (1:1 is perfectly balanced)
+                </p>
+              </div>
             </div>
           </>
         )}
@@ -151,7 +146,7 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
           <Button 
             className="w-full" 
             onClick={handleApplyBalancing}
-            disabled={balancingMethod === 'none' || isBalancing}
+            disabled={isBalancing}
           >
             {isBalancing ? (
               <>

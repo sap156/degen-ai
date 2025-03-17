@@ -3,7 +3,7 @@
 export type SchemaFieldType = 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'object' | 'array' | 'email' | 'number' | 'function' | 'bigint' | 'symbol' | 'undefined' | 'phone' | 'address' | 'name' | 'ssn' | 'creditcard';
 
 // Define SupportedFileType type for fileOperations.ts
-export type SupportedFileType = 'csv' | 'json' | 'txt' | 'xml' | 'unknown';
+export type SupportedFileType = 'csv' | 'json' | 'txt' | 'xml' | 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'unknown';
 
 // Define FileProcessingResult for textExtraction.ts
 export interface FileProcessingResult {
@@ -12,6 +12,7 @@ export interface FileProcessingResult {
   text?: string;
   error?: string;
   format?: string;
+  metadata?: Record<string, any>;
 }
 
 // Export other file-related types
@@ -49,4 +50,14 @@ export interface ParsedFileInfo extends FileInfo {
 export interface FileWithPreview {
   file: File;
   preview: string;
+}
+
+// Add DataType property to DataTypeResult
+export interface DataTypeResult {
+  type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
+  dataType?: string; // Adding this to fix the error in EdgeCases.tsx
+  confidence: number;
+  timeColumn?: string;
+  valueColumns?: string[];
+  categoricalColumns?: string[];
 }
