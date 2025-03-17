@@ -25,3 +25,6 @@ export const extractKeywords = async (
     return [];
   }
 };
+
+// Add the new export for DataParsing.tsx
+export { extractKeywords as extractTextFromFile };
