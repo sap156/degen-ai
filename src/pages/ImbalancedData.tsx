@@ -152,7 +152,9 @@ const ImbalancedData = () => {
     data.forEach(item => {
       if (targetColumn in item) {
         const className = String(item[targetColumn]);
-        classCounts[className] = (classCounts[className] || 0) + 1;
+        if (className !== undefined && className !== null && className !== '') {
+          classCounts[className] = (classCounts[className] || 0) + 1;
+        }
       }
     });
     
@@ -173,9 +175,9 @@ const ImbalancedData = () => {
     
     classes.sort((a, b) => b.count - a.count);
     
-    const maxClassSize = classes[0].count;
-    const minClassSize = classes[classes.length - 1].count;
-    const imbalanceRatio = parseFloat((maxClassSize / minClassSize).toFixed(2));
+    const maxClassSize = classes.length > 0 ? classes[0].count : 0;
+    const minClassSize = classes.length > 0 ? classes[classes.length - 1].count : 0;
+    const imbalanceRatio = minClassSize > 0 ? parseFloat((maxClassSize / minClassSize).toFixed(2)) : 0;
     
     return {
       totalSamples,
@@ -424,8 +426,12 @@ const ImbalancedData = () => {
       
       const classCounts: Record<string, number> = {};
       data.forEach(item => {
-        const className = String(item[classField]);
-        classCounts[className] = (classCounts[className] || 0) + 1;
+        if (classField in item) {
+          const className = String(item[classField]);
+          if (className !== undefined && className !== null && className !== '') {
+            classCounts[className] = (classCounts[className] || 0) + 1;
+          }
+        }
       });
       
       const totalSamples = Object.values(classCounts).reduce((sum, count) => sum + count, 0);
@@ -445,9 +451,9 @@ const ImbalancedData = () => {
       
       classes.sort((a, b) => b.count - a.count);
       
-      const maxClassSize = classes[0].count;
-      const minClassSize = classes[classes.length - 1].count;
-      const imbalanceRatio = parseFloat((maxClassSize / minClassSize).toFixed(2));
+      const maxClassSize = classes.length > 0 ? classes[0].count : 0;
+      const minClassSize = classes.length > 0 ? classes[classes.length - 1].count : 0;
+      const imbalanceRatio = minClassSize > 0 ? parseFloat((maxClassSize / minClassSize).toFixed(2)) : 0;
       
       return {
         totalSamples,
@@ -488,9 +494,23 @@ const ImbalancedData = () => {
     const fields = Object.keys(firstItem);
     
     for (const field of fields) {
-      const uniqueValues = new Set(data.map(item => item[field])).size;
+      const uniqueValues = new Set();
+      let validField = true;
       
-      if (uniqueValues > 1 && uniqueValues <= Math.min(10, data.length / 5)) {
+      for (const item of data) {
+        if (field in item) {
+          const value = String(item[field]);
+          if (value !== undefined && value !== null && value !== '') {
+            uniqueValues.add(value);
+          }
+        } else {
+          validField = false;
+          break;
+        }
+      }
+      
+      const uniqueCount = uniqueValues.size;
+      if (validField && uniqueCount > 1 && uniqueCount <= Math.min(10, data.length / 5)) {
         return field;
       }
     }

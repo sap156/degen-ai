@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft, Key } from 'lucide-react';
@@ -73,6 +73,74 @@ const AIDatasetConfiguration = ({
     ).length;
   };
 
+  // Detect potential primary key fields
+  const detectPrimaryKeys = (): string[] => {
+    if (!datasetAnalysis) return [];
+    
+    const potentialKeys: string[] = [];
+    const preview = datasetAnalysis.preview;
+    
+    if (!preview || preview.length === 0) return [];
+    
+    // Check fields with common primary key names
+    const commonPrimaryKeyNames = [
+      'id', 'ID', 'Id', '_id', 'key',
+      'user_id', 'userId', 'customer_id', 'customerId',
+      'record_id', 'recordId', 'uuid', 'guid'
+    ];
+    
+    // Check for fields with standard primary key naming conventions
+    const firstItem = preview[0];
+    Object.keys(firstItem).forEach(field => {
+      if (commonPrimaryKeyNames.includes(field) || 
+          field.endsWith('_id') || 
+          field.endsWith('Id') || 
+          field.endsWith('ID')) {
+        potentialKeys.push(field);
+        return;
+      }
+    });
+    
+    // Check for fields with unique values
+    const fieldUniqueValues: Record<string, Set<string>> = {};
+    
+    Object.keys(firstItem).forEach(field => {
+      fieldUniqueValues[field] = new Set();
+    });
+    
+    preview.forEach(item => {
+      Object.keys(item).forEach(field => {
+        if (item[field] !== undefined && item[field] !== null) {
+          fieldUniqueValues[field].add(String(item[field]));
+        }
+      });
+    });
+    
+    // Fields with unique values across all records are potential primary keys
+    Object.entries(fieldUniqueValues).forEach(([field, values]) => {
+      if (values.size === preview.length && !potentialKeys.includes(field)) {
+        potentialKeys.push(field);
+      }
+    });
+    
+    return potentialKeys;
+  };
+
+  useEffect(() => {
+    if (datasetAnalysis) {
+      // Set default target column if detected
+      if (datasetAnalysis.detectedTarget) {
+        setValue('targetColumn', datasetAnalysis.detectedTarget);
+      }
+      
+      // Set default primary keys if detected
+      const detectedPrimaryKeys = detectPrimaryKeys();
+      if (detectedPrimaryKeys.length > 0) {
+        setValue('primaryKeys', datasetAnalysis.potentialPrimaryKeys || detectedPrimaryKeys);
+      }
+    }
+  }, [datasetAnalysis, setValue]);
+
   const handleTargetSelection = () => {
     if (!targetColumn) {
       toast.error("Please select a target column");
@@ -110,7 +178,9 @@ const AIDatasetConfiguration = ({
       const classCounts: Record<string, number> = {};
       datasetAnalysis.preview.forEach(item => {
         const className = String(item[targetColumn]);
-        classCounts[className] = (classCounts[className] || 0) + 1;
+        if (className !== undefined && className !== null && className !== '') {
+          classCounts[className] = (classCounts[className] || 0) + 1;
+        }
       });
       
       let maxCount = 0;
@@ -151,6 +221,9 @@ const AIDatasetConfiguration = ({
       </Card>
     );
   }
+
+  // Get potential primary keys
+  const potentialPrimaryKeys = datasetAnalysis.potentialPrimaryKeys || detectPrimaryKeys();
 
   return (
     <Card className="mt-6">
@@ -297,7 +370,7 @@ const AIDatasetConfiguration = ({
                 Primary keys are fields with unique values for each record. They help maintain data integrity and uniqueness.
               </p>
               
-              {datasetAnalysis.potentialPrimaryKeys && datasetAnalysis.potentialPrimaryKeys.length > 0 ? (
+              {potentialPrimaryKeys && potentialPrimaryKeys.length > 0 ? (
                 <div className="p-3 bg-blue-50 rounded-md text-sm mb-2">
                   <p className="font-medium text-blue-800">AI-Detected Primary Keys</p>
                   <p className="text-blue-700 mt-1">
@@ -331,7 +404,7 @@ const AIDatasetConfiguration = ({
                       />
                       <Label htmlFor={`pk-${field}`} className="ml-2 flex items-center">
                         {field}
-                        {datasetAnalysis.potentialPrimaryKeys?.includes(field) && (
+                        {potentialPrimaryKeys.includes(field) && (
                           <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-800 border-amber-200">
                             <Key className="h-3 w-3 mr-1" />
                             Suggested
