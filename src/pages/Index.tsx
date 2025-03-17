@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, ArrowRight, KeyRound, Sparkles } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
@@ -55,7 +56,7 @@ const features = [{
 }, {
   title: 'Edge Cases',
   description: 'Identify and generate edge cases to improve model robustness',
-  icon: <Scale className="h-5 w-5" />,
+  icon: <Bug className="h-5 w-5" />,
   path: '/edge-cases'
 }, {
   title: 'PII Handling',
@@ -69,7 +70,7 @@ const features = [{
   path: '/imbalanced-data'
 }, {
   title: 'Data Parsing',
-  description: 'Parse and structure raw data into usable formats',
+  description: 'Parse, extract and analyze text with NER and AI processing',
   icon: <FileJson className="h-5 w-5" />,
   path: '/data-parsing'
 }, {
@@ -77,11 +78,6 @@ const features = [{
   description: 'Extract structured data from web scrapes and images',
   icon: <Globe className="h-5 w-5" />,
   path: '/extraction'
-}, {
-  title: 'Entity Recognition',
-  description: 'Identify and extract named entities from text data',
-  icon: <Workflow className="h-5 w-5" />,
-  path: '/entity-recognition'
 }, {
   title: 'Data Query & Analysis',
   description: 'Query, analyze and optimize your data operations',

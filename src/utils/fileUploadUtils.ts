@@ -34,8 +34,7 @@ export type SupportedFileType =
   | 'pdf' 
   | 'docx' 
   | 'xlsx' 
-  | 'pptx'
-  | 'image';
+  | 'pptx';
 
 /**
  * Check if a file type is supported
@@ -46,8 +45,7 @@ export const isSupportedFileType = (file: File): boolean => {
     'csv', 'json', 'txt', 
     'pdf', 'doc', 'docx', 
     'xls', 'xlsx', 
-    'ppt', 'pptx',
-    'jpg', 'jpeg', 'png', 'gif'
+    'ppt', 'pptx'
   ].includes(extension);
 };
 
@@ -64,7 +62,6 @@ export const getFileType = (file: File): SupportedFileType => {
   if (['doc', 'docx'].includes(extension)) return 'docx';
   if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
   if (['ppt', 'pptx'].includes(extension)) return 'pptx';
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(extension)) return 'image';
   
   // Default to txt for unknown types
   return 'txt';
@@ -188,7 +185,7 @@ export const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
 };
 
 /**
- * Read a file as base64 for image processing
+ * Read a file as base64 for processing
  * @param file The file to read
  * @returns Promise resolving to the file content as base64 string
  */
@@ -423,7 +420,6 @@ export const extractTextFromFile = async (
       case 'docx':
       case 'xlsx':
       case 'pptx':
-      case 'image':
         // For complex file types, use AI to extract text
         if (!apiKey) {
           throw new Error("API key is required to process this file type");
@@ -450,44 +446,6 @@ const extractTextWithAI = async (
 ): Promise<{ text: string; metadata: Record<string, any> }> => {
   try {
     const { getCompletion } = await import('../services/openAiService');
-    const fileType = getFileType(file);
-    
-    // For image files, use vision capabilities
-    if (fileType === 'image') {
-      const base64Content = await readFileAsBase64(file);
-      
-      const messages = [
-        { 
-          role: 'system' as const, 
-          content: 'You are an expert OCR assistant. Extract all text from the provided image, preserving structure and layout as much as possible. Include tables, lists, and other formatted content.'
-        },
-        { 
-          role: 'user' as const, 
-          content: [
-            { type: 'text' as const, text: 'Extract all text content from this image:' },
-            { 
-              type: 'image_url' as const, 
-              image_url: {
-                url: base64Content,
-                detail: 'high' as const
-              } 
-            }
-          ]
-        }
-      ];
-      
-      const model = 'gpt-4o'; // Use gpt-4o as it supports vision
-      const response = await getCompletion(apiKey, messages, { model });
-      
-      return {
-        text: response,
-        metadata: {
-          ...baseMetadata,
-          processingMethod: 'OCR via AI',
-          modelUsed: model
-        }
-      };
-    }
     
     // For documents like PDF, DOCX, etc. - we would normally use specialized libraries
     // But for this implementation, we'll simulate it with a mock response

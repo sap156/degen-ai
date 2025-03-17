@@ -1,7 +1,7 @@
 
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Workflow, Search, Menu, X, Bug } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -42,10 +42,6 @@ const NavBar = () => {
     label: 'Data Extraction',
     icon: <Globe className="h-4 w-4" />
   }, {
-    path: '/entity-recognition',
-    label: 'Entity Recognition',
-    icon: <Workflow className="h-4 w-4" />
-  }, {
     path: '/edge-cases',
     label: 'Edge Cases',
     icon: <Bug className="h-4 w-4" />
@@ -59,7 +55,8 @@ const NavBar = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
   
-  return <header className="sticky top-0 z-50 w-full">
+  return (
+    <header className="sticky top-0 z-50 w-full">
       <div className="glassmorph border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm">
         <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
           <div className="flex items-center gap-2">
@@ -76,51 +73,68 @@ const NavBar = () => {
           <nav className="ml-auto mr-4 hidden md:flex">
             <ul className="flex space-x-1">
               {navItems.map(item => {
-              const isActive = location.pathname === item.path;
-              return <li key={item.path}>
-                    <Link to={item.path} className={`relative flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`relative flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+                        isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
                       {item.icon}
                       <span className="hidden lg:inline">{item.label}</span>
-                      {isActive && <motion.div layoutId="navbar-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" initial={{
-                    opacity: 0
-                  }} animate={{
-                    opacity: 1
-                  }} transition={{
-                    duration: 0.2
-                  }} />}
+                      {isActive && (
+                        <motion.div
+                          layoutId="navbar-indicator"
+                          className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.2 }}
+                        />
+                      )}
                     </Link>
-                  </li>;
-            })}
+                  </li>
+                );
+              })}
             </ul>
           </nav>
         </div>
       </div>
       
       {/* Mobile navigation menu */}
-      {isMobileMenuOpen && <motion.div className="md:hidden glassmorph border-b border-slate-200/20 dark:border-slate-800/20" initial={{
-      opacity: 0,
-      y: -10
-    }} animate={{
-      opacity: 1,
-      y: 0
-    }} transition={{
-      duration: 0.2
-    }}>
+      {isMobileMenuOpen && (
+        <motion.div
+          className="md:hidden glassmorph border-b border-slate-200/20 dark:border-slate-800/20"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
           <nav className="px-4 py-3">
             <ul className="grid grid-cols-2 gap-2">
               {navItems.map(item => {
-            const isActive = location.pathname === item.path;
-            return <li key={item.path}>
-                    <Link to={item.path} className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`} onClick={() => setIsMobileMenuOpen(false)}>
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+                        isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
                       {item.icon}
                       <span>{item.label}</span>
                     </Link>
-                  </li>;
-          })}
+                  </li>
+                );
+              })}
             </ul>
           </nav>
-        </motion.div>}
-    </header>;
+        </motion.div>
+      )}
+    </header>
+  );
 };
 
 export default NavBar;
