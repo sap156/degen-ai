@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -16,7 +15,6 @@ import {
   LineChart,
   BarChart,
   AreaChart,
-  // Remove Scatter as it doesn't exist
   PanelLeft,
   PanelRight,
   RefreshCw
@@ -31,17 +29,12 @@ import {
   PointElement,
   LineElement,
   BarElement,
-  // Replace AreaElement with ArcElement
   ArcElement,
-  // Replace ScatterElement with missing equivalent
   Title,
   Tooltip,
   Legend,
   Filler,
-  Colors,
-  ScaleOptions,
-  ChartOptions,
-  Plugin
+  Colors
 } from 'chart.js';
 import { Line, Bar, Scatter as ScatterChart, Bubble, Pie, Doughnut, PolarArea, Radar } from 'react-chartjs-2';
 import FileUploader from '@/components/FileUploader';
@@ -58,9 +51,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
-  // Replace AreaElement with ArcElement
   ArcElement,
-  // Remove ScatterElement
   Title,
   Tooltip,
   Legend,
@@ -79,7 +70,7 @@ const TimeSeries = () => {
   const [xAxisLabel, setXAxisLabel] = useState<string>('Time');
   const [yAxisLabel, setYAxisLabel] = useState<string>('Value');
   const [loading, setLoading] = useState(false);
-  const [chartOptions, setChartOptions] = useState<ChartOptions>({});
+  const [chartOptions, setChartOptions] = useState<any>({});
   const [customOptions, setCustomOptions] = useState<string>('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
@@ -144,24 +135,15 @@ const TimeSeries = () => {
         toast({
           title: "Warning",
           description: "The uploaded data doesn't appear to be time series data. Some features may not work correctly.",
-          // Fix variant to be "default" instead of "warning"
           variant: "default",
         });
       }
       
-      // Convert the schema to SchemaFieldType format
       const detectedSchema = generateSchema(parsedData);
       
-      // Type conversion for the schema
-      const convertedSchema: Record<string, SchemaFieldType> = {};
-      Object.entries(detectedSchema).forEach(([key, value]) => {
-        convertedSchema[key] = value as SchemaFieldType;
-      });
+      setSchema(detectedSchema);
       
-      setSchema(convertedSchema);
-      
-      // Identify time columns
-      const timeColumns = Object.entries(convertedSchema)
+      const timeColumns = Object.entries(detectedSchema)
         .filter(([_, type]) => type === 'date')
         .map(([col]) => col);
       
@@ -169,8 +151,7 @@ const TimeSeries = () => {
         setTimeColumn(timeColumns[0]);
       }
       
-      // Identify numeric columns for values
-      const numericColumns = Object.entries(convertedSchema)
+      const numericColumns = Object.entries(detectedSchema)
         .filter(([_, type]) => type === 'integer' || type === 'float' || type === 'number')
         .map(([col]) => col);
       
@@ -247,8 +228,7 @@ const TimeSeries = () => {
     });
   };
 
-  // Fix the chartJsOptions object to remove incompatible types
-  const chartJsOptions = {
+  const chartJsOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -264,7 +244,7 @@ const TimeSeries = () => {
         }
       },
       tooltip: {
-        mode: 'index',
+        mode: 'index' as const,
         intersect: false,
       },
     },
@@ -366,7 +346,9 @@ const TimeSeries = () => {
                     <SelectValue placeholder="Select value column" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.keys(schema).filter(key => schema[key] === 'integer' || schema[key] === 'float' || schema[key] === 'number').map(column => (
+                    {Object.keys(schema).filter(key => 
+                      schema[key] === 'integer' || schema[key] === 'float' || schema[key] === 'number'
+                    ).map(column => (
                       <SelectItem key={column} value={column}>{column}</SelectItem>
                     ))}
                   </SelectContent>
@@ -374,10 +356,9 @@ const TimeSeries = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="chart-type">Chart Type</Label>
-                {/* Fix the onValueChange handler for chartType */}
                 <Select 
                   value={chartType} 
-                  onValueChange={(value: 'line' | 'bar' | 'scatter' | 'area') => setChartType(value)}
+                  onValueChange={(value) => setChartType(value as 'line' | 'bar' | 'scatter' | 'area')}
                 >
                   <SelectTrigger id="chart-type">
                     <SelectValue placeholder="Select chart type" />

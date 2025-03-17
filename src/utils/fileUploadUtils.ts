@@ -1,5 +1,10 @@
-import { SupportedFileType, SchemaFieldType, FileProcessingResult } from './fileTypes';
-import { readFileContent } from './fileOperations';
+
+import { 
+  SchemaFieldType, 
+  SupportedFileType, 
+  FileProcessingResult,
+  DataTypeResult
+} from './fileTypes';
 
 /**
  * Parse a CSV file into an array of objects
@@ -81,8 +86,9 @@ export const getFileType = (file: File): SupportedFileType => {
   if (['doc', 'docx'].includes(extension)) return 'docx';
   if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
   if (['ppt', 'pptx'].includes(extension)) return 'pptx';
+  if (['xml'].includes(extension)) return 'xml';
   
-  // Default to txt for unknown types
+  // Default to unknown for unsupported types
   return 'unknown';
 };
 
@@ -177,6 +183,24 @@ const extractTextWithAI = async (
     console.error('Error extracting text with AI:', error);
     throw error;
   }
+};
+
+/**
+ * Read file content as a string
+ */
+export const readFileContent = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        resolve(e.target.result as string);
+      } else {
+        reject(new Error('Failed to read file content'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Error reading file'));
+    reader.readAsText(file);
+  });
 };
 
 /**
@@ -283,9 +307,6 @@ export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => 
   
   return schema;
 };
-
-// Function to read file content - Exported so it can be used in other modules
-export { readFileContent } from './fileOperations';
 
 // Function to detect data type
 export const detectDataType = (data: any[]): DataTypeResult => {

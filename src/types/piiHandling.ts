@@ -1,59 +1,35 @@
 
-// Type definitions for PII handling functionality
-
-export type MaskingMethod = 'redact' | 'hash' | 'partial' | 'tokenize' | 'synthetic';
-
-export type MaskingTechnique = {
-  method: MaskingMethod;
-  options?: {
-    preserveFormat?: boolean;
-    showPartial?: number;
-  };
-};
-
-export type EncryptionMethod = 'aes-256' | 'sha-256' | 'md5';
-
+// Field masking configuration
 export interface FieldMaskingConfig {
   enabled: boolean;
+  technique?: string; // Add technique property to match piiHandlingService
 }
 
+// Per-field masking options
 export interface PerFieldMaskingOptions {
-  [fieldName: string]: FieldMaskingConfig;
+  [field: string]: FieldMaskingConfig;
 }
 
-export interface AddFieldParams {
-  name: string;
-  type: string;
-}
-
-// New type definitions for enhanced prompt-based masking
-export interface PromptBasedMasking {
-  prompt: string;
-  preserveFormat: boolean;
-}
-
-export interface MaskingPattern {
-  original: string;
-  masked: string;
-  pattern: string;
-}
-
-export interface FieldMaskingPattern {
-  [fieldName: string]: MaskingPattern[];
-}
-
-// Types for PII data
+// PII data types
 export interface PiiData {
   id: string;
-  [key: string]: string | number | boolean;
-}
-
-export interface PiiMaskingOptions {
-  aiPrompt?: string;
-  preserveFormat?: boolean;
-  methods?: Record<string, MaskingMethod>;
+  [key: string]: any;
 }
 
 export interface PiiDataMasked extends PiiData {
-  [key: string]: string | number | boolean;
+  _masked: boolean;
+  _maskedFields?: string[];
+}
+
+// Masking options
+export interface MaskingOptions {
+  aiPrompt?: string;
+  preserveFormat?: boolean;
+  maskingLevel?: 'low' | 'medium' | 'high';
+}
+
+// Analysis result
+export interface PiiAnalysisResult {
+  identifiedPii: string[];
+  suggestions: string;
 }

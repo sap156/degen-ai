@@ -52,7 +52,7 @@ export interface FileWithPreview {
   preview: string;
 }
 
-// Add DataType property to DataTypeResult
+// Data Type Detection Interface
 export interface DataTypeResult {
   type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
   dataType?: string;
@@ -60,4 +60,15 @@ export interface DataTypeResult {
   timeColumn?: string;
   valueColumns?: string[];
   categoricalColumns?: string[];
+}
+
+// FieldMaskingConfig interface for PiiHandling
+export interface FieldMaskingConfig {
+  enabled: boolean;
+  technique?: string;
+}
+
+// PerFieldMaskingOptions interface for PiiHandling
+export interface PerFieldMaskingOptions {
+  [field: string]: FieldMaskingConfig;
 }

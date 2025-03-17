@@ -1,12 +1,12 @@
 
 import { supabaseClient } from './supabaseService';
-import openAiService from './openAiService';
+import * as openAiService from './openAiService';
 
 // Interfaces for data field and sample templates
 export interface DataField {
   name: string;
   type: string;
-  included?: boolean; // Add the included property
+  included?: boolean;
 }
 
 export interface SampleTemplate {
@@ -23,6 +23,39 @@ export interface SyntheticDataOptions {
   preserveSchema: boolean;
   enhanceRealism: boolean;
 }
+
+// Default schemas for common data types
+export const defaultSchemas = {
+  customer: {
+    id: 'string',
+    firstName: 'name',
+    lastName: 'name',
+    email: 'email',
+    phone: 'phone',
+    address: 'address',
+    registrationDate: 'date',
+    loyaltyPoints: 'integer',
+    isActive: 'boolean'
+  },
+  transaction: {
+    id: 'string',
+    customerId: 'string',
+    productId: 'string',
+    date: 'date',
+    amount: 'float',
+    paymentMethod: 'string',
+    isRefunded: 'boolean'
+  },
+  product: {
+    id: 'string',
+    name: 'string',
+    category: 'string',
+    price: 'float',
+    inStock: 'boolean',
+    description: 'string',
+    rating: 'float'
+  }
+};
 
 /**
  * Generate synthetic data based on a template and schema
@@ -79,9 +112,7 @@ Please ONLY return the JSON array without any additional text.`
     // Call the OpenAI API
     const response = await openAiService.callOpenAI('completions', {
       model: 'gpt-4o-mini',
-      messages,
-      temperature: 0.7,
-      max_tokens: 4000
+      messages
     }, apiKey);
     
     const generatedText = response.choices[0].message.content;
@@ -118,7 +149,7 @@ Please ONLY return the JSON array without any additional text.`
 export const saveSyntheticDataToDatabase = async (
   data: any[],
   tableName: string
-): Promise<{success: boolean; message: string}> => {
+): Promise<{success: boolean; message: string; count?: number}> => {
   try {
     // Insert data into Supabase
     const { error } = await supabaseClient
@@ -131,14 +162,112 @@ export const saveSyntheticDataToDatabase = async (
     
     return { 
       success: true, 
-      message: `Successfully saved ${data.length} records to ${tableName}` 
+      message: `Successfully saved ${data.length} records to ${tableName}`,
+      count: data.length
     };
   } catch (error) {
     console.error('Error saving synthetic data to database:', error);
     return { 
       success: false, 
-      message: `Failed to save data: ${error instanceof Error ? error.message : String(error)}` 
+      message: `Failed to save data: ${error instanceof Error ? error.message : String(error)}`
     };
+  }
+};
+
+/**
+ * Detect schema from data
+ */
+export const detectSchemaFromData = (data: any[]): Record<string, string> => {
+  if (!data || data.length === 0) {
+    return {};
+  }
+  
+  const schema: Record<string, string> = {};
+  const sample = data[0];
+  
+  Object.entries(sample).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      schema[key] = 'string'; // Default for null values
+      return;
+    }
+    
+    const type = typeof value;
+    
+    if (type === 'string') {
+      // Check for date format
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
+        schema[key] = 'date';
+      } 
+      // Check for email format
+      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
+        schema[key] = 'email';
+      } 
+      // Check for phone format
+      else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value as string)) {
+        schema[key] = 'phone';
+      }
+      else {
+        schema[key] = 'string';
+      }
+    } else if (type === 'number') {
+      // Check if it's an integer
+      schema[key] = Number.isInteger(value) ? 'integer' : 'float';
+    } else if (type === 'boolean') {
+      schema[key] = 'boolean';
+    } else if (Array.isArray(value)) {
+      schema[key] = 'array';
+    } else if (type === 'object') {
+      schema[key] = 'object';
+    } else {
+      schema[key] = 'string'; // Default fallback
+    }
+  });
+  
+  return schema;
+};
+
+/**
+ * Download synthetic data
+ */
+export const downloadSyntheticData = (data: any[], format: 'json' | 'csv'): void => {
+  try {
+    let content: string;
+    let contentType: string;
+    let extension: string;
+    
+    if (format === 'json') {
+      content = JSON.stringify(data, null, 2);
+      contentType = 'application/json';
+      extension = 'json';
+    } else {
+      // CSV format
+      const headers = Object.keys(data[0]).join(',');
+      const rows = data.map(item => {
+        return Object.values(item).map(value => {
+          if (typeof value === 'string') {
+            // Escape quotes in string fields
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',');
+      });
+      content = [headers, ...rows].join('\n');
+      contentType = 'text/csv';
+      extension = 'csv';
+    }
+    
+    const blob = new Blob([content], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `synthetic_data_${new Date().getTime()}.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading synthetic data:', error);
+    throw error;
   }
 };
 
