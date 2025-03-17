@@ -7,6 +7,8 @@ import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, 
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
+import DatabaseConnectionDialog from '@/components/DatabaseConnectionDialog';
+import { isDatabaseConnected } from '@/services/databaseService';
 
 const container = {
   hidden: {
@@ -113,6 +115,8 @@ const Index: React.FC = () => {
     isKeySet
   } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [dbConnectionDialogOpen, setDbConnectionDialogOpen] = useState(false);
+  const isDbConnected = isDatabaseConnected();
 
   return <div className="container px-4 mx-auto py-8 max-w-7xl">
       <div className="flex flex-col items-center text-center mb-16 space-y-3">
@@ -160,9 +164,14 @@ const Index: React.FC = () => {
         duration: 0.5,
         delay: 0.3
       }}>
-          <Button size="lg" variant="outline" className="gap-2">
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setDbConnectionDialogOpen(true)}
+          >
             <Database className="h-4 w-4" />
-            Connect Database
+            {isDbConnected ? 'Manage Database' : 'Connect Database'}
           </Button>
         </motion.div>
         
@@ -207,6 +216,7 @@ const Index: React.FC = () => {
       </motion.div>
       
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
+      <DatabaseConnectionDialog open={dbConnectionDialogOpen} onOpenChange={setDbConnectionDialogOpen} />
     </div>;
 };
 
