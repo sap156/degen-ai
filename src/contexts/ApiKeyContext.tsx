@@ -19,16 +19,23 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4o');
 
   useEffect(() => {
+    // Load API key from localStorage
     const storedKey = localStorage.getItem('openai-api-key');
     if (storedKey) {
       setApiKeyState(storedKey);
     }
     
+    // Load model preference from localStorage with fallback
     const storedModel = localStorage.getItem('openai-model') as OpenAIModel | null;
-    if (storedModel) {
+    if (storedModel && isValidModel(storedModel)) {
       setSelectedModel(storedModel);
     }
   }, []);
+
+  // Validate model to ensure it's a supported one
+  const isValidModel = (model: string): model is OpenAIModel => {
+    return ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'].includes(model);
+  };
 
   const setApiKey = (key: string) => {
     localStorage.setItem('openai-api-key', key);

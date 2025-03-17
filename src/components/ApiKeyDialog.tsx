@@ -1,12 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { KeyRound, X, Check } from 'lucide-react';
+import { KeyRound, X, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import ModelSelector from '@/components/ModelSelector';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ApiKeyDialogProps {
   open: boolean;
@@ -16,21 +17,72 @@ interface ApiKeyDialogProps {
 const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
   const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
   const [inputKey, setInputKey] = useState('');
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleSave = () => {
-    if (inputKey.trim()) {
-      setApiKey(inputKey.trim());
-      toast.success('API key saved successfully');
-      setInputKey('');
-      onOpenChange(false);
-    } else {
-      toast.error('Please enter a valid API key');
+  // Clear validation error when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      setValidationError(null);
     }
+  }, [open]);
+
+  const validateApiKey = async (key: string): Promise<boolean> => {
+    try {
+      setIsValidatingKey(true);
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${key}`,
+        }
+      });
+      
+      if (response.ok) {
+        return true;
+      }
+      
+      const errorData = await response.json();
+      if (response.status === 401) {
+        setValidationError("Invalid API key. Please check and try again.");
+        return false;
+      } else {
+        setValidationError(`API key error: ${errorData.error?.message || "Unknown error"}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("API key validation error:", error);
+      setValidationError("Could not validate API key. Check your internet connection.");
+      return false;
+    } finally {
+      setIsValidatingKey(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!inputKey.trim()) {
+      setValidationError("Please enter a valid API key");
+      return;
+    }
+    
+    // Optional: validate API key before saving
+    // Uncomment this section to enable validation
+    /*
+    const isValid = await validateApiKey(inputKey.trim());
+    if (!isValid) {
+      return;
+    }
+    */
+    
+    setApiKey(inputKey.trim());
+    toast.success('API key saved successfully');
+    setInputKey('');
+    setValidationError(null);
+    onOpenChange(false);
   };
 
   const handleRemove = () => {
     clearApiKey();
     toast.success('API key removed');
+    setValidationError(null);
     onOpenChange(false);
   };
 
@@ -50,6 +102,13 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
         </DialogHeader>
         
         <div className="space-y-6 py-2">
+          {validationError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{validationError}</AlertDescription>
+            </Alert>
+          )}
+
           {isKeySet ? (
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2 text-sm">
@@ -73,6 +132,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
                 placeholder="sk-..."
                 value={inputKey}
                 onChange={(e) => setInputKey(e.target.value)}
+                className={validationError ? "border-red-300" : ""}
               />
             </div>
           )}
@@ -97,7 +157,13 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
         
         {!isKeySet && (
           <DialogFooter className="sm:justify-end">
-            <Button onClick={handleSave} className="w-full sm:w-auto">Save API Key</Button>
+            <Button 
+              onClick={handleSave} 
+              className="w-full sm:w-auto"
+              disabled={isValidatingKey || !inputKey.trim()}
+            >
+              {isValidatingKey ? 'Validating...' : 'Save API Key'}
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>

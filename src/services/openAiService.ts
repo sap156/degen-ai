@@ -22,11 +22,18 @@ export interface OpenAiMessage {
   content: string | OpenAiMessageContent[];
 }
 
-// Default options for OpenAI API calls
+// Default options for OpenAI API calls with a reliable default model
 const defaultOptions: OpenAiOptions = {
   model: "gpt-3.5-turbo",
   temperature: 0.7,
   max_tokens: 1000
+};
+
+// Helper to validate model names
+const isValidModel = (model: string | null | undefined): boolean => {
+  if (!model) return false;
+  const validModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
+  return validModels.includes(model);
 };
 
 // Function to get the completion from OpenAI API
@@ -39,15 +46,28 @@ export const getCompletion = async (
     throw new Error("API key is not set");
   }
 
-  // Get the model from localStorage if not provided in options
-  if (!options.model) {
+  // Get the model from localStorage with proper validation
+  let modelToUse = options.model;
+  
+  if (!modelToUse) {
     const storedModel = localStorage.getItem('openai-model');
-    options.model = storedModel || defaultOptions.model;
+    modelToUse = isValidModel(storedModel) ? storedModel : defaultOptions.model;
   }
 
-  const mergedOptions = { ...defaultOptions, ...options };
+  // Make sure we always have a valid model
+  if (!isValidModel(modelToUse)) {
+    modelToUse = defaultOptions.model;
+  }
+
+  const mergedOptions = { 
+    ...defaultOptions,
+    ...options,
+    model: modelToUse 
+  };
   
   try {
+    console.log(`Using OpenAI model: ${mergedOptions.model}`);
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -72,6 +92,12 @@ export const getCompletion = async (
         toast.error("Invalid API key provided. Please check your OpenAI API key.");
       } else if (response.status === 429) {
         toast.error("Rate limit or quota exceeded on your OpenAI API key.");
+      } else if (data.error?.message?.includes("does not exist")) {
+        toast.error(`Model ${mergedOptions.model} is not available. Switching to gpt-3.5-turbo.`);
+        // Update localStorage with a valid model for future requests
+        localStorage.setItem('openai-model', 'gpt-3.5-turbo');
+        // Retry with the default model
+        return getCompletion(apiKey, messages, { ...options, model: 'gpt-3.5-turbo' });
       } else {
         toast.error(`OpenAI API error: ${data.error?.message || "Unknown error"}`);
       }
@@ -79,7 +105,11 @@ export const getCompletion = async (
       throw new Error(data.error?.message || "Unknown OpenAI API error");
     }
 
-    return data.choices[0].message.content;
+    if (!data.choices || !data.choices[0]?.message) {
+      throw new Error("Unexpected response format from OpenAI API");
+    }
+
+    return data.choices[0].message.content || "";
   } catch (error) {
     console.error("Error calling OpenAI API:", error);
     
@@ -139,8 +169,9 @@ export const generateSyntheticDataWithAI = async (
     { role: 'user', content: formattedPrompt }
   ];
   
-  // Get the model from localStorage
-  const model = localStorage.getItem('openai-model') || defaultOptions.model;
+  // Get the model from localStorage with validation
+  const storedModel = localStorage.getItem('openai-model');
+  const model = isValidModel(storedModel) ? storedModel : defaultOptions.model;
   
   try {
     return await getCompletion(apiKey, messages, {
@@ -207,8 +238,9 @@ Return ONLY valid JSON as your response, with no additional text or explanations
     { role: 'user', content: userPrompt }
   ];
   
-  // Get the model from localStorage, preferring stronger models for better pattern consistency
-  const model = localStorage.getItem('openai-model') || defaultOptions.model;
+  // Get the model from localStorage with validation
+  const storedModel = localStorage.getItem('openai-model');
+  const model = isValidModel(storedModel) ? storedModel : defaultOptions.model;
   
   try {
     // Use lower temperature for more consistent outputs

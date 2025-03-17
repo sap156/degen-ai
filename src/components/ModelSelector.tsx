@@ -17,9 +17,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const modelInfo = {
+const modelInfo: Record<string, {
+  name: string;
+  limitations: string[];
+}> = {
+  'gpt-4o': {
+    name: 'GPT-4o (Recommended)',
+    limitations: [
+      'Most advanced model with strong performance across various tasks.',
+      'Best balance of capabilities and efficiency.',
+      'Supports vision and has a large context window.'
+    ]
+  },
   'gpt-4-turbo': {
-    name: 'GPT-4 Turbo (Recommended)',
+    name: 'GPT-4 Turbo',
     limitations: [
       'Slightly reduced context window and token limits compared to GPT-4.',
       'Occasionally sacrifices minor accuracy in complex reasoning tasks for speed.',
@@ -46,6 +57,9 @@ const modelInfo = {
 
 const ModelSelector: React.FC = () => {
   const { selectedModel, setSelectedModel, isKeySet } = useApiKey();
+
+  // Ensure we have valid model info for the selected model
+  const safeModelInfo = modelInfo[selectedModel] || modelInfo['gpt-4o'];
 
   return (
     <div className="w-full space-y-3">
@@ -87,9 +101,9 @@ const ModelSelector: React.FC = () => {
       {selectedModel && (
         <Card className="mt-3 bg-secondary/20 border-dashed">
           <CardContent className="p-4 text-sm space-y-3">
-            <p className="font-medium">{modelInfo[selectedModel].name} Limitations:</p>
+            <p className="font-medium">{safeModelInfo.name} Limitations:</p>
             <ul className="space-y-2 list-disc pl-5">
-              {modelInfo[selectedModel].limitations.map((limitation, i) => (
+              {safeModelInfo.limitations.map((limitation, i) => (
                 <li key={i} className="text-muted-foreground">{limitation}</li>
               ))}
             </ul>
