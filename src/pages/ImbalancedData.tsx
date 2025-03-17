@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -145,6 +144,7 @@ const ImbalancedDataPage: React.FC = () => {
     targetColumn: 'class', // Assuming 'class' is the target column
     minorityClass: datasetInfo.classes.length > 0 ? 
       datasetInfo.classes[datasetInfo.classes.length - 1].className : '',
+    classLabels: datasetInfo.classes.map(c => c.className), // Add missing classLabels
   };
 
   const dummyModelOptions = {
@@ -152,7 +152,8 @@ const ImbalancedDataPage: React.FC = () => {
       enabled: true,
       volume: 100,
       diversity: 'medium' as 'low' | 'medium' | 'high',
-    }
+    },
+    enableFeatureEngineering: false, // Add missing enableFeatureEngineering
   };
 
   return (

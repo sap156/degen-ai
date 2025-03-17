@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +30,7 @@ const DataParsing: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('upload');
   const [fileMetadata, setFileMetadata] = useState<Record<string, any>>({});
   const [extractedText, setExtractedText] = useState<string>('');
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
 
   const [selectedProcessingTypes, setSelectedProcessingTypes] = useState<ProcessingType[]>([]);
   const [processingDetailLevel, setProcessingDetailLevel] = useState<'brief' | 'standard' | 'detailed'>('standard');
@@ -202,6 +202,27 @@ const DataParsing: React.FC = () => {
     } catch (error) {
       console.error('Error downloading results:', error);
       toast.error('Error downloading results');
+    }
+  };
+
+  const handleExtractKeywords = async (file: File) => {
+    setIsProcessing(true);
+    try {
+      const keywords = await extractTextFromFile(fileContent, apiKey);
+      setExtractedKeywords(keywords);
+      toast({
+        title: "Keywords Extracted",
+        description: `Found ${keywords.length} keywords in the document.`,
+      });
+    } catch (error) {
+      console.error("Error extracting keywords:", error);
+      toast({
+        title: "Extraction Error",
+        description: "Failed to extract keywords from the file.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 

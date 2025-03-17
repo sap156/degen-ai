@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { getCompletion, createMessages, OpenAiMessage } from "../services/openAiService";
 
@@ -26,5 +27,5 @@ export const extractKeywords = async (
   }
 };
 
-// Add the new export for DataParsing.tsx
-export { extractKeywords as extractTextFromFile };
+// Fix the export for DataParsing.tsx
+export const extractTextFromFile = extractKeywords;
