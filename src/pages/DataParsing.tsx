@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import FileUploader from '@/components/FileUploader';
 import ProcessingTypesGuide from '@/components/ProcessingTypesGuide';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { parseCSV, parseJSON, SchemaFieldType } from '@/utils/fileUploadUtils';
+import { parseCSV, parseJSON, SchemaFieldType, getFileType, extractTextFromFile } from '@/utils/fileUploadUtils';
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
 import { ProcessingType, stripMarkdownCodeBlocks } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
