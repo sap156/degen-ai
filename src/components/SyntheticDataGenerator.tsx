@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4, Key } from 'lucide-react';
@@ -7,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { DatasetPreferences, ModelOptions } from '@/services/aiDataAnalysisService';
-import { DatasetInfo, generateSyntheticRecords } from '@/services/imbalancedDataService';
+import { generateSyntheticRecords, ClassDistribution, DatasetInfo } from '@/services/imbalancedDataService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -335,7 +336,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   
   // Find the minority class in the original dataset
   const minorityClassName = preferences.minorityClass || '';
-  const minorityClassInfo = originalDataset.classes.find(c => c.className === minorityClassName);
+  const minorityClassInfo = originalDataset.classes.find(c => c.name === minorityClassName);
   const minorityClassCount = minorityClassInfo?.count || 0;
   const targetCount = modelOptions.syntheticDataPreferences?.volume || 100;
   

@@ -20,7 +20,7 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
-import { PerFieldMaskingOptions, FieldMaskingConfig } from '@/types/piiHandling';
+import { PerFieldMaskingOptions, FieldMaskingConfig, MaskingTechnique } from '@/types/piiHandling';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Tooltip,
@@ -93,7 +93,7 @@ const PiiHandling = () => {
       Object.keys(data[0])
         .filter(key => key !== 'id')
         .forEach(field => {
-          newMaskingOptions[field] = { enabled: true };
+          newMaskingOptions[field] = { enabled: true, technique: 'replace' };
         });
     }
     
@@ -122,9 +122,18 @@ const PiiHandling = () => {
     
     try {
       setIsMaskingData(true);
+      
+      const validatedOptions: PerFieldMaskingOptions = {};
+      Object.entries(perFieldMaskingOptions).forEach(([field, config]) => {
+        validatedOptions[field] = {
+          ...config,
+          technique: config.technique || 'replace'
+        };
+      });
+      
       const masked = await maskPiiData(
         originalData, 
-        perFieldMaskingOptions,
+        validatedOptions as any,
         {
           aiPrompt,
           preserveFormat: globalMaskingPreferences.preserveFormat
@@ -150,12 +159,13 @@ const PiiHandling = () => {
 
   const toggleFieldMasking = (field: string) => {
     setPerFieldMaskingOptions(prev => {
-      const config = prev[field] || { enabled: false };
+      const currentConfig = prev[field] || { enabled: false, technique: 'replace' };
       return {
         ...prev,
         [field]: {
-          ...config,
-          enabled: !config.enabled
+          ...currentConfig,
+          enabled: !currentConfig.enabled,
+          technique: currentConfig.technique || 'replace'
         }
       };
     });
@@ -227,7 +237,8 @@ const PiiHandling = () => {
         
         fields.forEach(field => {
           newPerFieldOptions[field] = {
-            enabled: true
+            enabled: true,
+            technique: 'replace'
           };
         });
         

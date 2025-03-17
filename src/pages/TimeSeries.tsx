@@ -20,8 +20,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema } from '@/utils/fileUploadUtils';
-import { SchemaFieldType } from '@/utils/fileTypes';
+import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
+import { SchemaFieldType, generateSchema, DataTypeResult } from '@/utils/fileTypes';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -44,6 +44,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { detectDataType } from '@/utils/dataParsingUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -130,7 +131,31 @@ const TimeSeries = () => {
       
       setData(parsedData);
       
-      const typeResult = detectDataType(parsedData);
+      const apiKey = ''; // You may need to get this from a context or state
+      
+      let typeResult: DataTypeResult = {
+        type: 'unknown',
+        confidence: 0
+      };
+      
+      if (apiKey) {
+        typeResult = await detectDataType(file, apiKey);
+      } else {
+        if (parsedData.length > 0) {
+          const sample = parsedData[0];
+          for (const key in sample) {
+            if (typeof sample[key] === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sample[key])) {
+              typeResult = {
+                type: 'timeseries',
+                confidence: 0.7,
+                timeColumn: key
+              };
+              break;
+            }
+          }
+        }
+      }
+      
       if (typeResult.type !== 'timeseries') {
         toast({
           title: "Warning",
