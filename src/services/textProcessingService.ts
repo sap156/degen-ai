@@ -41,6 +41,13 @@ export const processTextWithAI = async (
     throw new Error("API key is not set");
   }
 
+  // If text is too long, truncate it for processing
+  // Most LLMs have context limits around 100K characters
+  const maxTextLength = 50000; // Characters
+  const truncatedText = text.length > maxTextLength 
+    ? text.substring(0, maxTextLength) + "\n\n[Note: Text was truncated due to length limitations. Analysis is based on the first 50,000 characters.]" 
+    : text;
+
   const detailLevel = options?.detailLevel || 'standard';
   const outputFormat = options?.outputFormat || 'json';
   const userContext = options?.userContext || '';
@@ -54,7 +61,7 @@ export const processTextWithAI = async (
   ${outputFormat === 'json' ? 'Return your response in valid JSON format with appropriate structure.' : 'Return your response as structured text with clear sections and highlights.'}`;
 
   // Create user message with the text to process
-  const userMessage = `Process the following text using ${processingType} analysis:\n\n${text}`;
+  const userMessage = `Process the following text using ${processingType} analysis:\n\n${truncatedText}`;
 
   const messages: OpenAiMessage[] = [
     { role: 'system', content: systemMessage },
@@ -104,6 +111,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       return `convert the unstructured text into well-structured JSON format. 
       Identify key sections, paragraphs, lists, and tabular data within the text.
       Extract and organize the information in a hierarchical structure that preserves relationships.
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Include as much detail as possible, preserving all information from the original text.' : 
         detailLevel === 'brief' ? 'Focus only on the most important information, creating a concise structure.' : 
         'Create a balanced structure that captures the main information without excessive detail.'}`;
@@ -117,6 +125,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       - Correcting common typos
       - Normalizing inconsistent formatting
       - Standardizing abbreviations and terms
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Provide exhaustive cleaning with explanations of all changes made.' : 
         detailLevel === 'brief' ? 'Focus on major issues only with minimal changes.' : 
         'Apply reasonable cleaning while preserving the original meaning.'}`;
@@ -131,6 +140,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       - Monetary values
       - Percentages
       - Product names
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Extract all entities with their context and relationships to other entities.' : 
         detailLevel === 'brief' ? 'Extract only the main entities without additional context.' : 
         'Extract entities with basic contextual information.'}`;
@@ -139,6 +149,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       return `extract the main topics and themes from the provided text.
       Identify key discussion points, concepts, and subject matters.
       Analyze relationships between topics and how they connect.
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Provide an in-depth analysis of all topics with subtopics, hierarchical relationships, and comprehensive coverage.' : 
         detailLevel === 'brief' ? 'Extract only the 3-5 most significant topics or themes.' : 
         'Extract the main topics with brief descriptions and basic relationships.'}`;
@@ -147,6 +158,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       return `generate a concise summary of the provided text.
       Capture the key points, main arguments, and important details.
       Present the information in a well-structured, logical flow.
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Create a comprehensive summary that covers all significant points while reducing length by 40-50%.' : 
         detailLevel === 'brief' ? 'Create a very brief summary (1-2 paragraphs) capturing only the most essential information.' : 
         'Create a balanced summary reducing the original text by approximately 70% while preserving key information.'}`;
@@ -155,6 +167,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       return `analyze the sentiment and intent expressed in the provided text.
       Determine the overall tone (positive, negative, neutral, or mixed).
       Identify the likely intent behind the text (e.g., complaint, inquiry, praise, request, information).
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Provide a comprehensive sentiment analysis with evidence for each classification, emotional undertones, and intensity levels.' : 
         detailLevel === 'brief' ? 'Provide only the primary sentiment and intent without detailed explanation.' : 
         'Provide the main sentiment classifications with basic supporting evidence.'}`;
@@ -163,6 +176,7 @@ const getProcessingInstructions = (processingType: ProcessingType, detailLevel: 
       return `automatically generate relevant tags and categories for the provided text.
       Assign appropriate subject tags based on content.
       Categorize the text into relevant domains or fields.
+      Process the ENTIRE dataset, including all records presented to you.
       ${detailLevel === 'detailed' ? 'Generate an extensive set of hierarchical tags and categories with confidence scores and reasoning.' : 
         detailLevel === 'brief' ? 'Generate only 3-5 of the most relevant tags or categories.' : 
         'Generate a reasonable set of tags and categories (5-10) that accurately represent the content.'}`;

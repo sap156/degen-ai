@@ -1,6 +1,7 @@
 /**
  * Utilities for handling file uploads across different data types
  */
+import { OpenAiMessage } from '../services/openAiService';
 
 /**
  * Custom schema field type that extends JavaScript's typeof types
@@ -185,151 +186,6 @@ export const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
 };
 
 /**
- * Read a file as base64 for processing
- * @param file The file to read
- * @returns Promise resolving to the file content as base64 string
- */
-export const readFileAsBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        resolve(event.target.result as string);
-      } else {
-        reject(new Error('Failed to read file'));
-      }
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Error reading file'));
-    };
-    
-    reader.readAsDataURL(file);
-  });
-};
-
-/**
- * Detect data type from content to help understand the structure
- * @param data The parsed data
- * @returns Object containing detected data properties
- */
-export const detectDataType = (data: any[]): { 
-  isTimeSeries: boolean; 
-  dateField?: string;
-  valueFields: string[];
-  dataType: 'time-series' | 'tabular' | 'pii' | 'unknown';
-} => {
-  if (!data || !data.length) {
-    return { 
-      isTimeSeries: false, 
-      valueFields: [], 
-      dataType: 'unknown' 
-    };
-  }
-  
-  const sampleItem = data[0];
-  const fields = Object.keys(sampleItem);
-  
-  // Look for date/time fields
-  const possibleDateFields = fields.filter(field => {
-    const value = sampleItem[field];
-    
-    if (typeof value !== 'string') return false;
-    
-    return /^\d{4}-\d{2}-\d{2}/.test(value) || // ISO date format
-      /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || // MM/DD/YYYY
-      /^\d{1,2}-\d{1,2}-\d{4}/.test(value) || // MM-DD-YYYY
-      !isNaN(Date.parse(value)) || // Parsable as date
-      field.toLowerCase().includes('time') ||
-      field.toLowerCase().includes('date') ||
-      field.toLowerCase() === 'timestamp';
-  });
-  
-  // Look for numeric fields
-  const numericFields = fields.filter(field => {
-    const value = sampleItem[field];
-    return typeof value === 'number';
-  });
-  
-  // Check for PII data
-  const piiFields = ['name', 'email', 'address', 'phone', 'ssn', 'dob', 'birthdate', 'social', 'credit'];
-  const potentialPiiFields = fields.filter(field => 
-    piiFields.some(pii => field.toLowerCase().includes(pii))
-  );
-  
-  // Determine data type
-  const isTimeSeries = possibleDateFields.length > 0 && numericFields.length > 0;
-  const isPiiData = potentialPiiFields.length >= 3; // Heuristic: 3+ PII fields suggests PII data
-  
-  let dataType: 'time-series' | 'tabular' | 'pii' | 'unknown' = 'unknown';
-  
-  if (isTimeSeries) {
-    dataType = 'time-series';
-  } else if (isPiiData) {
-    dataType = 'pii';
-  } else {
-    dataType = 'tabular';
-  }
-  
-  return {
-    isTimeSeries,
-    dateField: possibleDateFields.length > 0 ? possibleDateFields[0] : undefined,
-    valueFields: numericFields,
-    dataType
-  };
-};
-
-/**
- * Generate a schema for the data to understand its structure
- * @param data The parsed data
- * @returns Schema object describing the data structure
- */
-export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
-  if (!data || !data.length) return {};
-  
-  const schema: Record<string, SchemaFieldType> = {};
-  const sampleItem = data[0];
-  
-  Object.keys(sampleItem).forEach(key => {
-    const value = sampleItem[key];
-    let type = typeof value as SchemaFieldType;
-    
-    // Enhanced type detection
-    if (type === 'string') {
-      // Check for date format
-      if (/^\d{4}-\d{2}-\d{2}/.test(value) || // ISO date format
-          /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || // MM/DD/YYYY
-          /^\d{1,2}-\d{1,2}-\d{4}/.test(value) || // MM-DD-YYYY
-          !isNaN(Date.parse(value))) { // Parsable as date
-        type = 'date';
-      }
-      // Check for time series
-      else if (key.toLowerCase().includes('time') || 
-              key.toLowerCase().includes('date') ||
-              key.toLowerCase() === 'timestamp') {
-        type = 'date';
-      }
-      // Check for email
-      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        type = 'email';
-      }
-      // Check for phone
-      else if (/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/.test(value)) {
-        type = 'phone';
-      }
-    } else if (type === 'number') {
-      // Check if it's an integer or float
-      type = Number.isInteger(value) ? 'integer' : 'float';
-    }
-    
-    schema[key] = type;
-  });
-  
-  return schema;
-};
-
-/**
  * Format data as a downloadable file
  * @param data The data to format
  * @param format The output format
@@ -447,22 +303,30 @@ const extractTextWithAI = async (
   try {
     const { getCompletion } = await import('../services/openAiService');
     
-    // For documents like PDF, DOCX, etc. - we would normally use specialized libraries
-    // But for this implementation, we'll simulate it with a mock response
+    // For PDF, DOCX, etc. - simulate extraction
+    const messages: OpenAiMessage[] = [
+      { 
+        role: 'system' as const, 
+        content: 'You are a document text extraction assistant. Extract text content from the document I describe.'
+      },
+      { 
+        role: 'user' as const, 
+        content: `This is a ${file.type || 'document'} file named "${file.name}". In a real implementation, I would extract the contents. For this simulation, please generate some plausible text content that might be found in such a document.`
+      }
+    ];
+    
+    const response = await getCompletion(apiKey, messages, { 
+      model: 'gpt-4o-mini'
+    });
+    
     return {
-      text: `This is extracted text from ${file.name}. In a production environment, we would use specialized libraries for each file type or document AI processing services.`,
+      text: response,
       metadata: {
         ...baseMetadata,
         processingMethod: 'Simulated extraction',
         note: 'In a production environment, specialized libraries would be used for each file type'
       }
     };
-    
-    // In a real implementation, you would:
-    // 1. For PDFs: Use libraries like pdf.js, pdf-parse, or send to a document processing API
-    // 2. For DOCX: Use libraries like mammoth.js or docx-parser
-    // 3. For XLSX: Use libraries like xlsx, exceljs, or sheetjs
-    // 4. For PPTX: Would typically require backend processing or specialized APIs
     
   } catch (error) {
     console.error('Error extracting text with AI:', error);

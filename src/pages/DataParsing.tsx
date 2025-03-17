@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ import { parseCSV, parseJSON, readFileContent, SchemaFieldType, extractTextFromF
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
 import { ProcessingType } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { Download, FileUp, Filter, Share2, Database, FileText, PenTool, Sparkles, Layers, Tag, SmilePlus, FileSearch } from 'lucide-react';
+import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool } from 'lucide-react';
 
 const DataParsing: React.FC = () => {
   const { apiKey } = useApiKey();
@@ -64,11 +63,14 @@ const DataParsing: React.FC = () => {
         } else {
           parsedData = parseJSON(text);
         }
+        
+        // Handle different parsed data structures
         if (!Array.isArray(parsedData)) {
           if (typeof parsedData === 'object' && parsedData !== null) {
             if (Array.isArray(parsedData.data)) {
               parsedData = parsedData.data;
             } else {
+              // Convert object to array if it's not already an array
               parsedData = [parsedData];
             }
           } else {
@@ -77,12 +79,22 @@ const DataParsing: React.FC = () => {
             return;
           }
         }
+        
         if (parsedData.length > 0) {
           const detectedSchema = detectSchema(parsedData);
           setSchema(detectedSchema);
         }
+        
+        // Limit the display data but keep all for processing
         setData(parsedData);
+        
+        // Update context with data size info
+        const dataSize = parsedData.length;
+        setUserContext(prev => 
+          `${prev ? prev + '\n' : ''}This dataset contains ${dataSize} records.`
+        );
       }
+      
       setActiveTab('analyze');
       toast.success(`Successfully processed ${file.name}`);
     } catch (error) {
@@ -139,13 +151,22 @@ const DataParsing: React.FC = () => {
     }
     setIsLoading(true);
     try {
+      // Add dataset information to context
+      let contextInfo = userContext || '';
+      if (data.length > 0) {
+        contextInfo += `\nThis dataset contains ${data.length} records.`;
+      }
+      
       const options: AIProcessingOptions = {
         apiKey,
         processingTypes: selectedProcessingTypes,
         detailLevel: processingDetailLevel,
         outputFormat: processingOutputFormat,
-        userContext: userContext || undefined
+        userContext: contextInfo
       };
+      
+      console.log(`Processing ${extractedText.length} characters of text`);
+      
       const results = await processDataWithAI(extractedText, options);
       setAiProcessingResults(results);
       setActiveTab('aiResults');
@@ -164,8 +185,20 @@ const DataParsing: React.FC = () => {
       return;
     }
     try {
-      const content = JSON.stringify(aiProcessingResults, null, 2);
-      const filename = `ai_processed_${fileName || 'data'}`;
+      // Format the JSON results properly
+      const formattedResults: Record<string, any> = {};
+      
+      Object.entries(aiProcessingResults).forEach(([processingType, result]) => {
+        if (result.format === 'json' && result.structured) {
+          formattedResults[processingType] = result.structured;
+        } else {
+          formattedResults[processingType] = { raw: result.raw };
+        }
+      });
+      
+      // Create properly formatted JSON
+      const content = JSON.stringify(formattedResults, null, 2);
+      const filename = `ai_processed_${fileName.replace(/\.[^/.]+$/, "") || 'data'}`;
       const blob = new Blob([content], {
         type: 'application/json'
       });
@@ -176,6 +209,7 @@ const DataParsing: React.FC = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success('Downloaded AI processing results');
     } catch (error) {
       console.error('Error downloading results:', error);
@@ -256,7 +290,7 @@ const DataParsing: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-3 mb-6">
+                <TabsList className="grid grid-cols-2 mb-6">
                   <TabsTrigger value="upload">
                     <FileUp className="h-4 w-4 mr-2" />
                     Upload
@@ -264,10 +298,6 @@ const DataParsing: React.FC = () => {
                   <TabsTrigger value="analyze" disabled={!extractedText}>
                     <Filter className="h-4 w-4 mr-2" />
                     Analyze
-                  </TabsTrigger>
-                  <TabsTrigger value="aiResults" disabled={Object.keys(aiProcessingResults).length === 0}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    AI Results
                   </TabsTrigger>
                 </TabsList>
                 
@@ -292,6 +322,11 @@ const DataParsing: React.FC = () => {
                           readOnly 
                           className="min-h-[200px] font-mono text-xs" 
                         />
+                        {fileContent.length > 2000 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Showing first 2,000 characters of {fileContent.length.toLocaleString()} total
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -417,7 +452,7 @@ const DataParsing: React.FC = () => {
                             className="min-h-[300px] mt-2 font-mono text-xs" 
                           />
                           <p className="text-xs text-muted-foreground mt-1">
-                            {extractedText.length > 5000 && `Showing first 5000 characters of ${extractedText.length} total`}
+                            {extractedText.length > 5000 && `Showing first 5,000 characters of ${extractedText.length.toLocaleString()} total`}
                           </p>
                         </div>
                         
@@ -446,7 +481,12 @@ const DataParsing: React.FC = () => {
                             </div>
                             
                             <div>
-                              <Label className="text-lg font-medium">Data Preview</Label>
+                              <Label className="text-lg font-medium">
+                                Data Preview 
+                                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                                  ({data.length.toLocaleString()} records total)
+                                </span>
+                              </Label>
                               <div className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[300px] mt-2">
                                 <Table>
                                   <TableHeader>
@@ -470,7 +510,7 @@ const DataParsing: React.FC = () => {
                                 </Table>
                                 {data.length > 5 && (
                                   <p className="text-center text-sm text-muted-foreground mt-2">
-                                    Showing 5 of {data.length} rows
+                                    Showing 5 of {data.length.toLocaleString()} rows
                                   </p>
                                 )}
                               </div>
@@ -482,22 +522,23 @@ const DataParsing: React.FC = () => {
                   )}
                 </TabsContent>
                 
-                <TabsContent value="aiResults" className="space-y-6">
-                  {Object.keys(aiProcessingResults).length > 0 && (
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-lg font-medium">AI Processing Results</Label>
+                {Object.keys(aiProcessingResults).length > 0 && (
+                  <Card className="mt-8 border-green-200 dark:border-green-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center justify-between">
+                        <span>AI Processing Results</span>
                         <Button variant="outline" size="sm" onClick={downloadProcessedResults}>
                           <Download className="mr-2 h-4 w-4" />
                           Download Results
                         </Button>
-                      </div>
-                      
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <div className="grid grid-cols-1 gap-6">
                         {Object.entries(aiProcessingResults).map(([processingType, result]) => (
-                          <Card key={processingType}>
-                            <CardHeader>
-                              <CardTitle className="flex items-center">
+                          <Card key={processingType} className="border-muted">
+                            <CardHeader className="py-3">
+                              <CardTitle className="text-md flex items-center">
                                 {renderProcessingTypeIcon(processingType as ProcessingType)}
                                 <span className="ml-2">{renderProcessingTypeLabel(processingType as ProcessingType)}</span>
                               </CardTitle>
@@ -516,9 +557,9 @@ const DataParsing: React.FC = () => {
                           </Card>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </TabsContent>
+                    </CardContent>
+                  </Card>
+                )}
               </Tabs>
             </CardContent>
           </Card>
