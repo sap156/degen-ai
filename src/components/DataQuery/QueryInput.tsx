@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { toast } from 'sonner';
-import { ProcessingMode, QueryResult } from '@/pages/DataQuery';
+import { ProcessingMode, QueryResult } from '@/types/dataQuery';
 import { processQueryWithAI } from '@/services/dataQueryService';
 import { Sparkles, Database, Loader2 } from 'lucide-react';
 
@@ -25,7 +25,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
 }) => {
   const { apiKey } = useApiKey();
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<ProcessingMode>('generate');
+  const [mode, setMode] = useState<ProcessingMode>(ProcessingMode.GENERATE);
 
   // Database connection is not available yet (will be implemented in future)
   const isDatabaseConnected = false;
@@ -44,11 +44,11 @@ const QueryInput: React.FC<QueryInputProps> = ({
       
       // Change success message based on mode and connection status
       if (!isDatabaseConnected) {
-        if (mode === 'generate') {
+        if (mode === ProcessingMode.GENERATE) {
           toast.success('SQL query generated successfully!');
-        } else if (mode === 'optimize') {
+        } else if (mode === ProcessingMode.OPTIMIZE) {
           toast.success('SQL query optimized successfully!');
-        } else if (mode === 'analyze') {
+        } else if (mode === ProcessingMode.ANALYZE) {
           toast.success('SQL query analyzed successfully!');
         } else {
           toast.success('Follow-up queries generated successfully!');
@@ -88,10 +88,10 @@ const QueryInput: React.FC<QueryInputProps> = ({
     if (isProcessing) return "Processing";
     
     switch (mode) {
-      case 'generate': return "Generate SQL";
-      case 'optimize': return "Optimize SQL";
-      case 'analyze': return "Analyze SQL";
-      case 'followup': return "Generate Follow-ups";
+      case ProcessingMode.GENERATE: return "Generate SQL";
+      case ProcessingMode.OPTIMIZE: return "Optimize SQL";
+      case ProcessingMode.ANALYZE: return "Analyze SQL";
+      case ProcessingMode.FOLLOWUP: return "Generate Follow-ups";
       default: return "Process Query";
     }
   };
@@ -134,10 +134,10 @@ const QueryInput: React.FC<QueryInputProps> = ({
                 <SelectValue placeholder="Select mode" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="generate">Generate SQL</SelectItem>
-                <SelectItem value="optimize">Optimize SQL</SelectItem>
-                <SelectItem value="analyze">Analyze SQL</SelectItem>
-                <SelectItem value="followup">Suggest Follow-ups</SelectItem>
+                <SelectItem value={ProcessingMode.GENERATE}>Generate SQL</SelectItem>
+                <SelectItem value={ProcessingMode.OPTIMIZE}>Optimize SQL</SelectItem>
+                <SelectItem value={ProcessingMode.ANALYZE}>Analyze SQL</SelectItem>
+                <SelectItem value={ProcessingMode.FOLLOWUP}>Suggest Follow-ups</SelectItem>
               </SelectContent>
             </Select>
           </div>

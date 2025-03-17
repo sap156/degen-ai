@@ -7,10 +7,17 @@ export interface QueryResult {
     rowCount?: number;
   };
   error?: string;
+  // Add missing properties used in components
+  sql?: string;
+  optimizedSql?: string;
+  analysis?: string;
+  followUpQueries?: string[];
+  results?: any[];
 }
 
 export enum ProcessingMode {
-  SQL = 'sql',
-  NATURAL_LANGUAGE = 'naturalLanguage',
-  PYTHON = 'python'
+  GENERATE = 'generate',
+  OPTIMIZE = 'optimize',
+  ANALYZE = 'analyze',
+  FOLLOWUP = 'followup'
 }

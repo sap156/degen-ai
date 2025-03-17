@@ -1,7 +1,7 @@
 
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
-import { ProcessingMode, QueryResult } from "@/pages/DataQuery";
+import { ProcessingMode, QueryResult } from "@/types/dataQuery";
 
 /**
  * Process a natural language query with AI to generate SQL, analyze, or optimize
@@ -43,7 +43,7 @@ export const processQueryWithAI = async (
       const result = JSON.parse(response) as QueryResult;
       
       // Make sure the original query is always included
-      if (mode === 'optimize' || mode === 'analyze' || mode === 'followup') {
+      if (mode === ProcessingMode.OPTIMIZE || mode === ProcessingMode.ANALYZE || mode === ProcessingMode.FOLLOWUP) {
         result.sql = query;
       }
       
@@ -54,8 +54,10 @@ export const processQueryWithAI = async (
       
       // If parsing fails, return a fallback result with the raw response as SQL
       return {
-        sql: mode === 'generate' ? response : query,
-        error: "Failed to parse response properly"
+        sql: mode === ProcessingMode.GENERATE ? response : query,
+        error: "Failed to parse response properly",
+        columns: [],
+        rows: []
       };
     }
   } catch (error) {
@@ -73,7 +75,7 @@ const getSystemPromptForMode = (mode: ProcessingMode, schema?: string): string =
     `\n\nNo schema information was provided. Make reasonable assumptions about table and column names.`;
   
   switch (mode) {
-    case 'generate':
+    case ProcessingMode.GENERATE:
       return `${basePrompt}
         
 Your task is to convert natural language queries into precise SQL statements.
@@ -90,7 +92,7 @@ Follow these rules:
 
 IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
 
-    case 'optimize':
+    case ProcessingMode.OPTIMIZE:
       return `${basePrompt}
         
 Your task is to optimize the SQL query provided by the user to make it more efficient and performant.
@@ -110,7 +112,7 @@ Follow these rules:
 
 IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
 
-    case 'analyze':
+    case ProcessingMode.ANALYZE:
       return `${basePrompt}
         
 Your task is to analyze the SQL query provided by the user and explain what it does.
@@ -129,7 +131,7 @@ Follow these rules:
 
 IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
 
-    case 'followup':
+    case ProcessingMode.FOLLOWUP:
       return `${basePrompt}
         
 Your task is to suggest follow-up queries based on the user's SQL query.
@@ -154,10 +156,10 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
 // Helper function to get the user prompt based on processing mode
 const getUserPromptForMode = (mode: ProcessingMode, query: string): string => {
   switch (mode) {
-    case 'generate':
+    case ProcessingMode.GENERATE:
       return `Generate SQL for this query: "${query}"`;
     
-    case 'optimize':
+    case ProcessingMode.OPTIMIZE:
       // Check if the input is likely SQL (contains SELECT, FROM, etc.) or a natural language query
       const isSqlQuery = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       
@@ -171,7 +173,7 @@ ${query}
         return `First generate SQL for this query: "${query}", then optimize it for better performance.`;
       }
       
-    case 'analyze':
+    case ProcessingMode.ANALYZE:
       // Check if the input is likely SQL or a natural language query
       const isLikelySql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       
@@ -185,7 +187,7 @@ ${query}
         return `First generate SQL for this query: "${query}", then analyze what the query does and how it works.`;
       }
       
-    case 'followup':
+    case ProcessingMode.FOLLOWUP:
       // Check if the input is likely SQL or a natural language query
       const isSql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       

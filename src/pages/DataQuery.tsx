@@ -24,5 +24,8 @@ const DataQuery = () => {
   );
 };
 
-export { DataQuery, ProcessingMode, QueryResult };
+export { DataQuery };
+export type { QueryResult }; // Use 'export type' for re-exporting types
+export { ProcessingMode }; // Enum can be exported normally
+
 export default DataQuery;

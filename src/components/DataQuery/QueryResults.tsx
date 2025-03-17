@@ -5,17 +5,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Copy, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { QueryResult } from '@/pages/DataQuery';
+import { QueryResult } from '@/types/dataQuery';
 
 interface QueryResultsProps {
   queryResult: QueryResult;
 }
 
 const QueryResults: React.FC<QueryResultsProps> = ({ queryResult }) => {
-  const { results } = queryResult;
+  // Use optional chaining to safely access results property
+  const results = queryResult.results || [];
   
   // If no results are available
-  if (!results || results.length === 0) {
+  if (results.length === 0) {
     return (
       <Card>
         <CardHeader>
