@@ -12,6 +12,7 @@ export interface DatabaseConnectionConfig {
   schema?: string;
   useConnectionString?: boolean;
   ssl?: boolean;
+  id?: string; // Unique identifier for the connection
 }
 
 export interface DatabaseTable {
@@ -41,6 +42,15 @@ export interface QueryResult {
   error?: string;
   message?: string;
 }
+
+// Storage for multiple database connections
+let databaseConnections: DatabaseConnectionConfig[] = [];
+let activeConnectionId: string | null = null;
+
+// Generate a unique ID for each database connection
+const generateConnectionId = (): string => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
 
 // Real database connection handling
 export const connectToDatabase = async (
@@ -74,8 +84,25 @@ export const connectToDatabase = async (
     }
     
     if (connectionSuccessful) {
+      // Generate a unique ID for this connection
+      const connectionId = generateConnectionId();
+      
       // Store connection info for future use
-      localStorage.setItem('database-connection', JSON.stringify(config));
+      const connectionConfig = {
+        ...config,
+        id: connectionId
+      };
+      
+      // Add to the connections array
+      databaseConnections.push(connectionConfig);
+      
+      // Set as active connection
+      activeConnectionId = connectionId;
+      
+      // Store all connections in localStorage
+      localStorage.setItem('database-connections', JSON.stringify(databaseConnections));
+      localStorage.setItem('active-connection-id', connectionId);
+      
       return true;
     } else {
       throw new Error("Failed to establish database connection");
@@ -156,17 +183,82 @@ const testSnowflakeConnection = async (config: DatabaseConnectionConfig): Promis
   }
 };
 
+// Load connections from localStorage on app initialization
+export const loadSavedConnections = (): void => {
+  try {
+    const connectionsJson = localStorage.getItem('database-connections');
+    const activeId = localStorage.getItem('active-connection-id');
+    
+    if (connectionsJson) {
+      databaseConnections = JSON.parse(connectionsJson);
+    }
+    
+    if (activeId) {
+      activeConnectionId = activeId;
+    }
+  } catch (error) {
+    console.error("Error loading saved connections:", error);
+    databaseConnections = [];
+    activeConnectionId = null;
+  }
+};
+
+// Initialize connections on module load
+loadSavedConnections();
+
 export const isDatabaseConnected = (): boolean => {
-  return localStorage.getItem('database-connection') !== null;
+  return databaseConnections.length > 0 && activeConnectionId !== null;
 };
 
 export const getConnectionConfig = (): DatabaseConnectionConfig | null => {
-  const config = localStorage.getItem('database-connection');
-  return config ? JSON.parse(config) : null;
+  if (!activeConnectionId) return null;
+  
+  const activeConnection = databaseConnections.find(conn => conn.id === activeConnectionId);
+  return activeConnection || null;
 };
 
-export const disconnectDatabase = (): void => {
-  localStorage.removeItem('database-connection');
+export const getAllConnections = (): DatabaseConnectionConfig[] => {
+  return databaseConnections;
+};
+
+export const switchConnection = (connectionId: string): boolean => {
+  const connectionExists = databaseConnections.some(conn => conn.id === connectionId);
+  
+  if (connectionExists) {
+    activeConnectionId = connectionId;
+    localStorage.setItem('active-connection-id', connectionId);
+    toast.success('Switched to different database connection');
+    return true;
+  }
+  
+  return false;
+};
+
+export const disconnectDatabase = (connectionId?: string): void => {
+  if (connectionId) {
+    // Remove specific connection
+    databaseConnections = databaseConnections.filter(conn => conn.id !== connectionId);
+    
+    // If we removed the active connection, set a new active connection or null
+    if (activeConnectionId === connectionId) {
+      activeConnectionId = databaseConnections.length > 0 ? databaseConnections[0].id : null;
+    }
+  } else {
+    // Remove active connection only
+    if (activeConnectionId) {
+      databaseConnections = databaseConnections.filter(conn => conn.id !== activeConnectionId);
+      activeConnectionId = databaseConnections.length > 0 ? databaseConnections[0].id : null;
+    }
+  }
+  
+  // Update localStorage
+  localStorage.setItem('database-connections', JSON.stringify(databaseConnections));
+  if (activeConnectionId) {
+    localStorage.setItem('active-connection-id', activeConnectionId);
+  } else {
+    localStorage.removeItem('active-connection-id');
+  }
+  
   toast.success('Database disconnected');
 };
 

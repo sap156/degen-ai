@@ -195,7 +195,7 @@ const DatabaseConnectionDialog: React.FC<DatabaseConnectionDialogProps> = ({
                 <Link2 className="h-4 w-4 text-muted-foreground" />
                 <Input
                   id="connection-string"
-                  type="password"
+                  type="text"
                   placeholder={connectionType === 'mongodb' ? 
                     'mongodb://username:password@host:port/database' : 
                     connectionType === 'postgresql' ? 
@@ -252,7 +252,7 @@ const DatabaseConnectionDialog: React.FC<DatabaseConnectionDialogProps> = ({
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
-                    type="password"
+                    type="text"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
