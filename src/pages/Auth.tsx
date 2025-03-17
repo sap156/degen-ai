@@ -8,10 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { AtSign, Key, User as UserIcon } from 'lucide-react';
+import { AtSign, Github, Key, User as UserIcon } from 'lucide-react';
 
 const Auth = () => {
-  const { user, signIn, signUp, isLoading } = useAuth();
+  const { user, signIn, signUp, signInWithGithub, isLoading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('login');
   
@@ -28,6 +28,7 @@ const Auth = () => {
   // Loading states
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
 
   // If user is already authenticated, redirect to home page
   if (user && !isLoading) {
@@ -95,6 +96,20 @@ const Auth = () => {
     }
   };
 
+  const handleGithubLogin = async () => {
+    setIsGithubLoading(true);
+    try {
+      const { error } = await signInWithGithub();
+      if (error) {
+        toast.error(error.message || 'Failed to sign in with GitHub');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred during GitHub sign in');
+    } finally {
+      setIsGithubLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto flex items-center justify-center min-h-[80vh]">
       <Card className="w-full max-w-md">
@@ -144,6 +159,28 @@ const Auth = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoginLoading}>
                   {isLoginLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleGithubLogin} 
+                  disabled={isGithubLoading}
+                >
+                  <Github className="mr-2 h-4 w-4" />
+                  {isGithubLoading ? 'Connecting...' : 'GitHub'}
                 </Button>
               </form>
             </TabsContent>
@@ -205,6 +242,28 @@ const Auth = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={isSignupLoading}>
                   {isSignupLoading ? 'Creating Account...' : 'Create Account'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleGithubLogin} 
+                  disabled={isGithubLoading}
+                >
+                  <Github className="mr-2 h-4 w-4" />
+                  {isGithubLoading ? 'Connecting...' : 'GitHub'}
                 </Button>
               </form>
             </TabsContent>
