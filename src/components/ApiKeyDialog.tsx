@@ -7,7 +7,6 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 import { KeyRound, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import ModelSelector from '@/components/ModelSelector';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface ApiKeyDialogProps {
   open: boolean;
@@ -15,63 +14,25 @@ interface ApiKeyDialogProps {
 }
 
 const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
-  const { apiKey, setApiKey, clearApiKey, isKeySet, isLoading } = useApiKey();
-  const { user } = useAuth();
+  const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
   const [inputKey, setInputKey] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    if (!user) {
-      toast.error('You must be logged in to save an API key');
-      return;
-    }
-    
+  const handleSave = () => {
     if (inputKey.trim()) {
-      setIsSaving(true);
-      try {
-        await setApiKey(inputKey.trim());
-        setInputKey('');
-        onOpenChange(false);
-      } catch (error) {
-        console.error('Error saving API key:', error);
-        toast.error('Failed to save API key');
-      } finally {
-        setIsSaving(false);
-      }
+      setApiKey(inputKey.trim());
+      toast.success('API key saved successfully');
+      setInputKey('');
+      onOpenChange(false);
     } else {
       toast.error('Please enter a valid API key');
     }
   };
 
-  const handleRemove = async () => {
-    if (!user) {
-      toast.error('You must be logged in to remove your API key');
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      await clearApiKey();
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Error removing API key:', error);
-      toast.error('Failed to remove API key');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleRemove = () => {
+    clearApiKey();
+    toast.success('API key removed');
+    onOpenChange(false);
   };
-
-  if (isLoading) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl">
-          <div className="flex items-center justify-center py-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,13 +61,8 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
                 size="sm" 
                 onClick={handleRemove} 
                 className="h-7 px-2 text-xs gap-1"
-                disabled={isSaving}
               >
-                {isSaving ? (
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
-                ) : (
-                  <X className="h-3.5 w-3.5" />
-                )}
+                <X className="h-3.5 w-3.5" />
                 Remove
               </Button>
             </div>
@@ -124,7 +80,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
           <ModelSelector />
           
           <div className="text-xs text-muted-foreground">
-            <p>Your API key is stored securely in our database.</p>
+            <p>Your API key is stored locally in your browser and never sent to our servers.</p>
             <p className="mt-1">
               Don't have an API key?{' '}
               <a 
@@ -141,16 +97,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
         
         {!isKeySet && (
           <DialogFooter className="sm:justify-end">
-            <Button 
-              onClick={handleSave} 
-              className="w-full sm:w-auto"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
-              ) : null}
-              Save API Key
-            </Button>
+            <Button onClick={handleSave} className="w-full sm:w-auto">Save API Key</Button>
           </DialogFooter>
         )}
       </DialogContent>

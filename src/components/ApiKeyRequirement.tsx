@@ -5,13 +5,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { KeyRound, AlertTriangle } from 'lucide-react';
 import ApiKeyDialog from './ApiKeyDialog';
-import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
 
 interface ApiKeyRequirementProps {
   title?: string;
   description?: string;
-  children?: React.ReactNode;
+  children?: React.ReactNode; // Add children prop
 }
 
 const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
@@ -19,29 +17,11 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
   description = "To use AI-powered features, please set up your OpenAI API key.",
   children
 }) => {
-  const { isKeySet, isLoading: isKeyLoading } = useApiKey();
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { isKeySet } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   
-  // If authentication is loading, show loading state
-  if (isAuthLoading || isKeyLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <span className="ml-2">Loading...</span>
-      </div>
-    );
-  }
+  if (isKeySet) return <>{children}</>; // Return children directly if key is set
   
-  // If user is not authenticated, redirect to auth page
-  if (!user) {
-    return <Navigate to="/auth" />;
-  }
-  
-  // If API key is set, render children
-  if (isKeySet) return <>{children}</>; 
-  
-  // If API key is not set, show warning card
   return (
     <>
       <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/20 mb-6">
