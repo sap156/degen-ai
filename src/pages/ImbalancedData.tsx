@@ -10,6 +10,7 @@ import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
 import DataBalancingControls from '@/components/DataBalancingControls';
+import SyntheticDataGenerator from '@/components/SyntheticDataGenerator';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
@@ -64,6 +65,13 @@ const ImbalancedData = () => {
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [featureEngineering, setFeatureEngineering] = useState<any | null>(null);
+  const [modelOptions, setModelOptions] = useState({
+    syntheticDataPreferences: {
+      enabled: true,
+      volume: 100,
+      diversity: 'medium' as 'low' | 'medium' | 'high'
+    }
+  });
   
   const { apiKey } = useApiKey();
 
@@ -236,6 +244,20 @@ const ImbalancedData = () => {
       toast.error('Failed to get AI recommendations');
     } finally {
       setIsLoadingRecommendations(false);
+    }
+  };
+
+  const handleSyntheticDataGenerated = (syntheticData: any[]) => {
+    if (syntheticData.length > 0 && originalDataset && datasetPreferences?.targetColumn) {
+      setBalancedParsedData(syntheticData);
+      
+      const updatedDataset = processDataWithTargetColumn(
+        [...parsedData, ...syntheticData], 
+        datasetPreferences.targetColumn
+      );
+      setBalancedDataset(updatedDataset);
+      
+      toast.success(`Added ${syntheticData.length} synthetic samples to the dataset`);
     }
   };
 
@@ -552,6 +574,17 @@ const ImbalancedData = () => {
               aiRecommendationsAvailable={!!aiRecommendations}
             />
           )}
+          
+          {originalDataset && datasetPreferences && (
+            <SyntheticDataGenerator
+              preferences={datasetPreferences}
+              modelOptions={modelOptions}
+              originalData={parsedData}
+              apiKeyAvailable={!!apiKey}
+              onSyntheticDataGenerated={handleSyntheticDataGenerated}
+              originalDataset={originalDataset}
+            />
+          )}
         </div>
 
         <div className="lg:col-span-2 space-y-6">
@@ -791,3 +824,4 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
+
