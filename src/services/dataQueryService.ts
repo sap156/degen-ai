@@ -19,11 +19,11 @@ export const processQueryWithAI = async (
   // Create system prompt based on the processing mode
   const systemPrompt = getSystemPromptForMode(mode, schema);
   
-  // Create an example result for demonstration
-  const exampleResults = generateMockResults(query);
+  // We're not showing mock results anymore when no database is connected
+  // Just leave the results field empty
   
   // Create the user prompt with the query and explanation of what we want
-  const userPrompt = getUserPromptForMode(mode, query, exampleResults);
+  const userPrompt = getUserPromptForMode(mode, query);
   
   const messages: OpenAiMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -45,10 +45,8 @@ export const processQueryWithAI = async (
     try {
       const result = JSON.parse(response) as QueryResult;
       
-      // Include mock results for demonstration (in a real app, these would come from the database)
-      if (!result.results) {
-        result.results = exampleResults;
-      }
+      // We no longer include mock results since there's no database connection
+      // This will be implemented later when actual database connection is added
       
       return result;
     } catch (e) {
@@ -58,7 +56,6 @@ export const processQueryWithAI = async (
       // If parsing fails, return a fallback result with the raw response as SQL
       return {
         sql: response,
-        results: exampleResults,
         error: "Failed to parse response properly"
       };
     }
@@ -115,28 +112,28 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
     case 'analyze':
       return `${basePrompt}
         
-Your task is to analyze SQL query results and provide meaningful insights.
+Your task is to analyze what this SQL query would return and provide insights.
 ${schemaContext}
 
 Follow these rules:
-1. Examine the query and sample results to identify key patterns and insights
-2. Explain what the data reveals, highlighting noteworthy findings
+1. Examine the query to identify what it's trying to achieve
+2. Explain what kind of data it would retrieve
 3. Format analysis in a clear, human-readable way with bullet points
 4. Return your response as a JSON object with the following fields:
    - sql: The SQL query being analyzed
-   - analysis: HTML-formatted analysis with key insights, bullet points, and explanations
-   - keyMetrics: Important metrics or statistics from the results
+   - analysis: HTML-formatted analysis explaining what the query does
+   - keyMetrics: Important metrics or statistics this query would retrieve
 
 IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
 
     case 'followup':
       return `${basePrompt}
         
-Your task is to suggest follow-up queries based on an initial query and its results.
+Your task is to suggest follow-up queries based on an initial query.
 ${schemaContext}
 
 Follow these rules:
-1. Analyze the initial query and results to identify logical next questions
+1. Analyze the initial query to identify logical next questions
 2. Suggest 3-5 follow-up queries that would provide deeper insights
 3. Make sure suggestions are relevant to the business context of the original query
 4. Return your response as a JSON object with the following fields:
@@ -152,9 +149,7 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
 };
 
 // Helper function to get the user prompt based on processing mode
-const getUserPromptForMode = (mode: ProcessingMode, query: string, exampleResults: any[]): string => {
-  const resultsJson = JSON.stringify(exampleResults, null, 2);
-  
+const getUserPromptForMode = (mode: ProcessingMode, query: string): string => {
   switch (mode) {
     case 'generate':
       return `Generate SQL for this query: "${query}"`;
@@ -185,9 +180,8 @@ LIMIT 10;
 \`\`\``;
       
     case 'analyze':
-      return `Analyze this SQL query and its results:
+      return `Analyze this SQL query:
       
-SQL Query:
 \`\`\`sql
 SELECT 
   category_name,
@@ -204,13 +198,10 @@ GROUP BY
   category_name
 ORDER BY 
   product_count DESC;
-\`\`\`
-
-Sample Results:
-${resultsJson}`;
+\`\`\``;
       
     case 'followup':
-      return `Based on this query and results, suggest meaningful follow-up questions for deeper analysis:
+      return `Based on this query, suggest meaningful follow-up questions for deeper analysis:
       
 Original Question: "${query}"
 
@@ -231,59 +222,11 @@ GROUP BY
 ORDER BY 
   total_revenue DESC
 LIMIT 10;
-\`\`\`
-
-Results:
-${resultsJson}`;
+\`\`\``;
       
     default:
       return query;
   }
 };
 
-// Helper function to generate mock results for demonstration
-const generateMockResults = (query: string): any[] => {
-  // Generate different mock data based on the query content
-  if (query.toLowerCase().includes('customer') && query.toLowerCase().includes('revenue')) {
-    return [
-      { customer_name: "Acme Corporation", order_count: 24, total_revenue: 52430.50 },
-      { customer_name: "Global Industries", order_count: 18, total_revenue: 38750.25 },
-      { customer_name: "Tech Solutions Inc", order_count: 15, total_revenue: 32180.10 },
-      { customer_name: "Bright Future LLC", order_count: 12, total_revenue: 28640.75 },
-      { customer_name: "Modern Enterprises", order_count: 10, total_revenue: 25320.30 },
-      { customer_name: "Prime Logistics", order_count: 9, total_revenue: 19850.60 },
-      { customer_name: "Summit Partners", order_count: 8, total_revenue: 18750.90 },
-      { customer_name: "Central Services", order_count: 7, total_revenue: 16430.25 },
-      { customer_name: "Urban Solutions", order_count: 6, total_revenue: 14380.50 },
-      { customer_name: "Star Systems", order_count: 5, total_revenue: 12750.75 }
-    ];
-  } else if (query.toLowerCase().includes('product') && query.toLowerCase().includes('inventory')) {
-    return [
-      { product_name: "Wireless Headphones", category: "Electronics", units_in_stock: 8, reorder_level: 10 },
-      { product_name: "Smart Watch Model X", category: "Electronics", units_in_stock: 5, reorder_level: 10 },
-      { product_name: "Office Chair Deluxe", category: "Furniture", units_in_stock: 12, reorder_level: 15 },
-      { product_name: "Organic Green Tea", category: "Beverages", units_in_stock: 3, reorder_level: 25 },
-      { product_name: "Ultra HD Monitor", category: "Electronics", units_in_stock: 7, reorder_level: 10 },
-      { product_name: "Professional Blender", category: "Appliances", units_in_stock: 18, reorder_level: 20 },
-      { product_name: "Wireless Keyboard", category: "Electronics", units_in_stock: 9, reorder_level: 15 },
-      { product_name: "Ergonomic Mouse", category: "Electronics", units_in_stock: 14, reorder_level: 15 }
-    ];
-  } else if (query.toLowerCase().includes('sales') && query.toLowerCase().includes('region')) {
-    return [
-      { region: "North", current_year_sales: 1245300, previous_year_sales: 1150600, growth_percentage: 8.23 },
-      { region: "South", current_year_sales: 980750, previous_year_sales: 950200, growth_percentage: 3.21 },
-      { region: "East", current_year_sales: 1520400, previous_year_sales: 1380900, growth_percentage: 10.10 },
-      { region: "West", current_year_sales: 1105000, previous_year_sales: 1205300, growth_percentage: -8.32 },
-      { region: "Central", current_year_sales: 875600, previous_year_sales: 840100, growth_percentage: 4.23 }
-    ];
-  } else {
-    // Default mockup data
-    return [
-      { id: 1, name: "Example 1", value: 100, date: "2023-04-15" },
-      { id: 2, name: "Example 2", value: 200, date: "2023-04-16" },
-      { id: 3, name: "Example 3", value: 150, date: "2023-04-17" },
-      { id: 4, name: "Example 4", value: 300, date: "2023-04-18" },
-      { id: 5, name: "Example 5", value: 250, date: "2023-04-19" }
-    ];
-  }
-};
+// We no longer need the generateMockResults function since we're not showing mock results

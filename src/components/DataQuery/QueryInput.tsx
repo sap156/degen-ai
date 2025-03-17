@@ -27,6 +27,9 @@ const QueryInput: React.FC<QueryInputProps> = ({
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ProcessingMode>('generate');
 
+  // Database connection is not available yet (will be implemented in future)
+  const isDatabaseConnected = false;
+
   const handleSubmit = async () => {
     if (!query.trim()) {
       toast.error('Please enter a query');
@@ -38,7 +41,21 @@ const QueryInput: React.FC<QueryInputProps> = ({
     try {
       const result = await processQueryWithAI(apiKey, query, mode, schema);
       onQueryProcessed(result);
-      toast.success('Query processed successfully!');
+      
+      // Change success message based on mode and connection status
+      if (!isDatabaseConnected) {
+        if (mode === 'generate') {
+          toast.success('SQL query generated successfully!');
+        } else if (mode === 'optimize') {
+          toast.success('SQL query optimized successfully!');
+        } else if (mode === 'analyze') {
+          toast.success('SQL query analyzed successfully!');
+        } else {
+          toast.success('Follow-up queries generated successfully!');
+        }
+      } else {
+        toast.success('Query processed and executed successfully!');
+      }
     } catch (error) {
       console.error('Error processing query:', error);
       toast.error(`Failed to process query: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -57,12 +74,34 @@ const QueryInput: React.FC<QueryInputProps> = ({
     "Show sales by region compared to last year"
   ];
 
+  // Adjust the card title based on database connection status
+  const cardTitle = isDatabaseConnected ? 
+    "SQL Query Generator & Executor" : 
+    "SQL Query Generator";
+
+  const cardDescription = isDatabaseConnected ? 
+    "Enter your question in natural language, and we'll convert it to SQL and execute it" : 
+    "Enter your question in natural language, and we'll convert it to SQL";
+
+  // Get button text based on mode
+  const getButtonText = () => {
+    if (isProcessing) return "Processing";
+    
+    switch (mode) {
+      case 'generate': return "Generate SQL";
+      case 'optimize': return "Optimize SQL";
+      case 'analyze': return "Analyze SQL";
+      case 'followup': return "Generate Follow-ups";
+      default: return "Process Query";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>SQL Query Generator</CardTitle>
+        <CardTitle>{cardTitle}</CardTitle>
         <CardDescription>
-          Enter your question in natural language, and we'll convert it to SQL
+          {cardDescription}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -97,7 +136,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
               <SelectContent>
                 <SelectItem value="generate">Generate SQL</SelectItem>
                 <SelectItem value="optimize">Optimize SQL</SelectItem>
-                <SelectItem value="analyze">Analyze Results</SelectItem>
+                <SelectItem value="analyze">Analyze SQL</SelectItem>
                 <SelectItem value="followup">Suggest Follow-ups</SelectItem>
               </SelectContent>
             </Select>
@@ -115,7 +154,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
                 </>
               ) : (
                 <>
-                  <Sparkles className="mr-2 h-4 w-4" /> Generate SQL
+                  <Sparkles className="mr-2 h-4 w-4" /> {getButtonText()}
                 </>
               )}
             </Button>

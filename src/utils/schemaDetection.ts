@@ -281,3 +281,34 @@ export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => 
   
   return schema;
 };
+
+/**
+ * Convert schema object to SQL CREATE TABLE statement
+ * @param schema Schema object with field types
+ * @param tableName Name to use for the table
+ * @returns SQL CREATE TABLE statement
+ */
+export const convertSchemaToSql = (schema: Record<string, SchemaFieldType>, tableName: string): string => {
+  if (!schema || Object.keys(schema).length === 0) {
+    return '';
+  }
+  
+  // Generate column definitions
+  const columnDefs = Object.entries(schema).map(([column, type]) => {
+    // Check if column is numeric and make a proper name
+    const columnName = /^\d+$/.test(column) 
+      ? `column_${column}` 
+      : column.replace(/[^a-zA-Z0-9_]/g, '_');
+    
+    // Map field type to SQL type
+    let sqlType = 'TEXT';
+    if (type === 'integer') sqlType = 'INTEGER';
+    if (type === 'float') sqlType = 'REAL';
+    if (type === 'boolean') sqlType = 'BOOLEAN';
+    if (type === 'date') sqlType = 'DATETIME';
+    
+    return `  ${columnName} ${sqlType}`;
+  }).join(',\n');
+  
+  return `CREATE TABLE ${tableName} (\n${columnDefs}\n);`;
+};

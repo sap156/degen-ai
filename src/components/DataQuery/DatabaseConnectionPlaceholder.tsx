@@ -27,7 +27,7 @@ const DatabaseConnectionPlaceholder: React.FC = () => {
           <Lock className="h-10 w-10 text-muted-foreground mb-2" />
           <h3 className="text-lg font-medium">Direct Database Access</h3>
           <p className="text-sm text-muted-foreground text-center mt-1 mb-4">
-            Soon you'll be able to connect directly to your database to navigate and execute queries.
+            Soon you'll be able to connect directly to your database to navigate, execute queries, and view real results.
           </p>
           
           <div className="w-full max-w-sm opacity-70 mb-4">
@@ -64,6 +64,7 @@ const DatabaseConnectionPlaceholder: React.FC = () => {
                   <p className="max-w-xs text-xs">
                     In an upcoming release, you'll be able to connect to PostgreSQL, 
                     MySQL, SQL Server, and SQLite databases to execute queries and explore schemas directly.
+                    This will enable viewing actual query results, analysis, and follow-up suggestions based on your real data.
                   </p>
                 </TooltipContent>
               </Tooltip>

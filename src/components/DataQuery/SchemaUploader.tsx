@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, Check, X, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { generateSchema } from '@/utils/schemaDetection';
+import { generateSchema, convertSchemaToSql } from '@/utils/schemaDetection';
 import { parseCSV, parseJSON } from '@/utils/dataParsing';
 import {
   Popover,
@@ -61,27 +60,11 @@ const SchemaUploader: React.FC<SchemaUploaderProps> = ({ schema, setSchema }) =>
           // Generate schema from data
           const detectedSchema = generateSchema(dataArray);
           
-          // Convert to SQL-like schema format
-          const schemaStr = Object.entries(detectedSchema)
-            .map(([table, fields]) => {
-              // Detect table name from filename or use "main_table"
-              const tableName = file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_') || 'main_table';
-              
-              return `CREATE TABLE ${tableName} (\n  ${
-                Object.entries(fields)
-                  .map(([field, type]) => {
-                    let sqlType = 'TEXT';
-                    if (type === 'integer') sqlType = 'INTEGER';
-                    if (type === 'float') sqlType = 'REAL';
-                    if (type === 'boolean') sqlType = 'BOOLEAN';
-                    if (type === 'date') sqlType = 'DATETIME';
-                    
-                    return `${field} ${sqlType}`;
-                  })
-                  .join(',\n  ')
-              }\n);`;
-            })
-            .join('\n\n');
+          // Get table name from filename or use "main_table"
+          const tableName = file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_') || 'main_table';
+          
+          // Convert to SQL schema format using the new utility function
+          const schemaStr = convertSchemaToSql(detectedSchema, tableName);
           
           setSchema(schemaStr);
           toast.success(`Schema detected from "${file.name}" data`);
