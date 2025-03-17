@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { toast } from 'sonner';
 import { ProcessingMode, QueryResult } from '@/pages/DataQuery';
 import { processQueryWithAI } from '@/services/dataQueryService';
 import { Sparkles, Database, Loader2 } from 'lucide-react';
+import { isDatabaseConnected } from '@/services/databaseService';
 
 interface QueryInputProps {
   schema: string;
@@ -27,8 +27,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ProcessingMode>('generate');
 
-  // Database connection is not available yet (will be implemented in future)
-  const isDatabaseConnected = false;
+  const isDatabaseConnected = isDatabaseConnected();
 
   const handleSubmit = async () => {
     if (!query.trim()) {
@@ -42,7 +41,6 @@ const QueryInput: React.FC<QueryInputProps> = ({
       const result = await processQueryWithAI(apiKey, query, mode, schema);
       onQueryProcessed(result);
       
-      // Change success message based on mode and connection status
       if (!isDatabaseConnected) {
         if (mode === 'generate') {
           toast.success('SQL query generated successfully!');
@@ -74,7 +72,6 @@ const QueryInput: React.FC<QueryInputProps> = ({
     "Show sales by region compared to last year"
   ];
 
-  // Adjust the card title based on database connection status
   const cardTitle = isDatabaseConnected ? 
     "SQL Query Generator & Executor" : 
     "SQL Query Generator";
@@ -83,7 +80,6 @@ const QueryInput: React.FC<QueryInputProps> = ({
     "Enter your question in natural language, and we'll convert it to SQL and execute it" : 
     "Enter your question in natural language, and we'll convert it to SQL";
 
-  // Get button text based on mode
   const getButtonText = () => {
     if (isProcessing) return "Processing";
     

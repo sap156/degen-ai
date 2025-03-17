@@ -9,7 +9,7 @@ import QueryResults from '@/components/DataQuery/QueryResults';
 import DatabaseExplorer from '@/components/DataQuery/DatabaseExplorer';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import { isDatabaseConnected } from '@/services/databaseService';
+import { isDatabaseConnected as checkDatabaseConnected } from '@/services/databaseService';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -30,14 +30,14 @@ const DataQuery = () => {
   const [activeTab, setActiveTab] = useState('query');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Check if database is connected
-  const isDatabaseConnected = isDatabaseConnected();
+  // Fix: Declare and initialize the variable before using it
+  const isConnected = checkDatabaseConnected();
 
   // When a successful query is processed, switch to results tab if database is connected
   const handleQuerySuccess = (result: QueryResult) => {
     setQueryResult(result);
     // Only switch to results tab if the database is connected
-    if (isDatabaseConnected) {
+    if (isConnected) {
       setActiveTab('results');
     }
     setIsProcessing(false);
@@ -78,7 +78,7 @@ const DataQuery = () => {
           </div>
 
           <div className="md:col-span-2 space-y-6">
-            {isDatabaseConnected ? (
+            {isConnected ? (
               // Only show tabs if database is connected
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
