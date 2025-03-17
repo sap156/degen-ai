@@ -1,419 +1,272 @@
-import { analyzePiiWithAI, generateMaskedDataWithAI } from "./openAiService";
 
-export interface PiiData {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber: string;
-  ssn: string;
-  address: string;
-  creditCard: string;
-  dob: string;
-  [key: string]: string; // Allow for additional dynamic fields
-}
+import { useSupabase } from '@/hooks/useSupabase';
+import { PiiData, PiiMaskingOptions, MaskingMethod } from '@/types/piiHandling';
 
-export type PiiDataMasked = {
-  [K in keyof PiiData]: string;
-};
+// Function to detect PII in a given dataset
+export const detectPiiInData = async (
+  data: Record<string, any>[], 
+  apiKey: string | null
+): Promise<Record<string, string[]>> => {
+  if (!apiKey) {
+    throw new Error('OpenAI API key is required to detect PII');
+  }
 
-export type MaskingOptions = {
-  [K in keyof Omit<PiiData, 'id'>]: boolean;
-};
+  if (!data || data.length === 0) {
+    throw new Error('No data provided for PII detection');
+  }
 
-export interface FieldMaskingConfig {
-  enabled: boolean;
-}
+  // Sample data to avoid token limits if necessary
+  const sampleSize = Math.min(data.length, 10);
+  const sampleData = data.slice(0, sampleSize);
+  
+  const systemPrompt = `You are a data privacy expert specializing in identifying Personally Identifiable Information (PII). 
+  Analyze the provided dataset and identify all fields that contain PII. 
+  Categorize them by PII type (e.g., name, email, phone, address, SSN, etc.).
+  Return only a JSON object with column names as keys and an array of detected PII types as values.`;
 
-export interface PerFieldMaskingOptions {
-  [fieldName: string]: FieldMaskingConfig;
-}
+  const userPrompt = `Analyze this dataset for PII:
+  ${JSON.stringify(sampleData, null, 2)}
+  
+  Identify which columns contain PII and categorize them by PII type.
+  Return a JSON object in this format:
+  {
+    "column_name": ["pii_type1", "pii_type2"],
+    ...
+  }
+  
+  Only include columns that actually contain PII. Be thorough and consider subtle forms of PII.`;
 
-export interface AiMaskingOptions {
-  aiPrompt?: string;
-  preserveFormat?: boolean;
-}
-
-export type MaskingTechnique = 
-  | 'character-masking'
-  | 'truncation'
-  | 'tokenization'
-  | 'encryption'
-  | 'redaction'
-  | 'synthetic-replacement';
-
-export type EncryptionMethod = 
-  | 'aes-256'
-  | 'rsa'
-  | 'sha-256'
-  | 'md5'
-  | 'base64'
-  | 'ai-recommended';
-
-export interface PiiAnalysisResult {
-  identifiedPii: string[];
-  suggestions: string;
-}
-
-// Generate sample PII data for demonstration
-export const generateSamplePiiData = (count: number = 10): PiiData[] => {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `user-${i + 1}`,
-    firstName: ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily'][Math.floor(Math.random() * 6)],
-    lastName: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Davis'][Math.floor(Math.random() * 6)],
-    email: `user${i + 1}@example.com`,
-    phoneNumber: `(${Math.floor(Math.random() * 900) + 100})-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-    ssn: `${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`,
-    address: `${Math.floor(Math.random() * 9000) + 1000} Main St, Anytown, ST ${Math.floor(Math.random() * 90000) + 10000}`,
-    creditCard: `${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
-    dob: `${Math.floor(Math.random() * 12) + 1}/${Math.floor(Math.random() * 28) + 1}/${Math.floor(Math.random() * 40) + 1960}`,
-  }));
-};
-
-// Enhanced masking pattern cache to ensure consistency
-const maskingPatternCache: Record<string, Record<string, (value: string) => string>> = {};
-
-// Standard masking functions for fallback when AI is not available
-const standardMaskingFunctions = {
-  firstName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
-  lastName: (value: string) => value.charAt(0) + '*'.repeat(value.length - 1),
-  email: (value: string) => {
-    const [name, domain] = value.split('@');
-    return `${name.charAt(0)}${'*'.repeat(name.length - 1)}@${domain}`;
-  },
-  phoneNumber: (value: string) => {
-    const lastFour = value.slice(-4);
-    return `***-***-${lastFour}`;
-  },
-  ssn: () => '***-**-****',
-  address: (value: string) => {
-    const parts = value.split(' ');
-    const number = parts[0];
-    return `${number} ${'*'.repeat(value.length - number.length - 1)}`;
-  },
-  creditCard: (value: string) => {
-    const lastFour = value.slice(-4);
-    return `****-****-****-${lastFour}`;
-  },
-  dob: (value: string) => {
-    // Handle different date formats
-    if (!value) return '**/**/****';
+  try {
+    const { processWithOpenAI } = useSupabase();
     
-    const parts = value.split(/[\/\-]/);
-    if (parts.length < 3) return '*'.repeat(value.length);
-    
-    return `**/${parts[1]}/${parts[2].slice(-2)}`;
+    const response = await processWithOpenAI('chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 1000
+    });
+
+    if (response.choices && response.choices.length > 0) {
+      const content = response.choices[0].message.content;
+      try {
+        // Extract JSON from response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Response format not recognized');
+        }
+      } catch (parseError) {
+        console.error('Error parsing PII detection response:', parseError);
+        throw new Error('Failed to parse PII detection results');
+      }
+    } else {
+      throw new Error('No response received from AI service');
+    }
+  } catch (error) {
+    console.error('Error detecting PII:', error);
+    throw error;
   }
 };
 
-// Apply masking based on selected options with enhanced AI capabilities
+// Function to mask PII in a dataset
 export const maskPiiData = async (
-  data: PiiData[], 
-  perFieldMaskingOptions: PerFieldMaskingOptions,
-  options?: AiMaskingOptions,
-  apiKey?: string | null
-): Promise<PiiDataMasked[]> => {
+  data: Record<string, any>[],
+  piiColumns: Record<string, string[]>,
+  options: PiiMaskingOptions,
+  apiKey: string | null
+): Promise<Record<string, any>[]> => {
   if (!apiKey) {
-    return applyStandardMasking(data, perFieldMaskingOptions);
+    throw new Error('OpenAI API key is required to mask PII');
   }
 
-  try {
-    const fieldsToMask = Object.entries(perFieldMaskingOptions)
-      .filter(([_, config]) => config.enabled)
-      .map(([field]) => field);
+  // Clone the data to avoid modifying the original
+  const maskedData = JSON.parse(JSON.stringify(data));
+  
+  // Apply masking methods to each identified PII field
+  for (const [column, piiTypes] of Object.entries(piiColumns)) {
+    const methodKey = piiTypes[0].toLowerCase() as keyof typeof options.methods;
+    let maskingMethod: MaskingMethod = 'redact'; // Default method
     
-    if (fieldsToMask.length === 0) {
-      return data.map(item => ({...item})) as PiiDataMasked[];
+    // Get the appropriate masking method for this PII type
+    if (options.methods && options.methods[methodKey]) {
+      maskingMethod = options.methods[methodKey];
     }
     
-    // Use more sample data for consistent pattern learning
-    const sampleSize = Math.min(10, data.length);
-    const sampleData = data.slice(0, sampleSize);
-    
-    // Add precise instruction enhancement to the AI prompt
-    const aiPrompt = options?.aiPrompt || 
-      "Mask the selected fields while maintaining data format and ensuring privacy.";
-    
-    // Enhance the prompt with field-specific instructions
-    const enhancedPrompt = `
-${aiPrompt}
-
-IMPORTANT REQUIREMENTS:
-1. Apply EXACTLY THE SAME masking pattern to the same field across ALL records
-2. For each field type, use a consistent masking approach
-3. Preserve the format (length, special characters) of each field
-4. If specific masking is mentioned for a field, apply ONLY that technique
-5. Generate realistic but privacy-preserving masked data
-6. Do not add new fields or remove existing fields`;
-    
-    // Process sample data with AI
-    const aiMaskedSampleData = await generateMaskedDataWithAI(
-      apiKey,
-      sampleData,
-      fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
-      {
-        preserveFormat: options?.preserveFormat !== undefined ? options.preserveFormat : true,
-        customPrompt: enhancedPrompt
+    // Apply the masking method to each record
+    maskedData.forEach((record: Record<string, any>) => {
+      if (record[column] !== undefined && record[column] !== null) {
+        record[column] = applyMaskingMethod(record[column], maskingMethod);
       }
-    );
-    
-    // Extract and cache masking patterns from AI sample results
-    const patternKey = JSON.stringify({ 
-      fields: fieldsToMask.sort(), 
-      prompt: enhancedPrompt
     });
-    
-    if (!maskingPatternCache[patternKey]) {
-      maskingPatternCache[patternKey] = {};
-      
-      // For each field, extract a consistent masking function from the AI results
-      fieldsToMask.forEach(field => {
-        const patterns: Array<[string, string]> = [];
-        
-        // Collect original-to-masked pairs for this field
-        sampleData.forEach((original, index) => {
-          if (aiMaskedSampleData[index] && original[field] && aiMaskedSampleData[index][field]) {
-            patterns.push([original[field], aiMaskedSampleData[index][field]]);
-          }
-        });
-        
-        // Generate a masking function for this field
-        if (patterns.length > 0) {
-          maskingPatternCache[patternKey][field] = (value: string) => {
-            // Find the most similar pattern in our examples
-            let bestMatch = patterns[0];
-            let bestSimilarity = 0;
-            
-            for (const [orig, masked] of patterns) {
-              const similarity = calculateSimilarity(value, orig);
-              if (similarity > bestSimilarity) {
-                bestSimilarity = similarity;
-                bestMatch = [orig, masked];
-              }
-            }
-            
-            // Apply the masking pattern
-            return applyConsistentMasking(value, bestMatch[0], bestMatch[1]);
-          };
-        } else {
-          // Fallback to standard masking if no patterns were found
-          maskingPatternCache[patternKey][field] = 
-            standardMaskingFunctions[field as keyof typeof standardMaskingFunctions] || 
-            ((val: string) => val.charAt(0) + '*'.repeat(val.length - 1));
-        }
-      });
-    }
-    
-    // Apply the cached masking patterns to ALL records
-    return data.map((item) => {
-      const maskedItem: Partial<PiiDataMasked> = { id: item.id };
-      
-      Object.keys(item).forEach(key => {
-        if (key === 'id') {
-          maskedItem[key] = item[key];
-          return;
-        }
-        
-        const config = perFieldMaskingOptions[key];
-        
-        if (config?.enabled && maskingPatternCache[patternKey][key]) {
-          maskedItem[key] = maskingPatternCache[patternKey][key](item[key]);
-        } else {
-          maskedItem[key] = item[key];
-        }
-      });
-      
-      return maskedItem as PiiDataMasked;
-    });
-  } catch (error) {
-    console.error("Error applying AI masking:", error);
-    return applyStandardMasking(data, perFieldMaskingOptions);
   }
+  
+  return maskedData;
 };
 
-// Calculate similarity between two strings for better pattern matching
-const calculateSimilarity = (str1: string, str2: string): number => {
-  // Length similarity
-  const lengthSim = 1 - Math.abs(str1.length - str2.length) / Math.max(str1.length, str2.length);
+// Helper function to apply a masking method to a value
+const applyMaskingMethod = (value: any, method: MaskingMethod): string => {
+  const strValue = String(value);
   
-  // Character type similarity (digit, letter, special char)
-  let typeSim = 0;
-  const minLength = Math.min(str1.length, str2.length);
-  
-  for (let i = 0; i < minLength; i++) {
-    const char1 = str1.charAt(i);
-    const char2 = str2.charAt(i);
-    
-    const isDigit1 = /\d/.test(char1);
-    const isDigit2 = /\d/.test(char2);
-    const isLetter1 = /[a-zA-Z]/.test(char1);
-    const isLetter2 = /[a-zA-Z]/.test(char2);
-    
-    if ((isDigit1 && isDigit2) || (isLetter1 && isLetter2) || 
-        (!isDigit1 && !isLetter1 && !isDigit2 && !isLetter2)) {
-      typeSim++;
-    }
-  }
-  
-  typeSim /= minLength || 1;
-  
-  // Format similarity (patterns of digits, letters, and special chars)
-  const format1 = str1.replace(/[0-9]/g, 'D').replace(/[a-zA-Z]/g, 'L').replace(/[^0-9a-zA-Z]/g, 'S');
-  const format2 = str2.replace(/[0-9]/g, 'D').replace(/[a-zA-Z]/g, 'L').replace(/[^0-9a-zA-Z]/g, 'S');
-  
-  let formatSim = 0;
-  for (let i = 0; i < minLength; i++) {
-    if (format1.charAt(i) === format2.charAt(i)) {
-      formatSim++;
-    }
-  }
-  
-  formatSim /= minLength || 1;
-  
-  // Combine all factors, weighting format similarity highest
-  return (lengthSim * 0.3) + (typeSim * 0.3) + (formatSim * 0.4);
-};
-
-// Apply a consistent masking pattern based on a pattern example
-const applyConsistentMasking = (value: string, originalExample: string, maskedExample: string): string => {
-  if (!value) return maskedExample;
-  
-  // Special handling for full replacements
-  if (originalExample.length > 0 && 
-      maskedExample.length > 0 && 
-      !originalExample.split('').some(char => maskedExample.includes(char))) {
-    // Complete replacement, likely synthetic data
-    return maskedExample;
-  }
-  
-  // Pattern detection for character masking
-  const pattern: Array<'keep' | 'mask' | 'special'> = [];
-  
-  for (let i = 0; i < originalExample.length; i++) {
-    const origChar = originalExample.charAt(i);
-    const maskChar = i < maskedExample.length ? maskedExample.charAt(i) : '*';
-    
-    if (origChar === maskChar) {
-      pattern.push('keep');
-    } else if (maskChar === '*' || maskChar === 'X' || maskChar === '#') {
-      pattern.push('mask');
-    } else {
-      pattern.push('special');
-    }
-  }
-  
-  // Apply the detected pattern to the new value
-  let result = '';
-  
-  for (let i = 0; i < value.length; i++) {
-    const patternIndex = Math.min(i, pattern.length - 1);
-    const patternType = pattern[patternIndex];
-    
-    if (patternType === 'keep') {
-      result += value.charAt(i);
-    } else if (patternType === 'mask') {
-      const maskChar = patternIndex < maskedExample.length ? maskedExample.charAt(patternIndex) : '*';
-      result += maskChar;
-    } else {
-      // For special replacement, use the character from masked example
-      const specialChar = patternIndex < maskedExample.length ? maskedExample.charAt(patternIndex) : '*';
-      result += specialChar;
-    }
-  }
-  
-  // Handle length differences
-  if (result.length < value.length) {
-    result += maskedExample.slice(result.length) || '*'.repeat(value.length - result.length);
-  }
-  
-  return result;
-};
-
-// Helper function to apply standard masking
-const applyStandardMasking = (data: PiiData[], perFieldMaskingOptions: PerFieldMaskingOptions): PiiDataMasked[] => {
-  return data.map(item => {
-    const maskedItem: Partial<PiiDataMasked> = { id: item.id };
-    
-    Object.keys(item).forEach(key => {
-      if (key === 'id') {
-        maskedItem[key] = item[key];
-        return;
-      }
+  switch (method) {
+    case 'redact':
+      return '[REDACTED]';
       
-      const config = perFieldMaskingOptions[key];
+    case 'hash':
+      // Simple hash function for demonstration
+      return `HASH_${Array.from(strValue)
+        .map(c => c.charCodeAt(0))
+        .reduce((acc, val) => acc + val, 0)
+        .toString(16)}`;
       
-      if (config?.enabled) {
-        // Use standard masking function if available, otherwise create a default one
-        if (standardMaskingFunctions[key as keyof typeof standardMaskingFunctions]) {
-          maskedItem[key] = standardMaskingFunctions[key as keyof typeof standardMaskingFunctions](item[key]);
-        } else if (item[key]) {
-          // Default masking for unknown fields: keep first character, mask the rest
-          maskedItem[key] = item[key].charAt(0) + '*'.repeat(item[key].length - 1);
-        } else {
-          maskedItem[key] = item[key]; // If empty, keep as is
-        }
+    case 'partial':
+      if (strValue.includes('@')) {
+        // Handling email
+        const [username, domain] = strValue.split('@');
+        return `${username.substring(0, 2)}***@${domain}`;
+      } else if (strValue.match(/^\d+$/)) {
+        // Handling numeric values like phone numbers
+        return `${strValue.substring(0, 2)}***${strValue.substring(strValue.length - 2)}`;
       } else {
-        maskedItem[key] = item[key];
+        // General case
+        return `${strValue.substring(0, 1)}***${strValue.substring(strValue.length - 1)}`;
       }
-    });
-    
-    return maskedItem as PiiDataMasked;
-  });
+      
+    case 'tokenize':
+      return `TOKEN_${Math.floor(Math.random() * 1000000)}`;
+      
+    case 'synthetic':
+      // For synthetic, we should be consistent
+      if (strValue.includes('@')) {
+        return 'user@example.com';
+      } else if (strValue.match(/^\d+$/)) {
+        return '5555555555';
+      } else if (strValue.length > 10) {
+        return 'Lorem ipsum dolor sit amet';
+      } else {
+        return 'John Doe';
+      }
+      
+    default:
+      return '[REDACTED]';
+  }
 };
 
-// Analyze PII data using AI
-export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Promise<PiiAnalysisResult> => {
+// Function to generate synthetic PII data
+export const generateSyntheticPiiData = async (
+  count: number,
+  dataTypes: string[],
+  apiKey: string | null
+): Promise<PiiData[]> => {
   if (!apiKey) {
-    return {
-      identifiedPii: ["Unable to analyze - API key not set"],
-      suggestions: "Please set up your OpenAI API key to use AI-powered PII analysis."
-    };
+    throw new Error('OpenAI API key is required to generate synthetic PII');
   }
+
+  const systemPrompt = `You are a privacy-preserving data generator. Create synthetic PII data that looks realistic but doesn't correspond to real individuals.
+  The data should be diverse and representative but completely fictional.`;
+
+  const userPrompt = `Generate ${count} records of synthetic data containing the following PII types: ${dataTypes.join(', ')}.
   
+  Return the data as a JSON array of objects, with each object containing the specified PII fields.
+  Make sure the data is diverse and realistic but completely fictional.
+  Do not include any explanations, just return the JSON array.`;
+
   try {
-    const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
+    const { processWithOpenAI } = useSupabase();
     
-    return await analyzePiiWithAI(apiKey, sampleData);
-    
+    const response = await processWithOpenAI('chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.8,
+      max_tokens: 1500
+    });
+
+    if (response.choices && response.choices.length > 0) {
+      const content = response.choices[0].message.content;
+      try {
+        // Extract JSON array from the response
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Failed to parse generated PII data');
+        }
+      } catch (parseError) {
+        console.error('Error parsing synthetic PII data:', parseError);
+        throw new Error('Failed to parse synthetic PII data');
+      }
+    } else {
+      throw new Error('No data received from AI service');
+    }
   } catch (error) {
-    console.error("Error analyzing PII data:", error);
-    return {
-      identifiedPii: ["Error during analysis"],
-      suggestions: "An error occurred while analyzing the data. Please try again later."
-    };
+    console.error('Error generating synthetic PII data:', error);
+    throw error;
   }
 };
 
-// Export data as JSON
-export const exportAsJson = (data: any[]): string => {
-  return JSON.stringify(data, null, 2);
-};
+// Function to suggest PII masking strategies based on detected PII
+export const suggestPiiMaskingStrategies = async (
+  piiColumns: Record<string, string[]>,
+  apiKey: string | null
+): Promise<Record<string, MaskingMethod>> => {
+  if (!apiKey) {
+    throw new Error('OpenAI API key is required');
+  }
 
-// Export data as CSV
-export const exportAsCsv = (data: any[]): string => {
-  if (data.length === 0) return '';
-  
-  const headers = Object.keys(data[0]).join(',');
-  const rows = data.map(item => 
-    Object.values(item).map(value => 
-      typeof value === 'string' && value.includes(',') 
-        ? `"${value}"` 
-        : value
-    ).join(',')
-  );
-  
-  return [headers, ...rows].join('\n');
-};
+  const systemPrompt = `You are a data privacy expert specializing in PII protection strategies. 
+  Based on the identified PII fields, recommend appropriate masking methods for each PII type.
+  Consider data utility and privacy regulations in your recommendations.`;
 
-// Download data as a file
-export const downloadData = (data: string, filename: string, type: 'json' | 'csv'): void => {
-  const blob = new Blob([data], { type: type === 'json' ? 'application/json' : 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const userPrompt = `For these detected PII fields:
+  ${JSON.stringify(piiColumns, null, 2)}
+  
+  Recommend the most appropriate masking method for each type from these options:
+  - redact: Replace with [REDACTED]
+  - hash: Replace with a hash value
+  - partial: Show only partial information (e.g., first & last char)
+  - tokenize: Replace with a token that can be mapped back if needed
+  - synthetic: Replace with realistic but fake data
+  
+  Return your recommendations as a JSON object with PII types as keys and recommended methods as values.
+  Format: { "pii_type": "method" }`;
+
+  try {
+    const { processWithOpenAI } = useSupabase();
+    
+    const response = await processWithOpenAI('chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3
+    });
+
+    if (response.choices && response.choices.length > 0) {
+      const content = response.choices[0].message.content;
+      try {
+        // Extract JSON from response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Response format not recognized');
+        }
+      } catch (parseError) {
+        console.error('Error parsing masking strategies response:', parseError);
+        throw new Error('Failed to parse masking strategy recommendations');
+      }
+    } else {
+      throw new Error('No response received from AI service');
+    }
+  } catch (error) {
+    console.error('Error suggesting masking strategies:', error);
+    throw error;
+  }
 };

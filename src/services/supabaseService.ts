@@ -1,3 +1,4 @@
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Types for our Supabase database tables
@@ -20,9 +21,9 @@ export interface QueryHistory {
 
 class SupabaseService {
   private client: SupabaseClient | null = null;
-  // Use the specific project credentials
-  private supabaseUrl: string = 'https://sbp_c08f1c0fb1c423dcb3be206bd5cd701525f819ba.supabase.co';
-  private supabaseKey: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImM3Z204ODVidnhpY3Zwc25laHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MDQ5OTEsImV4cCI6MjA1Mjk4MDk5MX0.CtcJa0PicDIJzE4K7FdXcvH9eVXfKPTjfGTVkWUbYGo';
+  // Updated project credentials
+  private supabaseUrl: string = 'https://gpqastfkpzbssmewvxqe.supabase.co';
+  private supabaseKey: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwcWFzdGZrcHpic3NtZXd2eHFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyMzMxNzQsImV4cCI6MjA1NzgwOTE3NH0.IVvn9GDYRnRedPQ8mvfOiCm97UIh6H2CgacDaorD7hY';
   
   constructor() {
     this.initClient();

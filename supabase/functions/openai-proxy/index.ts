@@ -11,8 +11,8 @@ interface RequestBody {
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://sap-genapps.lovable.app',
-  'https://sbp_c08f1c0fb1c423dcb3be206bd5cd701525f819ba.supabase.co'
+  'https://degen-ai.lovable.app',
+  'https://gpqastfkpzbssmewvxqe.supabase.co'
 ];
 
 // Function to handle CORS headers
