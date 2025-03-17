@@ -86,7 +86,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         }
         
         // Generate synthetic samples ensuring primary key uniqueness
-        const currentBatch = generateSyntheticSamplesWithUniqueKeys(
+        const currentBatch = await generateSyntheticSamplesWithUniqueKeys(
           minoritySamples,
           selectedPrimaryKeys, // Use user-selected primary keys
           batchCount,
@@ -167,14 +167,14 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   };
   
   // Generate synthetic samples with unique primary key values
-  const generateSyntheticSamplesWithUniqueKeys = (
+  const generateSyntheticSamplesWithUniqueKeys = async (
     minoritySamples: any[],
     primaryKeyFields: string[],
     count: number,
     diversity: 'low' | 'medium' | 'high' = 'medium',
     existingSamples: any[] = [],
     originalData: any[] = []
-  ): any[] => {
+  ): Promise<any[]> => {
     if (!primaryKeyFields.length) {
       // If no primary keys detected, use the standard function from the service
       return generateSyntheticRecords(

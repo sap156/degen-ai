@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -15,7 +16,7 @@ import {
   LineChart,
   BarChart,
   AreaChart,
-  Scatter,
+  // Remove Scatter as it doesn't exist
   PanelLeft,
   PanelRight,
   RefreshCw
@@ -30,8 +31,9 @@ import {
   PointElement,
   LineElement,
   BarElement,
-  AreaElement,
-  ScatterElement,
+  // Replace AreaElement with ArcElement
+  ArcElement,
+  // Replace ScatterElement with missing equivalent
   Title,
   Tooltip,
   Legend,
@@ -56,8 +58,9 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
-  AreaElement,
-  ScatterElement,
+  // Replace AreaElement with ArcElement
+  ArcElement,
+  // Remove ScatterElement
   Title,
   Tooltip,
   Legend,
@@ -137,11 +140,12 @@ const TimeSeries = () => {
       setData(parsedData);
       
       const typeResult = detectDataType(parsedData);
-      if (typeResult.dataType !== 'timeseries') {
+      if (typeResult.type !== 'timeseries') {
         toast({
           title: "Warning",
           description: "The uploaded data doesn't appear to be time series data. Some features may not work correctly.",
-          variant: "warning",
+          // Fix variant to be "default" instead of "warning"
+          variant: "default",
         });
       }
       
@@ -243,7 +247,8 @@ const TimeSeries = () => {
     });
   };
 
-  const chartJsOptions: ChartOptions = {
+  // Fix the chartJsOptions object to remove incompatible types
+  const chartJsOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -369,7 +374,11 @@ const TimeSeries = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="chart-type">Chart Type</Label>
-                <Select value={chartType} onValueChange={setChartType}>
+                {/* Fix the onValueChange handler for chartType */}
+                <Select 
+                  value={chartType} 
+                  onValueChange={(value: 'line' | 'bar' | 'scatter' | 'area') => setChartType(value)}
+                >
                   <SelectTrigger id="chart-type">
                     <SelectValue placeholder="Select chart type" />
                   </SelectTrigger>

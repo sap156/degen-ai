@@ -1,4 +1,3 @@
-
 import { SupportedFileType, SchemaFieldType, FileProcessingResult } from './fileTypes';
 import { readFileContent } from './fileOperations';
 
@@ -283,4 +282,99 @@ export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => 
   });
   
   return schema;
+};
+
+// Function to read file content - Exported so it can be used in other modules
+export { readFileContent } from './fileOperations';
+
+// Function to detect data type
+export const detectDataType = (data: any[]): DataTypeResult => {
+  if (!data || data.length === 0) {
+    return { type: 'unknown', confidence: 0 };
+  }
+
+  // Sample the data (use up to 100 records for detection)
+  const sampleSize = Math.min(data.length, 100);
+  const sample = data.slice(0, sampleSize);
+  
+  // Check for time series data
+  let dateColumns = [];
+  let numericColumns = [];
+  
+  // First, detect column types
+  const firstRow = sample[0];
+  for (const key in firstRow) {
+    // Check if it's a date column
+    if (typeof firstRow[key] === 'string') {
+      // Check date format
+      const datePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/;
+      if (datePattern.test(firstRow[key])) {
+        dateColumns.push(key);
+      }
+    } 
+    // Check if it's a numeric column
+    else if (typeof firstRow[key] === 'number') {
+      numericColumns.push(key);
+    }
+  }
+  
+  // Check for time series pattern (need date column and at least one numeric column)
+  if (dateColumns.length > 0 && numericColumns.length > 0) {
+    // Check if dates are sequential
+    if (dateColumns.length === 1) {
+      const dateColumn = dateColumns[0];
+      const dates = sample.map(item => new Date(item[dateColumn]).getTime());
+      
+      // Sort dates
+      const sortedDates = [...dates].sort((a, b) => a - b);
+      
+      // Check if dates are somewhat sequential (80% of the time)
+      let sequentialCount = 0;
+      for (let i = 1; i < sortedDates.length; i++) {
+        if (sortedDates[i] > sortedDates[i-1]) {
+          sequentialCount++;
+        }
+      }
+      
+      const sequentialRatio = sequentialCount / (sortedDates.length - 1);
+      
+      if (sequentialRatio > 0.8) {
+        return {
+          type: 'timeseries',
+          dataType: 'timeseries',
+          confidence: 0.9,
+          timeColumn: dateColumn,
+          valueColumns: numericColumns
+        };
+      }
+    }
+  }
+  
+  // Check for categorical data
+  const categoricalColumns = [];
+  for (const key in firstRow) {
+    if (typeof firstRow[key] === 'string' && key !== dateColumns[0]) {
+      // Check if the column has a limited number of unique values
+      const uniqueValues = new Set(sample.map(item => item[key]));
+      if (uniqueValues.size < Math.min(sample.length * 0.3, 20)) {
+        categoricalColumns.push(key);
+      }
+    }
+  }
+  
+  if (categoricalColumns.length > 0 && categoricalColumns.length < Object.keys(firstRow).length * 0.7) {
+    return {
+      type: 'categorical',
+      dataType: 'categorical',
+      confidence: 0.8,
+      categoricalColumns
+    };
+  }
+  
+  // Default to tabular data
+  return {
+    type: 'tabular',
+    dataType: 'tabular',
+    confidence: 0.7
+  };
 };

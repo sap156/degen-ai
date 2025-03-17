@@ -55,7 +55,7 @@ export interface FileWithPreview {
 // Add DataType property to DataTypeResult
 export interface DataTypeResult {
   type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
-  dataType?: string; // Adding this to fix the error in EdgeCases.tsx
+  dataType?: string;
   confidence: number;
   timeColumn?: string;
   valueColumns?: string[];

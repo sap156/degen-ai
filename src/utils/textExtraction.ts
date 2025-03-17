@@ -1,42 +1,40 @@
 
-/**
- * Utilities for extracting text from various file types
- */
-import { getFileType } from './fileOperations';
+import { FileProcessingResult, SupportedFileType } from './fileTypes';
 import { readFileContent } from './fileOperations';
-import { FileProcessingResult } from './fileTypes';
+import * as openAiService from '../services/openAiService';
 
 /**
- * Extract text content from a file using appropriate method based on file type
- * @param file The file to process
- * @param apiKey OpenAI API key for processing complex file types
- * @returns Promise resolving to the extracted text content
+ * Extract text content from different file types
  */
 export const extractTextFromFile = async (
   file: File, 
   apiKey: string | null
 ): Promise<FileProcessingResult> => {
-  const fileType = getFileType(file);
-  const fileName = file.name;
-  const fileSize = file.size;
-  const fileSizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
-  
-  // Basic metadata that's available for all files
-  const metadata: Record<string, any> = {
-    fileName,
-    fileType,
-    fileSize: `${fileSizeInMB} MB`,
-    dateProcessed: new Date().toISOString()
-  };
-  
   try {
+    const fileName = file.name;
+    const fileType = getFileType(file);
+    const fileSize = file.size;
+    const fileSizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+    
+    // Basic metadata
+    const metadata: Record<string, any> = {
+      fileName,
+      fileType,
+      fileSize: `${fileSizeInMB} MB`,
+      dateProcessed: new Date().toISOString()
+    };
+    
     switch (fileType) {
       case 'csv':
       case 'json':
       case 'txt':
         // For text-based formats, just read the content directly
         const content = await readFileContent(file);
-        return { text: content, metadata };
+        return { 
+          success: true, 
+          text: content, 
+          metadata 
+        };
         
       case 'pdf':
       case 'docx':
@@ -44,18 +42,51 @@ export const extractTextFromFile = async (
       case 'pptx':
         // For complex file types, use AI to extract text
         if (!apiKey) {
-          throw new Error("API key is required to process this file type");
+          return {
+            success: false,
+            error: "API key is required to process this file type",
+            metadata
+          };
         }
         
         return await extractTextWithAI(file, apiKey, metadata);
         
       default:
-        throw new Error(`Unsupported file type: ${fileType}`);
+        return {
+          success: false,
+          error: `Unsupported file type: ${fileType}`,
+          metadata
+        };
     }
   } catch (error) {
     console.error('Error extracting text from file:', error);
-    throw error;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error extracting text',
+      metadata: {
+        dateProcessed: new Date().toISOString()
+      }
+    };
   }
+};
+
+/**
+ * Helper function to determine file type based on extension
+ */
+const getFileType = (file: File): SupportedFileType => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  
+  if (['csv'].includes(extension)) return 'csv';
+  if (['json'].includes(extension)) return 'json';
+  if (['txt', 'text', 'md'].includes(extension)) return 'txt';
+  if (['pdf'].includes(extension)) return 'pdf';
+  if (['doc', 'docx'].includes(extension)) return 'docx';
+  if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
+  if (['ppt', 'pptx'].includes(extension)) return 'pptx';
+  if (['xml'].includes(extension)) return 'xml';
+  
+  // Default to unknown for unsupported types
+  return 'unknown';
 };
 
 /**
@@ -67,8 +98,6 @@ const extractTextWithAI = async (
   baseMetadata: Record<string, any>
 ): Promise<FileProcessingResult> => {
   try {
-    const { getCompletion } = await import('../services/openAiService');
-    
     // For PDF, DOCX, etc. - simulate extraction
     const messages = [
       { 
@@ -81,12 +110,14 @@ const extractTextWithAI = async (
       }
     ];
     
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini'
-    });
+    const response = await openAiService.callOpenAI('completions', {
+      model: 'gpt-4o-mini',
+      messages
+    }, apiKey);
     
     return {
-      text: response,
+      success: true,
+      text: response.choices[0].message.content,
       metadata: {
         ...baseMetadata,
         processingMethod: 'Simulated extraction',
@@ -96,6 +127,10 @@ const extractTextWithAI = async (
     
   } catch (error) {
     console.error('Error extracting text with AI:', error);
-    throw error;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error extracting text with AI',
+      metadata: baseMetadata
+    };
   }
 };

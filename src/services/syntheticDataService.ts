@@ -1,299 +1,228 @@
 
-import type { SchemaFieldType } from '@/utils/fileTypes';
-import supabaseService from './supabaseService';
+import { supabaseClient } from './supabaseService';
+import openAiService from './openAiService';
 
+// Interfaces for data field and sample templates
 export interface DataField {
   name: string;
   type: string;
-  included: boolean;
+  included?: boolean; // Add the included property
+}
+
+export interface SampleTemplate {
+  [key: string]: {
+    [key: string]: string;
+  };
 }
 
 export interface SyntheticDataOptions {
-  dataType: string;
-  rowCount: number;
-  distributionType?: string;
-  includeNulls?: boolean;
-  nullPercentage?: number;
-  outputFormat?: string;
-  fields: DataField[];
-  uploadedData?: any[];
-  aiPrompt?: string;
-  onProgress?: (progress: number) => void;
+  model: string;
+  temperature: number;
+  count: number;
+  diversity: 'low' | 'medium' | 'high';
+  preserveSchema: boolean;
+  enhanceRealism: boolean;
 }
 
-// Default schemas for different data types
-export const defaultSchemas: Record<string, DataField[]> = {
-  user: [
-    { name: 'id', type: 'id', included: true },
-    { name: 'firstName', type: 'name', included: true },
-    { name: 'lastName', type: 'name', included: true },
-    { name: 'email', type: 'email', included: true },
-    { name: 'age', type: 'integer', included: true },
-    { name: 'phoneNumber', type: 'phone', included: true },
-    { name: 'address', type: 'address', included: true },
-    { name: 'createdAt', type: 'date', included: true }
-  ],
-  transaction: [
-    { name: 'id', type: 'id', included: true },
-    { name: 'userId', type: 'id', included: true },
-    { name: 'amount', type: 'float', included: true },
-    { name: 'currency', type: 'string', included: true },
-    { name: 'description', type: 'string', included: true },
-    { name: 'category', type: 'string', included: true },
-    { name: 'date', type: 'date', included: true },
-    { name: 'status', type: 'string', included: true }
-  ],
-  product: [
-    { name: 'id', type: 'id', included: true },
-    { name: 'name', type: 'string', included: true },
-    { name: 'description', type: 'string', included: true },
-    { name: 'price', type: 'float', included: true },
-    { name: 'category', type: 'string', included: true },
-    { name: 'inStock', type: 'boolean', included: true },
-    { name: 'rating', type: 'float', included: true },
-    { name: 'createdAt', type: 'date', included: true }
-  ],
-  health: [
-    { name: 'id', type: 'id', included: true },
-    { name: 'patientId', type: 'id', included: true },
-    { name: 'bloodPressure', type: 'string', included: true },
-    { name: 'heartRate', type: 'integer', included: true },
-    { name: 'temperature', type: 'float', included: true },
-    { name: 'weight', type: 'float', included: true },
-    { name: 'height', type: 'float', included: true },
-    { name: 'notes', type: 'string', included: true },
-    { name: 'date', type: 'date', included: true }
-  ],
-  customer: [
-    { name: 'id', type: 'id', included: true },
-    { name: 'firstName', type: 'name', included: true },
-    { name: 'lastName', type: 'name', included: true },
-    { name: 'email', type: 'email', included: true },
-    { name: 'age', type: 'integer', included: true },
-    { name: 'registrationDate', type: 'date', included: true },
-    { name: 'loyaltyPoints', type: 'integer', included: true },
-    { name: 'isActive', type: 'boolean', included: true }
-  ]
-};
-
-export const detectSchemaFromData = (data: any[]): DataField[] => {
-  if (!data || data.length === 0) return [];
-  
-  const sample = data[0];
-  return Object.entries(sample).map(([key, value]) => {
-    let type = 'string';
-    
-    if (typeof value === 'number') {
-      type = Number.isInteger(value) ? 'integer' : 'float';
-    } else if (typeof value === 'boolean') {
-      type = 'boolean';
-    } else if (typeof value === 'string') {
-      if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
-        type = 'date';
-      } else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        type = 'email';
-      } else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value)) {
-        type = 'phone';
-      }
-    }
-    
-    return {
-      name: key,
-      type,
-      included: true
-    };
-  });
-};
-
+/**
+ * Generate synthetic data based on a template and schema
+ */
 export const generateSyntheticData = async (
-  options: SyntheticDataOptions, 
+  template: SampleTemplate,
+  fields: DataField[],
+  count: number,
   apiKey: string
-): Promise<string> => {
-  const { fields, rowCount, includeNulls, nullPercentage, aiPrompt, onProgress } = options;
-  
-  // Progress reporting
-  if (onProgress) onProgress(10);
-  
+): Promise<any[]> => {
   try {
-    const openAIService = await import('./openAiService');
-    
-    // Prepare field schema for the AI
-    const fieldSchema = fields
-      .filter(field => field.included)
+    // Prepare the fields for the prompt
+    const fieldDescriptions = fields
+      .filter(field => field.included !== false)
       .map(field => `${field.name} (${field.type})`)
       .join(', ');
     
-    const nullInstructions = includeNulls 
-      ? `Include null values in approximately ${nullPercentage}% of fields.` 
-      : 'Do not include any null values.';
+    // Create a sample data point for reference
+    const sampleData: Record<string, any> = {};
     
-    // Sample data if provided
-    const sampleDataInstruction = options.uploadedData && options.uploadedData.length > 0
-      ? `Base the generated data on this sample: ${JSON.stringify(options.uploadedData.slice(0, 2))}`
-      : '';
+    // Extract a sample from the template
+    Object.entries(template).forEach(([category, items]) => {
+      Object.entries(items).forEach(([field, value]) => {
+        sampleData[field] = value;
+      });
+    });
     
-    // Create the prompt
+    // Create the prompt for the AI
     const messages = [
       {
         role: 'system' as const,
-        content: `You are a synthetic data generation assistant. Generate realistic, random data based on the schema provided. ${nullInstructions}`
+        content: 'You are a synthetic data generator that creates realistic but fake data for testing purposes.'
       },
       {
         role: 'user' as const,
-        content: `Generate a dataset with ${rowCount} records in JSON format with these fields: ${fieldSchema}. ${sampleDataInstruction} ${aiPrompt || ''}`
+        content: `Generate ${count} synthetic data records with the following fields: ${fieldDescriptions}.
+        
+The data should be returned as a valid JSON array of objects.
+Each object should have all the fields mentioned above.
+
+Here's a sample data point for reference:
+${JSON.stringify(sampleData, null, 2)}
+
+Make sure the generated data:
+1. Has realistic values for each field based on its type
+2. Has internal consistency (e.g., dates make sense, related fields are logical)
+3. Is diverse but realistic
+4. Is returned as a valid JSON array that I can parse directly
+
+Please ONLY return the JSON array without any additional text.`
       }
     ];
     
-    if (onProgress) onProgress(30);
-    
-    const response = await openAIService.callOpenAI('chat', {
+    // Call the OpenAI API
+    const response = await openAiService.callOpenAI('completions', {
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.7,
       max_tokens: 4000
     }, apiKey);
     
-    if (onProgress) onProgress(80);
+    const generatedText = response.choices[0].message.content;
     
-    // Post-process to ensure we get clean JSON
-    let cleanedResponse = response;
-    
-    // Try to extract JSON if the response contains markdown code blocks
-    if (response.includes('```json')) {
-      cleanedResponse = response.split('```json')[1].split('```')[0].trim();
-    } else if (response.includes('```')) {
-      cleanedResponse = response.split('```')[1].split('```')[0].trim();
-    }
-    
-    // Verify the response is valid JSON
+    // Parse the JSON response
     try {
-      JSON.parse(cleanedResponse);
-    } catch (e) {
-      // If parsing fails, try to fix common issues
-      if (cleanedResponse.startsWith('[') && cleanedResponse.endsWith(']')) {
-        return cleanedResponse;
+      // Find JSON in the response
+      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON array found in the response');
       }
-      throw new Error('Generated data is not valid JSON');
+      
+      const jsonString = jsonMatch[0];
+      const syntheticData = JSON.parse(jsonString);
+      
+      // Add a synthetic_id field to each record
+      return syntheticData.map((record: any, index: number) => ({
+        ...record,
+        synthetic_id: `syn_${index + 1}`
+      }));
+    } catch (parseError) {
+      console.error('Error parsing generated data:', parseError);
+      throw new Error('Failed to parse the generated data');
     }
-    
-    if (onProgress) onProgress(100);
-    
-    return cleanedResponse;
   } catch (error) {
     console.error('Error generating synthetic data:', error);
     throw error;
   }
 };
 
-export const downloadSyntheticData = (
-  data: string,
-  filename: string = 'synthetic_data',
-  format: 'json' | 'csv' = 'json'
-): void => {
-  try {
-    let formattedData: string;
-    const downloadFilename = `${filename}`;
-    
-    // Parse the JSON string to an array of objects
-    const jsonData = JSON.parse(data);
-    
-    if (format === 'json') {
-      formattedData = JSON.stringify(jsonData, null, 2);
-      
-      // Create and trigger download
-      const blob = new Blob([formattedData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${downloadFilename}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } else if (format === 'csv') {
-      // Convert JSON to CSV
-      if (!Array.isArray(jsonData) || jsonData.length === 0) {
-        throw new Error('Data must be an array of objects');
-      }
-      
-      // Extract headers
-      const headers = Object.keys(jsonData[0]);
-      
-      // Create CSV rows
-      const csvRows = [
-        headers.join(','),
-        ...jsonData.map(row => 
-          headers.map(header => {
-            const value = row[header];
-            const stringValue = value === null || value === undefined
-              ? ''
-              : String(value);
-              
-            // Escape quotes and wrap values with commas in quotes
-            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-              return `"${stringValue.replace(/"/g, '""')}"`;
-            }
-            return stringValue;
-          }).join(',')
-        )
-      ];
-      
-      // Join rows with newlines
-      formattedData = csvRows.join('\n');
-      
-      // Create and trigger download
-      const blob = new Blob([formattedData], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${downloadFilename}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-    
-  } catch (error) {
-    console.error('Error downloading synthetic data:', error);
-    throw error;
-  }
-};
-
+/**
+ * Save synthetic data to the database
+ */
 export const saveSyntheticDataToDatabase = async (
-  data: string,
-  tableName: string = 'synthetic_data'
-): Promise<{ success: boolean; message?: string; count?: number }> => {
+  data: any[],
+  tableName: string
+): Promise<{success: boolean; message: string}> => {
   try {
-    const jsonData = JSON.parse(data);
-    
-    if (!Array.isArray(jsonData) || jsonData.length === 0) {
-      return { success: false, message: 'Data must be an array of objects' };
-    }
-    
-    // Use supabaseService to save the data
-    const client = supabaseService.getClient();
-    
-    // Create a new table (this would normally be handled by a more complex process)
-    // For demonstration, we'll insert into an existing table or create one
-    const { error, count } = await client
+    // Insert data into Supabase
+    const { error } = await supabaseClient
       .from(tableName)
-      .insert(jsonData);
+      .insert(data);
     
     if (error) {
-      console.error('Error saving to database:', error);
-      return { success: false, message: error.message };
+      throw error;
     }
     
     return { 
       success: true, 
-      message: `Successfully saved ${jsonData.length} records to ${tableName}`,
-      count: count
+      message: `Successfully saved ${data.length} records to ${tableName}` 
     };
   } catch (error) {
-    console.error('Error saving to database:', error);
+    console.error('Error saving synthetic data to database:', error);
     return { 
       success: false, 
-      message: error instanceof Error ? error.message : 'Unknown error' 
+      message: `Failed to save data: ${error instanceof Error ? error.message : String(error)}` 
     };
+  }
+};
+
+/**
+ * Enhanced synthetic data generation with specific parameters
+ */
+export const generateEnhancedSyntheticData = async (
+  template: SampleTemplate,
+  fields: DataField[],
+  options: SyntheticDataOptions,
+  apiKey: string
+): Promise<any[]> => {
+  try {
+    const { model, temperature, count, diversity, preserveSchema, enhanceRealism } = options;
+    
+    // Included fields only
+    const includedFields = fields.filter(field => field.included !== false);
+    
+    // Create a detailed prompt with specific instructions
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `You are a synthetic data generator AI specialized in creating ${
+          diversity === 'high' ? 'highly diverse' : 
+          diversity === 'medium' ? 'moderately diverse' : 'consistent'
+        } but realistic fake data for testing and development purposes.`
+      },
+      {
+        role: 'user' as const,
+        content: `Generate ${count} synthetic data records with these specifications:
+
+Fields to include: ${includedFields.map(f => `${f.name} (${f.type})`).join(', ')}
+
+Sample template:
+${JSON.stringify(template, null, 2)}
+
+Requirements:
+${preserveSchema ? '- Strictly preserve the schema structure and data types' : '- Allow reasonable schema variations'}
+${enhanceRealism ? '- Maximize realism and plausibility of the data' : '- Focus on variety over strict realism'}
+- Ensure ${diversity === 'high' ? 'high diversity' : diversity === 'medium' ? 'moderate diversity' : 'low diversity'} between records
+- Create internally consistent records where field relationships make sense
+- Return ONLY a valid JSON array of objects without any additional text
+`
+      }
+    ];
+    
+    // Call the OpenAI API
+    const response = await openAiService.callOpenAI('completions', {
+      model: model || 'gpt-4o-mini',
+      messages,
+      temperature: temperature || 0.7,
+      max_tokens: 4000
+    }, apiKey);
+    
+    const generatedText = response.choices[0].message.content;
+    
+    // Parse the JSON response
+    try {
+      // Find JSON in the response
+      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON array found in the response');
+      }
+      
+      const jsonString = jsonMatch[0];
+      const syntheticData = JSON.parse(jsonString);
+      
+      // Add synthetic_id and metadata
+      return syntheticData.map((record: any, index: number) => ({
+        ...record,
+        synthetic_id: `syn_${Date.now()}_${index}`,
+        synthetic_metadata: {
+          generated_at: new Date().toISOString(),
+          model,
+          diversity,
+          enhanceRealism
+        }
+      }));
+    } catch (parseError) {
+      console.error('Error parsing enhanced generated data:', parseError);
+      throw new Error('Failed to parse the generated data');
+    }
+  } catch (error) {
+    console.error('Error generating enhanced synthetic data:', error);
+    throw error;
   }
 };
