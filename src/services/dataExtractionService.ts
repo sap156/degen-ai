@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
@@ -35,15 +34,24 @@ export const extractDataFromUrl = async (
     throw new Error("API key is not set");
   }
 
-  // Create system message based on extraction type
+  // Get current date and time in ISO format
+  const currentTimestamp = new Date().toISOString();
+
+  // Create system message based on extraction type with enhanced instructions
   const systemMessage = `You are an expert data extraction AI assistant specialized in extracting structured data from web content.
   Your task is to extract ${extractionType} from the provided URL content.
-  ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables.' : ''}
-  ${extractionType === 'lists' ? 'Focus on finding and properly formatting all lists.' : ''}
-  ${extractionType === 'key-value' ? 'Focus on finding and properly formatting all key-value pairs.' : ''}
-  ${extractionType === 'text' ? 'Extract the main textual content, preserving important information.' : ''}
-  ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content.' : ''}
+  ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
+  ${extractionType === 'lists' ? 'Focus on finding and properly formatting all lists, including those with multiple levels.' : ''}
+  ${extractionType === 'key-value' ? 'Focus on finding and properly formatting all key-value pairs, such as specifications, properties, or attributes.' : ''}
+  ${extractionType === 'text' ? 'Extract the main textual content, preserving important information and structure.' : ''}
+  ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content with proper nesting and relationships.' : ''}
   ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
+  
+  Important notes:
+  1. If you cannot access the content directly, describe what you're able to see and what might be missing.
+  2. For dynamic content, try to extract whatever is visible in the current state.
+  3. Always use the current timestamp in your metadata.
+  4. If you find no content matching the extraction type, try to provide alternative useful data from the page.
   
   Return your response in valid JSON format with the following structure:
   {
@@ -51,7 +59,7 @@ export const extractDataFromUrl = async (
     "metadata": {
       "source_url": "${url}",
       "extraction_type": "${extractionType}",
-      "timestamp": "current_time",
+      "timestamp": "${currentTimestamp}",
       "query": "${userQuery || 'none'}"
     },
     "summary": "A brief summary of what was extracted"
@@ -70,7 +78,7 @@ export const extractDataFromUrl = async (
   ];
 
   try {
-    const model = localStorage.getItem('openai-model') || 'gpt-3.5-turbo';
+    const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
     const response = await getCompletion(apiKey, messages, { model });
     
     try {
@@ -116,7 +124,7 @@ export const extractDataFromImage = async (
     // Create system message based on extraction type
     const systemMessage = `You are an expert OCR and data extraction AI assistant specialized in extracting structured data from images.
     Your task is to extract ${extractionType} from the provided image.
-    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables.' : ''}
+    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
     ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs, especially for forms, receipts, or invoices.' : ''}
     ${extractionType === 'text' ? 'Extract all readable text, preserving layout when possible.' : ''}
     ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
