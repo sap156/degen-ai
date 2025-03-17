@@ -1,8 +1,9 @@
-
 // Field masking configuration
+export type MaskingTechnique = 'replace' | 'redact' | 'hash' | 'truncate' | 'tokenize' | 'pseudonymize' | string;
+
 export interface FieldMaskingConfig {
   enabled: boolean;
-  technique?: string; // Add technique property to match piiHandlingService
+  technique: MaskingTechnique; // Make technique required to match service expectations
 }
 
 // Per-field masking options

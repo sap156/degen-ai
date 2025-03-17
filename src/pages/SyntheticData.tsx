@@ -191,7 +191,12 @@ function SyntheticData() {
     }
     
     try {
-      await saveSyntheticDataToDatabase(generatedData);
+      const result = await saveSyntheticDataToDatabase(generatedData);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
     } catch (error) {
       console.error("Error saving to database:", error);
       toast.error("Error saving to database. Please try again.");

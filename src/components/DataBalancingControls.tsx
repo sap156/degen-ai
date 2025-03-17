@@ -1,168 +1,128 @@
 
-import React, { useState } from 'react';
+import React from 'react';
+import { BalancingOptions } from '@/services/imbalancedDataService';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { RefreshCw } from 'lucide-react';
-import { BalancingOptions, DatasetInfo } from '@/services/imbalancedDataService';
-import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface DataBalancingControlsProps {
-  originalDataset: DatasetInfo | null;
-  parsedData: any[];
-  onBalanceDataset: (options: BalancingOptions, data?: any[]) => void;
-  onDownloadBalanced: (format: 'json' | 'csv') => void;
-  hasBalancedData: boolean;
-  aiRecommendationsAvailable: boolean;
+  balancingOptions: BalancingOptions;
+  setBalancingOptions: (options: BalancingOptions) => void;
+  onApplyBalancing: () => void;
+  isLoading: boolean;
+  availableClasses?: string[];
+  targetClassName?: string;
 }
 
 const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
-  originalDataset,
-  parsedData,
-  onBalanceDataset,
-  onDownloadBalanced,
-  hasBalancedData,
-  aiRecommendationsAvailable
+  balancingOptions,
+  setBalancingOptions,
+  onApplyBalancing,
+  isLoading,
+  availableClasses = [],
+  targetClassName,
 }) => {
-  const [balancingTechnique, setBalancingTechnique] = useState<BalancingOptions['technique']>('oversampling');
-  const [targetRatio, setTargetRatio] = useState<number>(1.2);
-  const [isBalancing, setIsBalancing] = useState(false);
-  
-  const handleApplyBalancing = () => {
-    if (!originalDataset) return;
-    
-    setIsBalancing(true);
-    
-    try {
-      onBalanceDataset({
-        technique: balancingTechnique,
-        ratio: targetRatio,
-        preserveDistribution: true
-      }, parsedData);
-    } catch (error) {
-      console.error('Error balancing dataset:', error);
-      toast.error('Failed to balance dataset. Please try again.');
-    } finally {
-      setIsBalancing(false);
-    }
+  const handleTechniqueChange = (technique: string) => {
+    setBalancingOptions({
+      ...balancingOptions,
+      technique // Use technique instead of method
+    });
   };
-  
-  if (!originalDataset) {
-    return null;
-  }
-  
-  if (!aiRecommendationsAvailable) {
-    return (
-      <Card className="mt-6 border-dashed">
-        <CardContent className="pt-6 pb-6">
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <RefreshCw className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Balance Your Dataset</h3>
-            <p className="text-sm text-muted-foreground mt-2 max-w-md">
-              Get AI recommendations first to understand the best balancing approach for your dataset.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  const isImbalanced = originalDataset.imbalanceRatio > 1.5;
-  
+
+  const handleTargetClassChange = (targetClass: string) => {
+    setBalancingOptions({
+      ...balancingOptions,
+      targetClass
+    });
+  };
+
+  const handleTargetRatioChange = (value: number[]) => {
+    setBalancingOptions({
+      ...balancingOptions,
+      targetRatio: value[0]
+    });
+  };
+
+  const handlePreserveMinorityChange = (checked: boolean) => {
+    setBalancingOptions({
+      ...balancingOptions,
+      preserveMinority: checked
+    });
+  };
+
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <RefreshCw className="mr-2 h-5 w-5 text-primary" />
-          Balance Your Dataset
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!isImbalanced ? (
-          <div className="text-sm bg-green-50 p-4 rounded-md border border-green-200">
-            <p className="font-medium text-green-800">Your dataset is already balanced</p>
-            <p className="text-green-700 mt-1">
-              The current imbalance ratio of {originalDataset.imbalanceRatio}:1 is considered balanced. No action needed.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="text-sm bg-amber-50 p-4 rounded-md border border-amber-200">
-              <p className="font-medium text-amber-800">Your dataset is imbalanced</p>
-              <p className="text-amber-700 mt-1">
-                The current imbalance ratio is {originalDataset.imbalanceRatio}:1. Apply a balancing technique below.
-              </p>
-            </div>
-            
-            <div className="space-y-4 mt-2">
-              <div className="space-y-2">
-                <Label>Balancing Technique</Label>
-                <RadioGroup 
-                  value={balancingTechnique}
-                  onValueChange={(value) => setBalancingTechnique(value as BalancingOptions['technique'])}
-                  className="grid grid-cols-1 gap-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="oversampling" id="oversampling" />
-                    <Label htmlFor="oversampling">Oversampling (increase minority classes)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="undersampling" id="undersampling" />
-                    <Label htmlFor="undersampling">Undersampling (reduce majority classes)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="hybrid" id="hybrid" />
-                    <Label htmlFor="hybrid">Hybrid (combine both techniques)</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="targetRatio">Target Imbalance Ratio</Label>
-                  <span className="text-sm text-muted-foreground">{targetRatio}:1</span>
-                </div>
-                <Slider
-                  id="targetRatio"
-                  min={1}
-                  max={5}
-                  step={0.1}
-                  defaultValue={[targetRatio]}
-                  onValueChange={(values) => setTargetRatio(values[0])}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Lower values create more balanced datasets (1:1 is perfectly balanced)
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-      
-      <CardFooter>
-        {isImbalanced && (
-          <Button 
-            className="w-full" 
-            onClick={handleApplyBalancing}
-            disabled={isBalancing}
-          >
-            {isBalancing ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Balancing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Apply Balancing
-              </>
-            )}
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="balancing-technique">Balancing Technique</Label>
+        <Select
+          value={balancingOptions.technique}
+          onValueChange={handleTechniqueChange}
+        >
+          <SelectTrigger id="balancing-technique">
+            <SelectValue placeholder="Select balancing technique" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="oversample">Oversampling (duplicate minority)</SelectItem>
+            <SelectItem value="undersample">Undersampling (reduce majority)</SelectItem>
+            <SelectItem value="hybrid">Hybrid (over + under sampling)</SelectItem>
+            <SelectItem value="smote">SMOTE (synthetic minority)</SelectItem>
+            <SelectItem value="adasyn">ADASYN (adaptive synthetic)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="target-class">Target Class</Label>
+        <Select
+          value={balancingOptions.targetClass || (targetClassName || '')}
+          onValueChange={handleTargetClassChange}
+        >
+          <SelectTrigger id="target-class">
+            <SelectValue placeholder="Select target class" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableClasses.map(className => (
+              <SelectItem key={className} value={className}>
+                {className}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <Label htmlFor="target-ratio">Target Ratio: {balancingOptions.targetRatio || 1}</Label>
+        </div>
+        <Slider
+          id="target-ratio"
+          min={0.1}
+          max={2}
+          step={0.1}
+          value={[balancingOptions.targetRatio || 1]}
+          onValueChange={handleTargetRatioChange}
+        />
+      </div>
+
+      <div className="flex items-center space-x-2 pt-2">
+        <Switch
+          checked={balancingOptions.preserveMinority || false}
+          onCheckedChange={handlePreserveMinorityChange}
+          id="preserve-minority"
+        />
+        <Label htmlFor="preserve-minority">Preserve minority samples</Label>
+      </div>
+
+      <Button 
+        onClick={onApplyBalancing} 
+        disabled={isLoading}
+        className="w-full"
+      >
+        {isLoading ? 'Balancing...' : 'Apply Balancing'}
+      </Button>
+    </div>
   );
 };
 

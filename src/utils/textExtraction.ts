@@ -1,136 +1,129 @@
-
-import { FileProcessingResult, SupportedFileType } from './fileTypes';
-import { readFileContent } from './fileOperations';
-import * as openAiService from '../services/openAiService';
+import { PDFDocument, PDFPageProxy } from 'pdfjs-dist';
+import * as openAiService from '@/services/openAiService';
+import { FileProcessingResult } from './fileTypes';
 
 /**
- * Extract text content from different file types
+ * Extracts text from a PDF file using pdf.js library.
  */
-export const extractTextFromFile = async (
-  file: File, 
-  apiKey: string | null
-): Promise<FileProcessingResult> => {
+export const extractTextFromPdf = async (file: File): Promise<FileProcessingResult> => {
   try {
-    const fileName = file.name;
-    const fileType = getFileType(file);
-    const fileSize = file.size;
-    const fileSizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+    const fileReader = new FileReader();
     
-    // Basic metadata
-    const metadata: Record<string, any> = {
-      fileName,
-      fileType,
-      fileSize: `${fileSizeInMB} MB`,
-      dateProcessed: new Date().toISOString()
-    };
+    await new Promise((resolve, reject) => {
+      fileReader.onload = resolve;
+      fileReader.onerror = reject;
+      fileReader.readAsArrayBuffer(file);
+    });
     
-    switch (fileType) {
-      case 'csv':
-      case 'json':
-      case 'txt':
-        // For text-based formats, just read the content directly
-        const content = await readFileContent(file);
-        return { 
-          success: true, 
-          text: content, 
-          metadata 
-        };
-        
-      case 'pdf':
-      case 'docx':
-      case 'xlsx':
-      case 'pptx':
-        // For complex file types, use AI to extract text
-        if (!apiKey) {
-          return {
-            success: false,
-            error: "API key is required to process this file type",
-            metadata
-          };
-        }
-        
-        return await extractTextWithAI(file, apiKey, metadata);
-        
-      default:
-        return {
-          success: false,
-          error: `Unsupported file type: ${fileType}`,
-          metadata
-        };
+    const arrayBuffer = fileReader.result as ArrayBuffer;
+    
+    if (!arrayBuffer) {
+      throw new Error('Failed to read file as ArrayBuffer.');
     }
-  } catch (error) {
-    console.error('Error extracting text from file:', error);
+    
+    // Load the PDF document
+    const pdf = await PDFDocument.load(arrayBuffer);
+    const totalPages = pdf.numPages;
+    let extractedText = '';
+    
+    // Iterate over each page and extract text
+    for (let i = 1; i <= totalPages; i++) {
+      const page: PDFPageProxy = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      extractedText += pageText + '\n';
+    }
+    
+    return {
+      success: true,
+      text: extractedText,
+      metadata: {
+        processingMethod: 'pdf.js',
+        pages: totalPages
+      }
+    };
+  } catch (error: any) {
+    console.error('Error extracting text from PDF:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error extracting text',
-      metadata: {
-        dateProcessed: new Date().toISOString()
-      }
+      error: error.message || 'Failed to extract text from PDF.'
     };
   }
 };
 
 /**
- * Helper function to determine file type based on extension
+ * Extracts text from various file types.
  */
-const getFileType = (file: File): SupportedFileType => {
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  
-  if (['csv'].includes(extension)) return 'csv';
-  if (['json'].includes(extension)) return 'json';
-  if (['txt', 'text', 'md'].includes(extension)) return 'txt';
-  if (['pdf'].includes(extension)) return 'pdf';
-  if (['doc', 'docx'].includes(extension)) return 'docx';
-  if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
-  if (['ppt', 'pptx'].includes(extension)) return 'pptx';
-  if (['xml'].includes(extension)) return 'xml';
-  
-  // Default to unknown for unsupported types
-  return 'unknown';
-};
-
-/**
- * Extract text from complex file types using AI
- */
-const extractTextWithAI = async (
-  file: File, 
-  apiKey: string, 
-  baseMetadata: Record<string, any>
-): Promise<FileProcessingResult> => {
+export const extractTextFromFile = async (file: File, apiKey: string): Promise<FileProcessingResult> => {
   try {
-    // For PDF, DOCX, etc. - simulate extraction
-    const messages = [
-      { 
-        role: 'system' as const, 
-        content: 'You are a document text extraction assistant. Extract text content from the document I describe.'
-      },
-      { 
-        role: 'user' as const, 
-        content: `This is a ${file.type || 'document'} file named "${file.name}". In a real implementation, I would extract the contents. For this simulation, please generate some plausible text content that might be found in such a document.`
-      }
-    ];
+    const fileReader = new FileReader();
     
-    const response = await openAiService.callOpenAI('completions', {
-      model: 'gpt-4o-mini',
-      messages
-    }, apiKey);
+    await new Promise((resolve, reject) => {
+      fileReader.onload = resolve;
+      fileReader.onerror = reject;
+      fileReader.readAsText(file);
+    });
+    
+    const text = fileReader.result as string;
+    
+    if (!text) {
+      throw new Error('Failed to read file as text.');
+    }
     
     return {
       success: true,
-      text: response.choices[0].message.content,
+      text: text,
       metadata: {
-        ...baseMetadata,
-        processingMethod: 'Simulated extraction',
-        note: 'In a production environment, specialized libraries would be used for each file type'
+        processingMethod: 'basic text extraction',
+        note: 'Used basic text extraction for unsupported file type'
       }
     };
-    
-  } catch (error) {
-    console.error('Error extracting text with AI:', error);
+  } catch (error: any) {
+    console.error('Error extracting text from file:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Error extracting text with AI',
-      metadata: baseMetadata
+      error: error.message || 'Failed to extract text from file.'
+    };
+  }
+};
+
+/**
+ * Extracts structured information from text using OpenAI.
+ */
+export const extractInformationFromText = async (text: string, apiKey: string): Promise<FileProcessingResult> => {
+  try {
+    const response = await openAiService.callOpenAI(
+      {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Extract and structure the key information from this document.'
+          },
+          {
+            role: 'user',
+            content: `Extract the main information from this text: ${text.substring(0, 4000)}`
+          }
+        ]
+      },
+      apiKey
+    );
+    
+    const extractedInfo = response.choices[0].message.content;
+    
+    return {
+      success: true,
+      data: extractedInfo,
+      text: text,
+      metadata: {
+        processingMethod: 'OpenAI'
+      }
+    };
+  } catch (error: any) {
+    console.error('Error extracting information from text using OpenAI:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to extract information using OpenAI.'
     };
   }
 };

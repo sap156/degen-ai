@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4, Key } from 'lucide-react';
@@ -90,9 +89,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
           minoritySamples,
           selectedPrimaryKeys, // Use user-selected primary keys
           batchCount,
-          modelOptions.syntheticDataPreferences.diversity || 'medium',
-          generatedSamples, // Existing samples to ensure uniqueness
-          originalData // Original data to avoid key collisions
+          modelOptions.syntheticDataPreferences.diversity || 'medium'
         );
         
         generatedSamples = [...generatedSamples, ...currentBatch];

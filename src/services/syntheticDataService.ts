@@ -1,12 +1,21 @@
 
-import { supabaseClient } from './supabaseService';
+// Fix imports
+import { createClient } from '@supabase/supabase-js';
 import * as openAiService from './openAiService';
+import { SchemaFieldType } from '@/utils/fileTypes';
+
+// Create a supabase client (or import it correctly)
+const supabaseClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 // Interfaces for data field and sample templates
 export interface DataField {
   name: string;
   type: string;
   included?: boolean;
+  sampleValue?: string;
 }
 
 export interface SampleTemplate {
@@ -16,72 +25,86 @@ export interface SampleTemplate {
 }
 
 export interface SyntheticDataOptions {
-  model: string;
-  temperature: number;
-  count: number;
-  diversity: 'low' | 'medium' | 'high';
-  preserveSchema: boolean;
-  enhanceRealism: boolean;
+  model?: string;
+  temperature?: number;
+  rowCount: number;
+  diversity?: 'low' | 'medium' | 'high';
+  preserveSchema?: boolean;
+  enhanceRealism?: boolean;
+  fields?: DataField[];
+  uploadedData?: any[];
+  onProgress?: (progress: number) => void;
+  aiPrompt?: string;
+  outputFormat?: string;
+  includeNulls?: boolean;
+  nullPercentage?: number;
+  distributionType?: string;
+  dataType?: string;
 }
 
 // Default schemas for common data types
-export const defaultSchemas = {
-  customer: {
-    id: 'string',
-    firstName: 'name',
-    lastName: 'name',
-    email: 'email',
-    phone: 'phone',
-    address: 'address',
-    registrationDate: 'date',
-    loyaltyPoints: 'integer',
-    isActive: 'boolean'
-  },
-  transaction: {
-    id: 'string',
-    customerId: 'string',
-    productId: 'string',
-    date: 'date',
-    amount: 'float',
-    paymentMethod: 'string',
-    isRefunded: 'boolean'
-  },
-  product: {
-    id: 'string',
-    name: 'string',
-    category: 'string',
-    price: 'float',
-    inStock: 'boolean',
-    description: 'string',
-    rating: 'float'
-  }
+export const defaultSchemas: Record<string, DataField[]> = {
+  user: [
+    { name: 'id', type: 'string', included: true },
+    { name: 'firstName', type: 'name', included: true },
+    { name: 'lastName', type: 'name', included: true },
+    { name: 'email', type: 'email', included: true },
+    { name: 'phone', type: 'phone', included: true },
+    { name: 'address', type: 'address', included: true },
+    { name: 'registrationDate', type: 'date', included: true },
+    { name: 'loyaltyPoints', type: 'integer', included: true },
+    { name: 'isActive', type: 'boolean', included: true }
+  ],
+  transaction: [
+    { name: 'id', type: 'string', included: true },
+    { name: 'customerId', type: 'string', included: true },
+    { name: 'productId', type: 'string', included: true },
+    { name: 'date', type: 'date', included: true },
+    { name: 'amount', type: 'float', included: true },
+    { name: 'paymentMethod', type: 'string', included: true },
+    { name: 'isRefunded', type: 'boolean', included: true }
+  ],
+  product: [
+    { name: 'id', type: 'string', included: true },
+    { name: 'name', type: 'string', included: true },
+    { name: 'category', type: 'string', included: true },
+    { name: 'price', type: 'float', included: true },
+    { name: 'inStock', type: 'boolean', included: true },
+    { name: 'description', type: 'string', included: true },
+    { name: 'rating', type: 'float', included: true }
+  ],
+  customer: [
+    { name: 'id', type: 'string', included: true },
+    { name: 'firstName', type: 'name', included: true },
+    { name: 'lastName', type: 'name', included: true },
+    { name: 'email', type: 'email', included: true },
+    { name: 'phone', type: 'phone', included: true },
+    { name: 'address', type: 'address', included: true },
+    { name: 'registrationDate', type: 'date', included: true },
+    { name: 'loyaltyPoints', type: 'integer', included: true },
+    { name: 'isActive', type: 'boolean', included: true }
+  ]
 };
 
 /**
- * Generate synthetic data based on a template and schema
+ * Generate synthetic data based on options
  */
-export const generateSyntheticData = async (
-  template: SampleTemplate,
-  fields: DataField[],
-  count: number,
-  apiKey: string
-): Promise<any[]> => {
+export const generateSyntheticData = async (options: SyntheticDataOptions, apiKey: string): Promise<string> => {
   try {
+    if (!options.fields || options.fields.filter(f => f.included).length === 0) {
+      throw new Error('No fields selected for generation');
+    }
+    
+    // Update progress
+    if (options.onProgress) {
+      options.onProgress(10);
+    }
+    
     // Prepare the fields for the prompt
-    const fieldDescriptions = fields
-      .filter(field => field.included !== false)
+    const fieldDescriptions = options.fields
+      .filter(field => field.included)
       .map(field => `${field.name} (${field.type})`)
       .join(', ');
-    
-    // Create a sample data point for reference
-    const sampleData: Record<string, any> = {};
-    
-    // Extract a sample from the template
-    Object.entries(template).forEach(([category, items]) => {
-      Object.entries(items).forEach(([field, value]) => {
-        sampleData[field] = value;
-      });
-    });
     
     // Create the prompt for the AI
     const messages = [
@@ -91,52 +114,43 @@ export const generateSyntheticData = async (
       },
       {
         role: 'user' as const,
-        content: `Generate ${count} synthetic data records with the following fields: ${fieldDescriptions}.
+        content: `${options.aiPrompt || 'Generate synthetic data'} with the following fields: ${fieldDescriptions}.
         
-The data should be returned as a valid JSON array of objects.
-Each object should have all the fields mentioned above.
+Generate ${options.rowCount || 10} synthetic data records in ${options.outputFormat || 'json'} format.
 
-Here's a sample data point for reference:
-${JSON.stringify(sampleData, null, 2)}
+The data should be diverse but realistic, with internal consistency.
+${options.includeNulls ? `Include null values randomly in about ${options.nullPercentage || 10}% of fields.` : 'Do not include null values.'}
 
-Make sure the generated data:
-1. Has realistic values for each field based on its type
-2. Has internal consistency (e.g., dates make sense, related fields are logical)
-3. Is diverse but realistic
-4. Is returned as a valid JSON array that I can parse directly
-
-Please ONLY return the JSON array without any additional text.`
+Please ONLY return the ${options.outputFormat || 'json'} data without any additional text.`
       }
     ];
     
+    // Update progress
+    if (options.onProgress) {
+      options.onProgress(30);
+    }
+    
     // Call the OpenAI API
-    const response = await openAiService.callOpenAI('completions', {
-      model: 'gpt-4o-mini',
-      messages
+    const response = await openAiService.callOpenAI({
+      model: options.model || 'gpt-4o-mini',
+      messages,
+      temperature: options.temperature || 0.7,
+      max_tokens: 4000
     }, apiKey);
+    
+    // Update progress
+    if (options.onProgress) {
+      options.onProgress(90);
+    }
     
     const generatedText = response.choices[0].message.content;
     
-    // Parse the JSON response
-    try {
-      // Find JSON in the response
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('No valid JSON array found in the response');
-      }
-      
-      const jsonString = jsonMatch[0];
-      const syntheticData = JSON.parse(jsonString);
-      
-      // Add a synthetic_id field to each record
-      return syntheticData.map((record: any, index: number) => ({
-        ...record,
-        synthetic_id: `syn_${index + 1}`
-      }));
-    } catch (parseError) {
-      console.error('Error parsing generated data:', parseError);
-      throw new Error('Failed to parse the generated data');
+    // Update progress
+    if (options.onProgress) {
+      options.onProgress(100);
     }
+    
+    return generatedText;
   } catch (error) {
     console.error('Error generating synthetic data:', error);
     throw error;
@@ -147,14 +161,26 @@ Please ONLY return the JSON array without any additional text.`
  * Save synthetic data to the database
  */
 export const saveSyntheticDataToDatabase = async (
-  data: any[],
-  tableName: string
+  data: string,
+  tableName = 'synthetic_data'
 ): Promise<{success: boolean; message: string; count?: number}> => {
   try {
+    // Parse the data if it's a string
+    let parsedData;
+    try {
+      parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch (error) {
+      return { success: false, message: 'Invalid JSON data' };
+    }
+    
+    if (!Array.isArray(parsedData)) {
+      return { success: false, message: 'Data must be an array of objects' };
+    }
+    
     // Insert data into Supabase
     const { error } = await supabaseClient
       .from(tableName)
-      .insert(data);
+      .insert(parsedData);
     
     if (error) {
       throw error;
@@ -162,8 +188,8 @@ export const saveSyntheticDataToDatabase = async (
     
     return { 
       success: true, 
-      message: `Successfully saved ${data.length} records to ${tableName}`,
-      count: data.length
+      message: `Successfully saved ${parsedData.length} records to ${tableName}`,
+      count: parsedData.length
     };
   } catch (error) {
     console.error('Error saving synthetic data to database:', error);
@@ -177,90 +203,121 @@ export const saveSyntheticDataToDatabase = async (
 /**
  * Detect schema from data
  */
-export const detectSchemaFromData = (data: any[]): Record<string, string> => {
+export const detectSchemaFromData = (data: any[]): DataField[] => {
   if (!data || data.length === 0) {
-    return {};
+    return [];
   }
   
-  const schema: Record<string, string> = {};
+  const fields: DataField[] = [];
   const sample = data[0];
   
   Object.entries(sample).forEach(([key, value]) => {
+    let type: string = 'string'; // Default type
+    
     if (value === null || value === undefined) {
-      schema[key] = 'string'; // Default for null values
-      return;
-    }
-    
-    const type = typeof value;
-    
-    if (type === 'string') {
-      // Check for date format
-      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
-        schema[key] = 'date';
-      } 
-      // Check for email format
-      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
-        schema[key] = 'email';
-      } 
-      // Check for phone format
-      else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value as string)) {
-        schema[key] = 'phone';
-      }
-      else {
-        schema[key] = 'string';
-      }
-    } else if (type === 'number') {
-      // Check if it's an integer
-      schema[key] = Number.isInteger(value) ? 'integer' : 'float';
-    } else if (type === 'boolean') {
-      schema[key] = 'boolean';
-    } else if (Array.isArray(value)) {
-      schema[key] = 'array';
-    } else if (type === 'object') {
-      schema[key] = 'object';
+      type = 'string'; // Default for null values
     } else {
-      schema[key] = 'string'; // Default fallback
+      const valueType = typeof value;
+      
+      if (valueType === 'string') {
+        // Check for date format
+        if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
+          type = 'date';
+        } 
+        // Check for email format
+        else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
+          type = 'email';
+        } 
+        // Check for phone format
+        else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value as string)) {
+          type = 'phone';
+        }
+        else {
+          type = 'string';
+        }
+      } else if (valueType === 'number') {
+        // Check if it's an integer
+        type = Number.isInteger(value) ? 'integer' : 'float';
+      } else if (valueType === 'boolean') {
+        type = 'boolean';
+      } else if (Array.isArray(value)) {
+        type = 'array';
+      } else if (valueType === 'object') {
+        type = 'object';
+      } else {
+        type = valueType; // Use the JS typeof result for other types
+      }
     }
+    
+    fields.push({ 
+      name: key,
+      type,
+      included: true,
+      sampleValue: String(value || '')
+    });
   });
   
-  return schema;
+  return fields;
 };
 
 /**
  * Download synthetic data
  */
-export const downloadSyntheticData = (data: any[], format: 'json' | 'csv'): void => {
+export const downloadSyntheticData = (
+  data: string, 
+  filename = 'synthetic_data',
+  format: 'json' | 'csv' = 'json'
+): void => {
   try {
     let content: string;
     let contentType: string;
     let extension: string;
+    let parsedData: any[];
     
-    if (format === 'json') {
-      content = JSON.stringify(data, null, 2);
-      contentType = 'application/json';
-      extension = 'json';
+    // Parse data if it's a string
+    try {
+      parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch (e) {
+      // If can't parse as JSON, assume it's already in the correct format (e.g. CSV)
+      parsedData = [];
+      content = data;
+      contentType = format === 'json' ? 'application/json' : 'text/csv';
+      extension = format;
+    }
+    
+    if (parsedData && parsedData.length > 0) {
+      if (format === 'json') {
+        content = JSON.stringify(parsedData, null, 2);
+        contentType = 'application/json';
+        extension = 'json';
+      } else {
+        // CSV format
+        const headers = Object.keys(parsedData[0]).join(',');
+        const rows = parsedData.map(item => {
+          return Object.values(item).map(value => {
+            if (typeof value === 'string') {
+              // Escape quotes in string fields
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',');
+        });
+        content = [headers, ...rows].join('\n');
+        contentType = 'text/csv';
+        extension = 'csv';
+      }
     } else {
-      // CSV format
-      const headers = Object.keys(data[0]).join(',');
-      const rows = data.map(item => {
-        return Object.values(item).map(value => {
-          if (typeof value === 'string') {
-            // Escape quotes in string fields
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        }).join(',');
-      });
-      content = [headers, ...rows].join('\n');
-      contentType = 'text/csv';
-      extension = 'csv';
+      // If we couldn't parse data but have content from the catch block above
+      if (!content) {
+        throw new Error('Invalid data format');
+      }
     }
     
     const blob = new Blob([content], { type: contentType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `synthetic_data_${new Date().getTime()}.${extension}`;
+    a.download = `${filename}.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
