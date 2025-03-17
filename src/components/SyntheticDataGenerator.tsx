@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { DatasetPreferences, ModelOptions } from '@/services/aiDataAnalysisService';
-import { DatasetInfo } from '@/services/imbalancedDataService';
+import { DatasetInfo, generateSyntheticRecords } from '@/services/imbalancedDataService';
 
 interface SyntheticDataGeneratorProps {
   preferences: DatasetPreferences;
@@ -55,6 +55,10 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       const batchSize = 20;
       let generatedSamples: any[] = [];
       
+      // Detect potential primary key fields
+      const potentialPrimaryKeys = detectPrimaryKeyFields(originalData);
+      console.log("Detected potential primary keys:", potentialPrimaryKeys);
+      
       for (let i = 0; i < totalToGenerate; i += batchSize) {
         // Update progress
         const currentProgress = Math.min(Math.round((i / totalToGenerate) * 100), 90);
@@ -62,17 +66,27 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         setGeneratedCount(i);
         
         // In a real implementation, this would call the backend service
-        // For now, we'll create some unique synthetic data based on the original minority class samples
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
         
         const batchCount = Math.min(batchSize, totalToGenerate - i);
-        const currentBatch = createUniqueSyntheticSamples(
-          originalData, 
-          preferences.targetColumn,
-          preferences.minorityClass,
+        const minoritySamples = originalData.filter(item => 
+          String(item[preferences.targetColumn]) === preferences.minorityClass
+        );
+        
+        if (minoritySamples.length === 0) {
+          toast.error("No minority class samples found");
+          setLoading(false);
+          return;
+        }
+        
+        // Generate synthetic samples ensuring primary key uniqueness
+        const currentBatch = generateSyntheticSamplesWithUniqueKeys(
+          minoritySamples,
+          potentialPrimaryKeys,
           batchCount,
-          modelOptions.syntheticDataPreferences.diversity,
-          generatedSamples // Pass existing samples to ensure uniqueness
+          modelOptions.syntheticDataPreferences.diversity || 'medium',
+          generatedSamples, // Existing samples to ensure uniqueness
+          originalData // Original data to avoid key collisions
         );
         
         generatedSamples = [...generatedSamples, ...currentBatch];
@@ -95,38 +109,102 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     }
   };
   
-  // This is a placeholder function - in reality, we would call the OpenAI service
-  // This is just for UI demonstration without actual API calls
-  const createUniqueSyntheticSamples = (
-    data: any[], 
-    targetColumn: string,
-    minorityClass: string,
+  // Detect potential primary key fields in the dataset
+  const detectPrimaryKeyFields = (data: any[]): string[] => {
+    if (!data || data.length === 0) return [];
+    
+    const commonPrimaryKeyNames = [
+      'id', 'ID', 'Id', '_id', 
+      'patient_id', 'patientId', 'PatientId', 'patientID', 'PatientID',
+      'user_id', 'userId', 'UserId', 'userID', 'UserID',
+      'customer_id', 'customerId', 'CustomerId', 'customerID', 'CustomerID',
+      'record_id', 'recordId', 'RecordId', 'recordID', 'RecordID',
+      'uuid', 'UUID', 'guid', 'GUID'
+    ];
+    
+    const potentialKeys: string[] = [];
+    const sample = data[0];
+    
+    // Check for fields with names typically used for primary keys
+    Object.keys(sample).forEach(field => {
+      if (commonPrimaryKeyNames.includes(field)) {
+        potentialKeys.push(field);
+        return;
+      }
+      
+      // Check if field name ends with _id, ID, Id
+      if (field.endsWith('_id') || field.endsWith('ID') || field.endsWith('Id')) {
+        potentialKeys.push(field);
+        return;
+      }
+    });
+    
+    // If no obvious primary key fields found, check for fields with unique values
+    if (potentialKeys.length === 0) {
+      Object.keys(sample).forEach(field => {
+        // Skip obvious non-key fields
+        if (field === 'synthetic_id' || 
+            field === preferences.targetColumn ||
+            typeof sample[field] === 'object') {
+          return;
+        }
+        
+        // Check if values are unique across all records
+        const values = new Set(data.map(item => item[field]));
+        if (values.size === data.length) {
+          potentialKeys.push(field);
+        }
+      });
+    }
+    
+    return potentialKeys;
+  };
+  
+  // Generate synthetic samples with unique primary key values
+  const generateSyntheticSamplesWithUniqueKeys = (
+    minoritySamples: any[],
+    primaryKeyFields: string[],
     count: number,
     diversity: 'low' | 'medium' | 'high' = 'medium',
-    existingSamples: any[] = []
+    existingSamples: any[] = [],
+    originalData: any[] = []
   ): any[] => {
-    // Find minority class samples
-    const minoritySamples = data.filter(item => 
-      String(item[targetColumn]) === minorityClass
-    );
+    if (!primaryKeyFields.length) {
+      // If no primary keys detected, use the standard function from the service
+      return generateSyntheticRecords(
+        minoritySamples, 
+        preferences.targetColumn, 
+        count, 
+        diversity
+      );
+    }
     
-    if (minoritySamples.length === 0) return [];
+    // Get all existing key values to avoid duplication
+    const existingKeyValues: Record<string, Set<any>> = {};
+    primaryKeyFields.forEach(field => {
+      existingKeyValues[field] = new Set();
+      
+      // Add values from original data
+      originalData.forEach(record => {
+        if (record[field] !== undefined) {
+          existingKeyValues[field].add(record[field]);
+        }
+      });
+      
+      // Add values from already generated samples
+      existingSamples.forEach(record => {
+        if (record[field] !== undefined) {
+          existingKeyValues[field].add(record[field]);
+        }
+      });
+    });
     
-    // Create synthetic samples based on minority class
     const syntheticSamples = [];
     const diversityFactor = diversity === 'low' ? 0.05 : diversity === 'medium' ? 0.15 : 0.25;
     
-    // Create a set of fingerprints for existing samples to check uniqueness
-    const existingFingerprints = new Set();
+    // Generate unique samples one by one
+    let attemptsLeft = count * 5; // Allow multiple attempts
     
-    // Add fingerprints of existing synthetic samples
-    existingSamples.forEach(sample => {
-      const fingerprint = generateSampleFingerprint(sample, targetColumn);
-      existingFingerprints.add(fingerprint);
-    });
-    
-    // Generate unique samples
-    let attemptsLeft = count * 3; // Allow up to 3 attempts per required sample
     while (syntheticSamples.length < count && attemptsLeft > 0) {
       // Pick a random sample to use as base
       const baseSample = minoritySamples[Math.floor(Math.random() * minoritySamples.length)];
@@ -135,11 +213,57 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       // Add synthetic_id
       syntheticSample.synthetic_id = `syn_${existingSamples.length + syntheticSamples.length + 1}`;
       
-      // Vary numeric features with more randomness to ensure uniqueness
+      // Generate unique primary key values
+      primaryKeyFields.forEach(field => {
+        const originalValue = baseSample[field];
+        
+        // Create a new unique ID value based on the field type
+        if (typeof originalValue === 'number') {
+          // For numeric IDs, find the highest ID and increment
+          const existingNumericIds = Array.from(existingKeyValues[field]).filter(
+            v => typeof v === 'number'
+          ) as number[];
+          
+          const highestId = existingNumericIds.length > 0 
+            ? Math.max(...existingNumericIds)
+            : 0;
+            
+          syntheticSample[field] = highestId + syntheticSamples.length + 1;
+        } 
+        else if (typeof originalValue === 'string' && /^[0-9]+$/.test(originalValue)) {
+          // For string IDs containing only numbers
+          const numericIds = Array.from(existingKeyValues[field])
+            .filter(v => typeof v === 'string' && /^[0-9]+$/.test(v as string))
+            .map(v => parseInt(v as string, 10));
+          
+          const highestId = numericIds.length > 0
+            ? Math.max(...numericIds)
+            : 0;
+            
+          syntheticSample[field] = String(highestId + syntheticSamples.length + 1);
+        }
+        else if (typeof originalValue === 'string') {
+          // For string IDs, add a unique suffix
+          syntheticSample[field] = `${originalValue}_syn_${syntheticSamples.length + 1}`;
+        }
+        else {
+          // For other types, preserve the original but make it unique somehow
+          syntheticSample[field] = `${String(originalValue)}_syn_${syntheticSamples.length + 1}`;
+        }
+        
+        // Add to tracking sets
+        existingKeyValues[field].add(syntheticSample[field]);
+      });
+      
+      // Vary other numeric features
       for (const key in syntheticSample) {
-        if (key !== targetColumn && typeof syntheticSample[key] === 'number') {
+        if (!primaryKeyFields.includes(key) && 
+            key !== preferences.targetColumn && 
+            key !== 'synthetic_id' && 
+            typeof syntheticSample[key] === 'number') {
+          
           const originalValue = syntheticSample[key];
-          // Add more randomness based on diversity level
+          // Add randomness based on diversity level
           const randomVariation = Math.random() * diversityFactor * 2 - diversityFactor;
           const additionalRandomness = Math.random() * 0.02 * (1 + syntheticSamples.length % 10);
           
@@ -155,31 +279,11 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         }
       }
       
-      // Check if this sample is unique
-      const fingerprint = generateSampleFingerprint(syntheticSample, targetColumn);
-      if (!existingFingerprints.has(fingerprint)) {
-        existingFingerprints.add(fingerprint);
-        syntheticSamples.push(syntheticSample);
-      }
-      
+      syntheticSamples.push(syntheticSample);
       attemptsLeft--;
     }
     
     return syntheticSamples;
-  };
-  
-  // Helper to generate a fingerprint for sample uniqueness checking
-  const generateSampleFingerprint = (sample: any, excludeKey: string): string => {
-    const relevantData: Record<string, any> = {};
-    
-    // Only include numeric fields in the fingerprint to focus on the meaningful variations
-    Object.keys(sample).forEach(key => {
-      if (key !== excludeKey && key !== 'synthetic_id' && typeof sample[key] === 'number') {
-        relevantData[key] = sample[key];
-      }
-    });
-    
-    return JSON.stringify(relevantData);
   };
   
   // Find the minority class in the original dataset
