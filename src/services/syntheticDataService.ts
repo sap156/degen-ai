@@ -1,414 +1,347 @@
+import { OpenAiMessage, createMessages, getCompletion } from './openAiService';
 
-// Fix imports
-import { createClient } from '@supabase/supabase-js';
-import * as openAiService from './openAiService';
-import { SchemaFieldType } from '@/utils/fileTypes';
-
-// Create a supabase client (or import it correctly)
-const supabaseClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
-
-// Interfaces for data field and sample templates
-export interface DataField {
-  name: string;
-  type: string;
-  included?: boolean;
-  sampleValue?: string;
-}
-
-export interface SampleTemplate {
-  [key: string]: {
-    [key: string]: string;
-  };
-}
-
+// Update the SyntheticDataOptions interface to include count
 export interface SyntheticDataOptions {
-  model?: string;
-  temperature?: number;
-  rowCount: number;
-  diversity?: 'low' | 'medium' | 'high';
-  preserveSchema?: boolean;
-  enhanceRealism?: boolean;
-  fields?: DataField[];
-  uploadedData?: any[];
-  onProgress?: (progress: number) => void;
-  aiPrompt?: string;
-  outputFormat?: string;
-  includeNulls?: boolean;
-  nullPercentage?: number;
-  distributionType?: string;
-  dataType?: string;
+  count: number;
+  diversity: 'low' | 'medium' | 'high';
+  preserveRelationships: boolean;
+  targetClass?: string;
+  apiKey: string;
+  // Add any other options needed
 }
 
-// Default schemas for common data types
-export const defaultSchemas: Record<string, DataField[]> = {
-  user: [
-    { name: 'id', type: 'string', included: true },
-    { name: 'firstName', type: 'name', included: true },
-    { name: 'lastName', type: 'name', included: true },
-    { name: 'email', type: 'email', included: true },
-    { name: 'phone', type: 'phone', included: true },
-    { name: 'address', type: 'address', included: true },
-    { name: 'registrationDate', type: 'date', included: true },
-    { name: 'loyaltyPoints', type: 'integer', included: true },
-    { name: 'isActive', type: 'boolean', included: true }
-  ],
-  transaction: [
-    { name: 'id', type: 'string', included: true },
-    { name: 'customerId', type: 'string', included: true },
-    { name: 'productId', type: 'string', included: true },
-    { name: 'date', type: 'date', included: true },
-    { name: 'amount', type: 'float', included: true },
-    { name: 'paymentMethod', type: 'string', included: true },
-    { name: 'isRefunded', type: 'boolean', included: true }
-  ],
-  product: [
-    { name: 'id', type: 'string', included: true },
-    { name: 'name', type: 'string', included: true },
-    { name: 'category', type: 'string', included: true },
-    { name: 'price', type: 'float', included: true },
-    { name: 'inStock', type: 'boolean', included: true },
-    { name: 'description', type: 'string', included: true },
-    { name: 'rating', type: 'float', included: true }
-  ],
-  customer: [
-    { name: 'id', type: 'string', included: true },
-    { name: 'firstName', type: 'name', included: true },
-    { name: 'lastName', type: 'name', included: true },
-    { name: 'email', type: 'email', included: true },
-    { name: 'phone', type: 'phone', included: true },
-    { name: 'address', type: 'address', included: true },
-    { name: 'registrationDate', type: 'date', included: true },
-    { name: 'loyaltyPoints', type: 'integer', included: true },
-    { name: 'isActive', type: 'boolean', included: true }
-  ]
-};
+// Fix the method signature for the problematic function
+export const generateSyntheticData = async (
+  data: any[],
+  options: SyntheticDataOptions
+): Promise<any[]> => {
+  if (!data || data.length === 0 || !options.apiKey) {
+    console.error('Invalid data or missing API key for synthetic data generation');
+    return [];
+  }
 
-/**
- * Generate synthetic data based on options
- */
-export const generateSyntheticData = async (options: SyntheticDataOptions, apiKey: string): Promise<string> => {
   try {
-    if (!options.fields || options.fields.filter(f => f.included).length === 0) {
-      throw new Error('No fields selected for generation');
+    // Sample the data to avoid token limits
+    const sampleSize = Math.min(5, data.length);
+    const samples = data.slice(0, sampleSize);
+    
+    // Determine the diversity level
+    const temperature = options.diversity === 'low' ? 0.3 : 
+                        options.diversity === 'medium' ? 0.7 : 0.9;
+    
+    // Create a system message
+    const systemPrompt = `You are an AI specialized in generating synthetic data that matches the patterns and distributions of real data.
+    Your task is to create realistic synthetic records that preserve the statistical properties and relationships of the original data.`;
+    
+    // Create a user message with instructions
+    const userPrompt = `Generate ${options.count} synthetic records that look similar to these samples but with different values.
+    The synthetic data should maintain the same schema and data types as the original data.
+    
+    Diversity level: ${options.diversity} (${temperature})
+    ${options.preserveRelationships ? 'Preserve relationships between fields.' : 'Fields can be more independent.'}
+    ${options.targetClass ? `Target class: ${options.targetClass}` : ''}
+    
+    Sample records:
+    ${JSON.stringify(samples, null, 2)}
+    
+    Return ONLY a valid JSON array with the generated records. No explanations or additional text.`;
+    
+    const messages = createMessages(systemPrompt, userPrompt);
+    
+    // Call the API
+    const response = await getCompletion(messages, 'gpt-4o-mini', options.apiKey);
+    
+    // Try to extract JSON
+    const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/) || 
+                      response.match(/```\n([\s\S]*?)\n```/);
+                      
+    const jsonStr = jsonMatch ? jsonMatch[1] : response;
+    
+    try {
+      const generatedData = JSON.parse(jsonStr);
+      return Array.isArray(generatedData) ? generatedData : [];
+    } catch (error) {
+      console.error('Failed to parse generated data:', error);
+      return [];
     }
-    
-    // Update progress
-    if (options.onProgress) {
-      options.onProgress(10);
-    }
-    
-    // Prepare the fields for the prompt
-    const fieldDescriptions = options.fields
-      .filter(field => field.included)
-      .map(field => `${field.name} (${field.type})`)
-      .join(', ');
-    
-    // Create the prompt for the AI
-    const messages = [
-      {
-        role: 'system' as const,
-        content: 'You are a synthetic data generator that creates realistic but fake data for testing purposes.'
-      },
-      {
-        role: 'user' as const,
-        content: `${options.aiPrompt || 'Generate synthetic data'} with the following fields: ${fieldDescriptions}.
-        
-Generate ${options.rowCount || 10} synthetic data records in ${options.outputFormat || 'json'} format.
-
-The data should be diverse but realistic, with internal consistency.
-${options.includeNulls ? `Include null values randomly in about ${options.nullPercentage || 10}% of fields.` : 'Do not include null values.'}
-
-Please ONLY return the ${options.outputFormat || 'json'} data without any additional text.`
-      }
-    ];
-    
-    // Update progress
-    if (options.onProgress) {
-      options.onProgress(30);
-    }
-    
-    // Call the OpenAI API
-    const response = await openAiService.callOpenAI({
-      model: options.model || 'gpt-4o-mini',
-      messages,
-      temperature: options.temperature || 0.7,
-      max_tokens: 4000
-    }, apiKey);
-    
-    // Update progress
-    if (options.onProgress) {
-      options.onProgress(90);
-    }
-    
-    const generatedText = response.choices[0].message.content;
-    
-    // Update progress
-    if (options.onProgress) {
-      options.onProgress(100);
-    }
-    
-    return generatedText;
   } catch (error) {
     console.error('Error generating synthetic data:', error);
-    throw error;
+    return [];
   }
 };
 
-/**
- * Save synthetic data to the database
- */
-export const saveSyntheticDataToDatabase = async (
-  data: string,
-  tableName = 'synthetic_data'
-): Promise<{success: boolean; message: string; count?: number}> => {
-  try {
-    // Parse the data if it's a string
-    let parsedData;
-    try {
-      parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-    } catch (error) {
-      return { success: false, message: 'Invalid JSON data' };
-    }
-    
-    if (!Array.isArray(parsedData)) {
-      return { success: false, message: 'Data must be an array of objects' };
-    }
-    
-    // Insert data into Supabase
-    const { error } = await supabaseClient
-      .from(tableName)
-      .insert(parsedData);
-    
-    if (error) {
-      throw error;
-    }
-    
-    return { 
-      success: true, 
-      message: `Successfully saved ${parsedData.length} records to ${tableName}`,
-      count: parsedData.length
-    };
-  } catch (error) {
-    console.error('Error saving synthetic data to database:', error);
-    return { 
-      success: false, 
-      message: `Failed to save data: ${error instanceof Error ? error.message : String(error)}`
-    };
+// Fix the problematic function that has incorrect arguments
+export const transformGeneratedData = (originalData: any[], generatedData: any[]): any[] => {
+  if (!originalData.length || !generatedData.length) {
+    return generatedData;
   }
+  
+  // Get schema from original data
+  const schema = inferSchema(originalData);
+  
+  // Transform generated data to match schema
+  return generatedData.map(item => {
+    const transformedItem: Record<string, any> = {};
+    
+    // Process each field according to its inferred type
+    for (const [field, type] of Object.entries(schema)) {
+      if (!(field in item)) {
+        // Field missing in generated data, use a default or sample from original
+        transformedItem[field] = getSampleValue(originalData, field);
+        continue;
+      }
+      
+      const value = item[field];
+      
+      switch (type) {
+        case 'number':
+          transformedItem[field] = typeof value === 'number' ? value : 
+                                  typeof value === 'string' ? parseFloat(value) : 0;
+          break;
+        case 'integer':
+          transformedItem[field] = typeof value === 'number' ? Math.round(value) : 
+                                  typeof value === 'string' ? parseInt(value, 10) : 0;
+          break;
+        case 'boolean':
+          transformedItem[field] = Boolean(value);
+          break;
+        case 'date':
+          transformedItem[field] = value instanceof Date ? value.toISOString() : 
+                                  typeof value === 'string' ? value : new Date().toISOString();
+          break;
+        case 'string':
+        default:
+          transformedItem[field] = String(value);
+      }
+    }
+    
+    return transformedItem;
+  });
 };
 
-/**
- * Detect schema from data
- */
-export const detectSchemaFromData = (data: any[]): DataField[] => {
-  if (!data || data.length === 0) {
+// Helper function to infer schema from data
+const inferSchema = (data: any[]): Record<string, string> => {
+  if (!data.length) return {};
+  
+  const schema: Record<string, string> = {};
+  const sample = data[0];
+  
+  for (const [key, value] of Object.entries(sample)) {
+    if (typeof value === 'number') {
+      schema[key] = Number.isInteger(value) ? 'integer' : 'number';
+    } else if (typeof value === 'boolean') {
+      schema[key] = 'boolean';
+    } else if (value instanceof Date) {
+      schema[key] = 'date';
+    } else if (typeof value === 'string') {
+      // Check if string is a date
+      if (/^\d{4}-\d{2}-\d{2}/.test(value) || !isNaN(Date.parse(value))) {
+        schema[key] = 'date';
+      } else {
+        schema[key] = 'string';
+      }
+    } else if (value === null || value === undefined) {
+      // Try to infer from other records
+      schema[key] = inferTypeFromOtherRecords(data, key);
+    } else {
+      schema[key] = 'string'; // Default
+    }
+  }
+  
+  return schema;
+};
+
+// Helper to infer type from other records when first record has null
+const inferTypeFromOtherRecords = (data: any[], field: string): string => {
+  for (let i = 1; i < data.length; i++) {
+    const value = data[i][field];
+    if (value !== null && value !== undefined) {
+      if (typeof value === 'number') {
+        return Number.isInteger(value) ? 'integer' : 'number';
+      } else if (typeof value === 'boolean') {
+        return 'boolean';
+      } else if (value instanceof Date) {
+        return 'date';
+      } else if (typeof value === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}/.test(value) || !isNaN(Date.parse(value))) {
+          return 'date';
+        }
+        return 'string';
+      }
+    }
+  }
+  return 'string'; // Default
+};
+
+// Helper to get a sample value for a field
+const getSampleValue = (data: any[], field: string): any => {
+  // Find a non-null value
+  for (const item of data) {
+    if (item[field] !== null && item[field] !== undefined) {
+      return item[field];
+    }
+  }
+  return null;
+};
+
+// Generate synthetic data with specific characteristics
+export const generateSyntheticDataWithCharacteristics = async (
+  data: any[],
+  characteristics: {
+    outliers?: boolean;
+    missingValues?: boolean;
+    duplicates?: boolean;
+    noise?: number;
+  },
+  options: SyntheticDataOptions
+): Promise<any[]> => {
+  // First generate base synthetic data
+  const syntheticData = await generateSyntheticData(data, options);
+  
+  if (!syntheticData.length) {
     return [];
   }
   
-  const fields: DataField[] = [];
-  const sample = data[0];
+  let result = [...syntheticData];
   
-  Object.entries(sample).forEach(([key, value]) => {
-    let type: string = 'string'; // Default type
-    
-    if (value === null || value === undefined) {
-      type = 'string'; // Default for null values
-    } else {
-      const valueType = typeof value;
-      
-      if (valueType === 'string') {
-        // Check for date format
-        if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
-          type = 'date';
-        } 
-        // Check for email format
-        else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
-          type = 'email';
-        } 
-        // Check for phone format
-        else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value as string)) {
-          type = 'phone';
-        }
-        else {
-          type = 'string';
-        }
-      } else if (valueType === 'number') {
-        // Check if it's an integer
-        type = Number.isInteger(value) ? 'integer' : 'float';
-      } else if (valueType === 'boolean') {
-        type = 'boolean';
-      } else if (Array.isArray(value)) {
-        type = 'array';
-      } else if (valueType === 'object') {
-        type = 'object';
-      } else {
-        type = valueType; // Use the JS typeof result for other types
-      }
+  // Apply characteristics
+  if (characteristics.outliers) {
+    result = addOutliers(result, 0.05); // Add outliers to 5% of records
+  }
+  
+  if (characteristics.missingValues) {
+    result = addMissingValues(result, 0.1); // Add missing values to 10% of fields
+  }
+  
+  if (characteristics.duplicates) {
+    result = addDuplicates(result, 0.03); // Add 3% duplicates
+  }
+  
+  if (characteristics.noise && characteristics.noise > 0) {
+    result = addNoise(result, characteristics.noise);
+  }
+  
+  return result;
+};
+
+// Helper to add outliers
+const addOutliers = (data: any[], percentage: number): any[] => {
+  if (!data.length) return data;
+  
+  const result = [...data];
+  const numericFields: string[] = [];
+  
+  // Find numeric fields
+  Object.entries(data[0]).forEach(([key, value]) => {
+    if (typeof value === 'number') {
+      numericFields.push(key);
     }
+  });
+  
+  if (!numericFields.length) return data;
+  
+  // Calculate number of records to modify
+  const recordsToModify = Math.max(1, Math.round(data.length * percentage));
+  
+  // Randomly select records to modify
+  const indices = Array.from({ length: data.length }, (_, i) => i);
+  shuffleArray(indices);
+  const selectedIndices = indices.slice(0, recordsToModify);
+  
+  // Add outliers
+  selectedIndices.forEach(index => {
+    const field = numericFields[Math.floor(Math.random() * numericFields.length)];
+    const originalValue = result[index][field];
     
-    fields.push({ 
-      name: key,
-      type,
-      included: true,
-      sampleValue: String(value || '')
+    // Create an outlier (multiply by 5-10x or divide by 5-10x)
+    const multiplier = Math.random() > 0.5 ? 
+      5 + Math.random() * 5 : // 5-10x
+      1 / (5 + Math.random() * 5); // 1/5 - 1/10
+    
+    result[index][field] = originalValue * multiplier;
+  });
+  
+  return result;
+};
+
+// Helper to add missing values
+const addMissingValues = (data: any[], percentage: number): any[] => {
+  if (!data.length) return data;
+  
+  const result = data.map(item => ({ ...item }));
+  const fields = Object.keys(data[0]);
+  
+  // For each record
+  result.forEach(record => {
+    // Randomly select fields to nullify
+    const fieldsToNullify = Math.max(1, Math.round(fields.length * percentage));
+    const selectedFields = shuffleArray([...fields]).slice(0, fieldsToNullify);
+    
+    // Set fields to null
+    selectedFields.forEach(field => {
+      record[field] = null;
     });
   });
   
-  return fields;
+  return result;
 };
 
-/**
- * Download synthetic data
- */
-export const downloadSyntheticData = (
-  data: string, 
-  filename = 'synthetic_data',
-  format: 'json' | 'csv' = 'json'
-): void => {
-  try {
-    let content: string;
-    let contentType: string;
-    let extension: string;
-    let parsedData: any[];
-    
-    // Parse data if it's a string
-    try {
-      parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-    } catch (e) {
-      // If can't parse as JSON, assume it's already in the correct format (e.g. CSV)
-      parsedData = [];
-      content = data;
-      contentType = format === 'json' ? 'application/json' : 'text/csv';
-      extension = format;
-    }
-    
-    if (parsedData && parsedData.length > 0) {
-      if (format === 'json') {
-        content = JSON.stringify(parsedData, null, 2);
-        contentType = 'application/json';
-        extension = 'json';
-      } else {
-        // CSV format
-        const headers = Object.keys(parsedData[0]).join(',');
-        const rows = parsedData.map(item => {
-          return Object.values(item).map(value => {
-            if (typeof value === 'string') {
-              // Escape quotes in string fields
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          }).join(',');
-        });
-        content = [headers, ...rows].join('\n');
-        contentType = 'text/csv';
-        extension = 'csv';
-      }
-    } else {
-      // If we couldn't parse data but have content from the catch block above
-      if (!content) {
-        throw new Error('Invalid data format');
-      }
-    }
-    
-    const blob = new Blob([content], { type: contentType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}.${extension}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error downloading synthetic data:', error);
-    throw error;
-  }
+// Helper to add duplicates
+const addDuplicates = (data: any[], percentage: number): any[] => {
+  if (!data.length) return data;
+  
+  const result = [...data];
+  const recordsToDuplicate = Math.max(1, Math.round(data.length * percentage));
+  
+  // Randomly select records to duplicate
+  const indices = Array.from({ length: data.length }, (_, i) => i);
+  shuffleArray(indices);
+  const selectedIndices = indices.slice(0, recordsToDuplicate);
+  
+  // Add duplicates
+  selectedIndices.forEach(index => {
+    result.push({ ...data[index] });
+  });
+  
+  return result;
 };
 
-/**
- * Enhanced synthetic data generation with specific parameters
- */
-export const generateEnhancedSyntheticData = async (
-  template: SampleTemplate,
-  fields: DataField[],
-  options: SyntheticDataOptions,
-  apiKey: string
-): Promise<any[]> => {
-  try {
-    const { model, temperature, count, diversity, preserveSchema, enhanceRealism } = options;
-    
-    // Included fields only
-    const includedFields = fields.filter(field => field.included !== false);
-    
-    // Create a detailed prompt with specific instructions
-    const messages = [
-      {
-        role: 'system' as const,
-        content: `You are a synthetic data generator AI specialized in creating ${
-          diversity === 'high' ? 'highly diverse' : 
-          diversity === 'medium' ? 'moderately diverse' : 'consistent'
-        } but realistic fake data for testing and development purposes.`
-      },
-      {
-        role: 'user' as const,
-        content: `Generate ${count} synthetic data records with these specifications:
-
-Fields to include: ${includedFields.map(f => `${f.name} (${f.type})`).join(', ')}
-
-Sample template:
-${JSON.stringify(template, null, 2)}
-
-Requirements:
-${preserveSchema ? '- Strictly preserve the schema structure and data types' : '- Allow reasonable schema variations'}
-${enhanceRealism ? '- Maximize realism and plausibility of the data' : '- Focus on variety over strict realism'}
-- Ensure ${diversity === 'high' ? 'high diversity' : diversity === 'medium' ? 'moderate diversity' : 'low diversity'} between records
-- Create internally consistent records where field relationships make sense
-- Return ONLY a valid JSON array of objects without any additional text
-`
-      }
-    ];
-    
-    // Call the OpenAI API
-    const response = await openAiService.callOpenAI('completions', {
-      model: model || 'gpt-4o-mini',
-      messages,
-      temperature: temperature || 0.7,
-      max_tokens: 4000
-    }, apiKey);
-    
-    const generatedText = response.choices[0].message.content;
-    
-    // Parse the JSON response
-    try {
-      // Find JSON in the response
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('No valid JSON array found in the response');
-      }
-      
-      const jsonString = jsonMatch[0];
-      const syntheticData = JSON.parse(jsonString);
-      
-      // Add synthetic_id and metadata
-      return syntheticData.map((record: any, index: number) => ({
-        ...record,
-        synthetic_id: `syn_${Date.now()}_${index}`,
-        synthetic_metadata: {
-          generated_at: new Date().toISOString(),
-          model,
-          diversity,
-          enhanceRealism
-        }
-      }));
-    } catch (parseError) {
-      console.error('Error parsing enhanced generated data:', parseError);
-      throw new Error('Failed to parse the generated data');
+// Helper to add noise to numeric fields
+const addNoise = (data: any[], noiseLevel: number): any[] => {
+  if (!data.length) return data;
+  
+  const result = data.map(item => ({ ...item }));
+  const numericFields: string[] = [];
+  
+  // Find numeric fields
+  Object.entries(data[0]).forEach(([key, value]) => {
+    if (typeof value === 'number') {
+      numericFields.push(key);
     }
-  } catch (error) {
-    console.error('Error generating enhanced synthetic data:', error);
-    throw error;
+  });
+  
+  if (!numericFields.length) return data;
+  
+  // Add noise to each record
+  result.forEach(record => {
+    numericFields.forEach(field => {
+      if (typeof record[field] === 'number') {
+        const originalValue = record[field];
+        const noise = (Math.random() * 2 - 1) * noiseLevel * Math.abs(originalValue || 1);
+        record[field] = originalValue + noise;
+      }
+    });
+  });
+  
+  return result;
+};
+
+// Helper to shuffle an array
+const shuffleArray = <T>(array: T[]): T[] => {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
   }
+  return result;
 };

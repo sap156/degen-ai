@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +48,7 @@ const PiiDataGenerator: React.FC = () => {
     setFields(newFields);
   };
 
-  const handleGenerateData = () => {
+  const handleGenerateData = async () => {
     try {
       // Validate fields
       const invalidFields = fields.filter(field => !field.name || !field.type);
@@ -72,8 +71,13 @@ const PiiDataGenerator: React.FC = () => {
         }, {} as Record<string, any>)
       ];
       
-      // Generate data
-      const data = generatePiiData(sampleData, schema, rowCount);
+      // Generate data - note we need to use await here to properly handle the Promise
+      const data = await generatePiiData(schema, rowCount, {
+        includeNames: true,
+        includeEmails: true,
+        customFields: {},
+      }, "dummy-api-key");
+      
       setGeneratedData(data);
       
       // Format for display
@@ -86,15 +90,20 @@ const PiiDataGenerator: React.FC = () => {
     }
   };
 
-  const handleGenerateFromUploaded = () => {
+  const handleGenerateFromUploaded = async () => {
     try {
       if (uploadedData.length === 0) {
         toast.error('Please upload data first');
         return;
       }
       
-      // Generate data
-      const data = generatePiiData(uploadedData, uploadedSchema, rowCount);
+      // Generate data - using await to handle the Promise
+      const data = await generatePiiData(uploadedSchema, rowCount, {
+        includeNames: true,
+        includeEmails: true,
+        customFields: {},
+      }, "dummy-api-key");
+      
       setGeneratedData(data);
       
       // Format for display

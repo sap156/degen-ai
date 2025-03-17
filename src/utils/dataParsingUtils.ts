@@ -202,9 +202,9 @@ export const addNoiseToTimeSeries = (
       .map(([key]) => key);
 
     if (numericFields.length === 0) {
-      const toast = getToastNotification();
-      if (toast) {
-        toast({
+      const toastFn = getToastNotification();
+      if (toastFn && toastFn.toast) {
+        toastFn.toast({
           title: "No numeric fields found",
           description: "Could not find numeric fields to add noise to",
           variant: "destructive"
@@ -246,9 +246,9 @@ export const addNoiseToTimeSeries = (
     });
   } catch (error) {
     console.error("Error adding noise to time series:", error);
-    const toast = getToastNotification();
-    if (toast) {
-      toast({
+    const toastFn = getToastNotification();
+    if (toastFn && toastFn.toast) {
+      toastFn.toast({
         title: "Error",
         description: "Failed to add noise to time series data",
         variant: "destructive"
@@ -572,7 +572,8 @@ export const detectDataType = async (file: File, apiKey: string): Promise<{
 // Export getToast helper function to avoid direct imports
 export const getToast = () => {
   try {
-    return getToastNotification();
+    const toastFn = getToastNotification();
+    return toastFn?.toast || null;
   } catch (error) {
     return null;
   }
