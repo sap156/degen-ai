@@ -56,7 +56,7 @@ const modelInfo: Record<string, {
 };
 
 const ModelSelector: React.FC = () => {
-  const { selectedModel, setSelectedModel, isKeySet } = useApiKey();
+  const { selectedModel, setSelectedModel, isKeySet, availableModels } = useApiKey();
 
   // Ensure we have valid model info for the selected model
   const safeModelInfo = modelInfo[selectedModel] || modelInfo['gpt-4o'];
@@ -90,9 +90,9 @@ const ModelSelector: React.FC = () => {
           <SelectValue placeholder="Select a model" />
         </SelectTrigger>
         <SelectContent position="popper" className="w-full">
-          {Object.entries(modelInfo).map(([id, info]) => (
-            <SelectItem key={id} value={id} className="py-2.5">
-              <span>{info.name}</span>
+          {availableModels.map((modelId) => (
+            <SelectItem key={modelId} value={modelId} className="py-2.5">
+              <span>{modelInfo[modelId]?.name || modelId}</span>
             </SelectItem>
           ))}
         </SelectContent>

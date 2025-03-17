@@ -52,6 +52,41 @@ const generateConnectionId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
+// Check if the API endpoint exists
+const checkApiEndpoint = async (endpoint: string): Promise<boolean> => {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    // Just check if the endpoint responds, don't parse the response
+    return response.ok;
+  } catch (error) {
+    console.error(`API endpoint ${endpoint} not available:`, error);
+    return false;
+  }
+};
+
+// Safe JSON parsing function
+const safeParseJSON = async (response: Response): Promise<any> => {
+  try {
+    // First check if the response is empty
+    const text = await response.text();
+    if (!text) {
+      throw new Error("Empty response from server");
+    }
+    
+    // Then try to parse it
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("JSON parsing error:", error);
+    throw new Error(`Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 // Real database connection handling
 export const connectToDatabase = async (
   apiKey: string | null,
@@ -70,6 +105,20 @@ export const connectToDatabase = async (
     
     if (!config.useConnectionString && (!config.username || !config.password)) {
       throw new Error("Username and password are required");
+    }
+    
+    // Check if API endpoints are available before trying to connect
+    const endpoints = {
+      postgresql: '/api/test-postgres-connection',
+      mongodb: '/api/test-mongo-connection',
+      snowflake: '/api/test-snowflake-connection'
+    };
+    
+    const endpointExists = await checkApiEndpoint(endpoints[config.type]);
+    
+    if (!endpointExists) {
+      toast.error(`Backend API for ${config.type} connections is not available`);
+      return false;
     }
     
     // Attempt real database connection based on type
@@ -125,7 +174,12 @@ const testPostgresConnection = async (config: DatabaseConnectionConfig): Promise
       body: JSON.stringify(config),
     });
     
-    const result = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
+    }
+    
+    const result = await safeParseJSON(response);
     if (!result.success) {
       throw new Error(result.error || "Failed to connect to PostgreSQL database");
     }
@@ -148,7 +202,12 @@ const testMongoConnection = async (config: DatabaseConnectionConfig): Promise<bo
       body: JSON.stringify(config),
     });
     
-    const result = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
+    }
+    
+    const result = await safeParseJSON(response);
     if (!result.success) {
       throw new Error(result.error || "Failed to connect to MongoDB database");
     }
@@ -171,7 +230,12 @@ const testSnowflakeConnection = async (config: DatabaseConnectionConfig): Promis
       body: JSON.stringify(config),
     });
     
-    const result = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
+    }
+    
+    const result = await safeParseJSON(response);
     if (!result.success) {
       throw new Error(result.error || "Failed to connect to Snowflake database");
     }
@@ -270,6 +334,13 @@ export const getDatabases = async (apiKey: string | null): Promise<Database[]> =
   try {
     const config = getConnectionConfig();
     
+    // Check if the API endpoint exists before calling it
+    const endpointExists = await checkApiEndpoint('/api/get-databases');
+    if (!endpointExists) {
+      toast.error('Backend API for database listing is not available');
+      return [];
+    }
+    
     // Call the real API endpoint to get databases
     const response = await fetch('/api/get-databases', {
       method: 'POST',
@@ -280,10 +351,11 @@ export const getDatabases = async (apiKey: string | null): Promise<Database[]> =
     });
     
     if (!response.ok) {
-      throw new Error(`Error fetching databases: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
-    const result = await response.json();
+    const result = await safeParseJSON(response);
     return result.databases;
   } catch (error) {
     console.error("Error fetching databases:", error);
@@ -300,6 +372,13 @@ export const getSchemas = async (apiKey: string | null, database: string): Promi
   try {
     const config = getConnectionConfig();
     
+    // Check if the API endpoint exists before calling it
+    const endpointExists = await checkApiEndpoint('/api/get-schemas');
+    if (!endpointExists) {
+      toast.error('Backend API for schema listing is not available');
+      return [];
+    }
+    
     // Call the real API endpoint to get schemas
     const response = await fetch('/api/get-schemas', {
       method: 'POST',
@@ -310,10 +389,11 @@ export const getSchemas = async (apiKey: string | null, database: string): Promi
     });
     
     if (!response.ok) {
-      throw new Error(`Error fetching schemas: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
-    const result = await response.json();
+    const result = await safeParseJSON(response);
     return result.schemas;
   } catch (error) {
     console.error("Error fetching schemas:", error);
@@ -334,6 +414,13 @@ export const getTables = async (
   try {
     const config = getConnectionConfig();
     
+    // Check if the API endpoint exists before calling it
+    const endpointExists = await checkApiEndpoint('/api/get-tables');
+    if (!endpointExists) {
+      toast.error('Backend API for table listing is not available');
+      return [];
+    }
+    
     // Call the real API endpoint to get tables
     const response = await fetch('/api/get-tables', {
       method: 'POST',
@@ -344,10 +431,11 @@ export const getTables = async (
     });
     
     if (!response.ok) {
-      throw new Error(`Error fetching tables: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
-    const result = await response.json();
+    const result = await safeParseJSON(response);
     return result.tables;
   } catch (error) {
     console.error("Error fetching tables:", error);
@@ -369,6 +457,16 @@ export const executeQuery = async (
   try {
     const config = getConnectionConfig();
     
+    // Check if the API endpoint exists before calling it
+    const endpointExists = await checkApiEndpoint('/api/execute-query');
+    if (!endpointExists) {
+      return { 
+        columns: [], 
+        rows: [], 
+        error: "Backend API for query execution is not available" 
+      };
+    }
+    
     // Call the real API endpoint to execute the query
     const response = await fetch('/api/execute-query', {
       method: 'POST',
@@ -379,10 +477,11 @@ export const executeQuery = async (
     });
     
     if (!response.ok) {
-      throw new Error(`Error executing query: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
-    return await response.json();
+    return await safeParseJSON(response);
   } catch (error) {
     console.error("Error executing query:", error);
     return { 

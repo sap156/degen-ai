@@ -10,13 +10,18 @@ interface ApiKeyContextType {
   clearApiKey: () => void;
   selectedModel: OpenAIModel;
   setSelectedModel: (model: OpenAIModel) => void;
+  availableModels: OpenAIModel[];
 }
+
+const DEFAULT_MODEL: OpenAIModel = 'gpt-4o';
+const AVAILABLE_MODELS: OpenAIModel[] = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
 
 export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4o');
+  const [selectedModel, setSelectedModelState] = useState<OpenAIModel>(DEFAULT_MODEL);
+  const [availableModels, setAvailableModels] = useState<OpenAIModel[]>(AVAILABLE_MODELS);
 
   useEffect(() => {
     // Load API key from localStorage
@@ -28,13 +33,13 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Load model preference from localStorage with fallback
     const storedModel = localStorage.getItem('openai-model') as OpenAIModel | null;
     if (storedModel && isValidModel(storedModel)) {
-      setSelectedModel(storedModel);
+      setSelectedModelState(storedModel);
     }
   }, []);
 
   // Validate model to ensure it's a supported one
   const isValidModel = (model: string): model is OpenAIModel => {
-    return ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'].includes(model);
+    return AVAILABLE_MODELS.includes(model as OpenAIModel);
   };
 
   const setApiKey = (key: string) => {
@@ -47,9 +52,14 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setApiKeyState(null);
   };
 
-  const handleSetSelectedModel = (model: OpenAIModel) => {
+  const setSelectedModel = (model: OpenAIModel) => {
+    if (!isValidModel(model)) {
+      console.warn(`Attempted to set invalid model: ${model}, defaulting to ${DEFAULT_MODEL}`);
+      model = DEFAULT_MODEL;
+    }
+    
     localStorage.setItem('openai-model', model);
-    setSelectedModel(model);
+    setSelectedModelState(model);
   };
 
   return (
@@ -60,7 +70,8 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setApiKey, 
         clearApiKey,
         selectedModel,
-        setSelectedModel: handleSetSelectedModel
+        setSelectedModel,
+        availableModels: AVAILABLE_MODELS
       }}
     >
       {children}
