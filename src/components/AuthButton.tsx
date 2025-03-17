@@ -12,14 +12,17 @@ const AuthButton = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
     try {
+      setIsSigningOut(true);
       await signOut();
-      toast.success('Signed out successfully');
       navigate('/');
     } catch (error) {
-      toast.error('Failed to sign out');
+      console.error('Error in handleSignOut:', error);
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -47,9 +50,9 @@ const AuthButton = () => {
           <DropdownMenuItem onClick={() => setApiKeyDialogOpen(true)}>
             API Settings
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleSignOut}>
+          <DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut}>
             <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
+            {isSigningOut ? 'Signing Out...' : 'Sign Out'}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

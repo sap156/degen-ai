@@ -2,6 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
@@ -105,7 +106,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        toast.error('Failed to sign out');
+        throw error;
+      }
+      
+      // Clear state explicitly after successful sign out
+      setSession(null);
+      setUser(null);
+      setUserProfile(null);
+      setIsAdmin(false);
+      
+      toast.success('Signed out successfully');
+    } catch (error) {
+      console.error('Exception during sign out:', error);
+      toast.error('An error occurred during sign out');
+      throw error;
+    }
   };
 
   const value = {
