@@ -25,7 +25,8 @@ import {
   balanceDataset, 
   exportAsJson, 
   exportAsCsv, 
-  downloadData
+  downloadData,
+  generateSyntheticRecords
 } from '@/services/imbalancedDataService';
 
 import {
