@@ -1,4 +1,3 @@
-
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -24,6 +23,52 @@ export type SchemaFieldType =
   | 'name'
   | 'ssn'
   | 'creditcard';
+
+/**
+ * Supported file types for uploading
+ */
+export type SupportedFileType = 
+  | 'csv' 
+  | 'json' 
+  | 'txt' 
+  | 'pdf' 
+  | 'docx' 
+  | 'xlsx' 
+  | 'pptx'
+  | 'image';
+
+/**
+ * Check if a file type is supported
+ */
+export const isSupportedFileType = (file: File): boolean => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  return [
+    'csv', 'json', 'txt', 
+    'pdf', 'doc', 'docx', 
+    'xls', 'xlsx', 
+    'ppt', 'pptx',
+    'jpg', 'jpeg', 'png', 'gif'
+  ].includes(extension);
+};
+
+/**
+ * Get the file type from a file object
+ */
+export const getFileType = (file: File): SupportedFileType => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  
+  if (['csv'].includes(extension)) return 'csv';
+  if (['json'].includes(extension)) return 'json';
+  if (['txt', 'text', 'md'].includes(extension)) return 'txt';
+  if (['pdf'].includes(extension)) return 'pdf';
+  if (['doc', 'docx'].includes(extension)) return 'docx';
+  if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
+  if (['ppt', 'pptx'].includes(extension)) return 'pptx';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(extension)) return 'image';
+  
+  // Default to txt for unknown types
+  return 'txt';
+};
 
 /**
  * Parse a CSV file into an array of objects
@@ -114,6 +159,56 @@ export const readFileContent = (file: File): Promise<string> => {
     };
     
     reader.readAsText(file);
+  });
+};
+
+/**
+ * Read a file as ArrayBuffer
+ * @param file The file to read
+ * @returns Promise resolving to the file content as ArrayBuffer
+ */
+export const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        resolve(event.target.result as ArrayBuffer);
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/**
+ * Read a file as base64 for image processing
+ * @param file The file to read
+ * @returns Promise resolving to the file content as base64 string
+ */
+export const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        resolve(event.target.result as string);
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    reader.readAsDataURL(file);
   });
 };
 
@@ -290,4 +385,129 @@ export const downloadData = (data: string, fileName: string, format: 'csv' | 'js
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+/**
+ * Extract text content from a file using appropriate method based on file type
+ * @param file The file to process
+ * @param apiKey OpenAI API key for processing complex file types
+ * @returns Promise resolving to the extracted text content
+ */
+export const extractTextFromFile = async (
+  file: File, 
+  apiKey: string | null
+): Promise<{ text: string; metadata: Record<string, any> }> => {
+  const fileType = getFileType(file);
+  const fileName = file.name;
+  const fileSize = file.size;
+  const fileSizeInMB = (fileSize / (1024 * 1024)).toFixed(2);
+  
+  // Basic metadata that's available for all files
+  const metadata: Record<string, any> = {
+    fileName,
+    fileType,
+    fileSize: `${fileSizeInMB} MB`,
+    dateProcessed: new Date().toISOString()
+  };
+  
+  try {
+    switch (fileType) {
+      case 'csv':
+      case 'json':
+      case 'txt':
+        // For text-based formats, just read the content directly
+        const content = await readFileContent(file);
+        return { text: content, metadata };
+        
+      case 'pdf':
+      case 'docx':
+      case 'xlsx':
+      case 'pptx':
+      case 'image':
+        // For complex file types, use AI to extract text
+        if (!apiKey) {
+          throw new Error("API key is required to process this file type");
+        }
+        
+        return await extractTextWithAI(file, apiKey, metadata);
+        
+      default:
+        throw new Error(`Unsupported file type: ${fileType}`);
+    }
+  } catch (error) {
+    console.error('Error extracting text from file:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extract text from complex file types using AI
+ */
+const extractTextWithAI = async (
+  file: File, 
+  apiKey: string, 
+  baseMetadata: Record<string, any>
+): Promise<{ text: string; metadata: Record<string, any> }> => {
+  try {
+    const { getCompletion } = await import('../services/openAiService');
+    const fileType = getFileType(file);
+    
+    // For image files, use vision capabilities
+    if (fileType === 'image') {
+      const base64Content = await readFileAsBase64(file);
+      
+      const messages = [
+        { 
+          role: 'system', 
+          content: 'You are an expert OCR assistant. Extract all text from the provided image, preserving structure and layout as much as possible. Include tables, lists, and other formatted content.'
+        },
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: 'Extract all text content from this image:' },
+            { 
+              type: 'image_url', 
+              image_url: {
+                url: base64Content,
+                detail: 'high'
+              } 
+            }
+          ]
+        }
+      ];
+      
+      const model = 'gpt-4o'; // Use gpt-4o as it supports vision
+      const response = await getCompletion(apiKey, messages, { model });
+      
+      return {
+        text: response,
+        metadata: {
+          ...baseMetadata,
+          processingMethod: 'OCR via AI',
+          modelUsed: model
+        }
+      };
+    }
+    
+    // For documents like PDF, DOCX, etc. - we would normally use specialized libraries
+    // But for this implementation, we'll simulate it with a mock response
+    return {
+      text: `This is extracted text from ${file.name}. In a production environment, we would use specialized libraries for each file type or document AI processing services.`,
+      metadata: {
+        ...baseMetadata,
+        processingMethod: 'Simulated extraction',
+        note: 'In a production environment, specialized libraries would be used for each file type'
+      }
+    };
+    
+    // In a real implementation, you would:
+    // 1. For PDFs: Use libraries like pdf.js, pdf-parse, or send to a document processing API
+    // 2. For DOCX: Use libraries like mammoth.js or docx-parser
+    // 3. For XLSX: Use libraries like xlsx, exceljs, or sheetjs
+    // 4. For PPTX: Would typically require backend processing or specialized APIs
+    
+  } catch (error) {
+    console.error('Error extracting text with AI:', error);
+    throw error;
+  }
 };

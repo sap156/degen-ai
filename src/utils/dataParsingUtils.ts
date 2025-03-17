@@ -1,6 +1,6 @@
-
-import { toast } from 'sonner';
+import { toast } from "sonner";
 import { SchemaFieldType } from './fileUploadUtils';
+import { processTextWithAI, ProcessingType } from '../services/textProcessingService';
 
 interface GenerateDataOptions {
   sourceData: any[];
@@ -42,18 +42,15 @@ const generateValueForField = (
   noiseLevel: number,
   dateRange?: { min: Date; max: Date }
 ): any => {
-  // For categorical data, sample from existing values
   const existingValues = sourceData.map(item => item[field]);
   
   switch (type) {
     case "string":
     case "email":
     case "phone":
-      // For strings, sample from existing values
       return existingValues[Math.floor(Math.random() * existingValues.length)];
       
     case "integer":
-      // For integers, calculate range and add noise
       const intRange = getNumericRange(sourceData, field);
       const rangeDiff = intRange.max - intRange.min;
       const noise = (Math.random() * 2 - 1) * noiseLevel * rangeDiff;
@@ -62,7 +59,6 @@ const generateValueForField = (
       
     case "float":
     case "number":
-      // For floats, calculate range and add noise
       const floatRange = getNumericRange(sourceData, field);
       const floatRangeDiff = floatRange.max - floatRange.min;
       const floatNoise = (Math.random() * 2 - 1) * noiseLevel * floatRangeDiff;
@@ -70,27 +66,22 @@ const generateValueForField = (
       return Number((Number(floatBaseValue) + floatNoise).toFixed(4));
       
     case "boolean":
-      // For booleans, randomly pick true or false
       return Math.random() > 0.5;
       
     case "date":
       if (dateRange) {
-        // Generate a random date within the provided range
         const minTime = dateRange.min.getTime();
         const maxTime = dateRange.max.getTime();
         const randomTime = minTime + Math.random() * (maxTime - minTime);
         return new Date(randomTime).toISOString();
       } else {
-        // Sample from existing dates
         return existingValues[Math.floor(Math.random() * existingValues.length)];
       }
       
     case "object":
-      // For objects, just copy from existing data
       return JSON.parse(JSON.stringify(existingValues[Math.floor(Math.random() * existingValues.length)]));
       
     default:
-      // For any other type, just sample from existing values
       return existingValues[Math.floor(Math.random() * existingValues.length)];
   }
 };
@@ -103,33 +94,26 @@ const generateTimeSeriesPoint = (
   noiseLevel: number,
   newDate: Date
 ): any => {
-  // Create a new data point
   const newPoint: any = {};
   
-  // Set the date field
   newPoint[dateField] = newDate.toISOString();
   
-  // Find the nearest existing data points to interpolate from
   const existingDates = baseData.map(item => new Date(item[dateField]));
   const newTime = newDate.getTime();
   
-  // Sort dates by how close they are to the new date
   const sortedIndices = existingDates
     .map((date, index) => ({ index, diff: Math.abs(date.getTime() - newTime) }))
     .sort((a, b) => a.diff - b.diff);
   
-  // Get the closest data points (up to 3)
   const closestIndices = sortedIndices.slice(0, 3).map(item => item.index);
   const closestPoints = closestIndices.map(index => baseData[index]);
   
-  // For each field, generate a suitable value
   Object.keys(fieldSchema).forEach(field => {
-    if (field === dateField) return; // Skip the date field, already set
+    if (field === dateField) return;
     
     const type = fieldSchema[field];
     
     if (type === 'integer' || type === 'float' || type === 'number') {
-      // For numeric fields, interpolate and add noise
       const values = closestPoints.map(point => Number(point[field]));
       const avgValue = values.reduce((sum, val) => sum + val, 0) / values.length;
       const maxDiff = Math.max(...values) - Math.min(...values);
@@ -141,7 +125,6 @@ const generateTimeSeriesPoint = (
         newPoint[field] = Number((avgValue + noise).toFixed(4));
       }
     } else {
-      // For other fields, just copy from the closest point
       newPoint[field] = closestPoints[0][field];
     }
   });
@@ -169,9 +152,7 @@ export const generateAdditionalData = (options: GenerateDataOptions): any[] => {
   try {
     const result: any[] = [];
     
-    // Handle time series data
     if (isTimeSeries && dateField) {
-      // Determine date range for new data points
       let dateRange: { min: Date; max: Date };
       
       if (startDate && endDate) {
@@ -180,7 +161,6 @@ export const generateAdditionalData = (options: GenerateDataOptions): any[] => {
         dateRange = getDateRange(sourceData, dateField);
       }
       
-      // Generate evenly spaced timestamps
       const timeStep = (dateRange.max.getTime() - dateRange.min.getTime()) / (count + 1);
       
       for (let i = 0; i < count; i++) {
@@ -189,20 +169,15 @@ export const generateAdditionalData = (options: GenerateDataOptions): any[] => {
         result.push(newPoint);
       }
       
-      // Sort by date
       result.sort((a, b) => new Date(a[dateField]).getTime() - new Date(b[dateField]).getTime());
       
     } else {
-      // Handle non-time series data
-      // For each new data point
       for (let i = 0; i < count; i++) {
         const newItem: any = {};
         
-        // For each field in the schema
         Object.keys(schema).forEach(field => {
           const type = schema[field];
           
-          // Generate a value for this field
           newItem[field] = generateValueForField(field, type, sourceData, noiseLevel);
         });
         
@@ -225,20 +200,18 @@ export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean, dateFiel
   const sampleItem = data[0];
   const fields = Object.keys(sampleItem);
   
-  // Look for date/time fields
   const possibleDateFields = fields.filter(field => {
     const value = sampleItem[field];
     return typeof value === 'string' && (
-      /^\d{4}-\d{2}-\d{2}/.test(value) || // ISO date format
-      /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || // MM/DD/YYYY
-      !isNaN(Date.parse(value)) || // Parsable as date
+      /^\d{4}-\d{2}-\d{2}/.test(value) || 
+      /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || 
+      !isNaN(Date.parse(value)) || 
       field.toLowerCase().includes('time') ||
       field.toLowerCase().includes('date') ||
       field.toLowerCase() === 'timestamp'
     );
   });
   
-  // Check if there's at least one numeric field
   const hasNumericField = fields.some(field => {
     const value = sampleItem[field];
     return typeof value === 'number';
@@ -252,7 +225,6 @@ export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean, dateFiel
 
 // NEW FUNCTIONS FOR TIME SERIES SPECIFIC OPERATIONS
 
-// Generate time series data within a specific date range
 export const generateTimeSeriesInRange = (
   sourceData: any[], 
   dateField: string,
@@ -262,18 +234,15 @@ export const generateTimeSeriesInRange = (
   pointCount: number,
   noiseLevel: number
 ): any[] => {
-  // Filter source data to only include items within the date range
   const filteredData = sourceData.filter(item => {
     const itemDate = new Date(item[dateField]);
     return itemDate >= startDate && itemDate <= endDate;
   });
   
-  // If no data in range, use all source data as reference
   const baseData = filteredData.length > 0 ? filteredData : sourceData;
   
   const result: any[] = [];
   
-  // Generate evenly spaced timestamps
   const timeStep = (endDate.getTime() - startDate.getTime()) / (pointCount + 1);
   
   for (let i = 0; i < pointCount; i++) {
@@ -282,13 +251,11 @@ export const generateTimeSeriesInRange = (
     result.push(newPoint);
   }
   
-  // Sort by date
   result.sort((a, b) => new Date(a[dateField]).getTime() - new Date(b[dateField]).getTime());
   
   return result;
 };
 
-// Add noise to existing time series data
 export const addNoiseToTimeSeries = (
   data: any[],
   schema: Record<string, SchemaFieldType>,
@@ -297,29 +264,24 @@ export const addNoiseToTimeSeries = (
   startDate?: Date,
   endDate?: Date
 ): any[] => {
-  // Create a deep copy to avoid modifying original data
   const result = JSON.parse(JSON.stringify(data));
   
-  // Apply date range filter if provided
   const filteredIndices = dateField && startDate && endDate 
     ? result.map((item, index) => {
         const itemDate = new Date(item[dateField]);
         return itemDate >= startDate && itemDate <= endDate ? index : -1;
       }).filter(index => index !== -1)
-    : result.map((_, index) => index); // Otherwise use all indices
+    : result.map((_, index) => index);
   
-  // For each field that's numeric, add noise
   Object.entries(schema).forEach(([field, type]) => {
-    if (field === dateField) return; // Skip date field
+    if (field === dateField) return;
     
     if (type === 'integer' || type === 'float' || type === 'number') {
-      // Get range for this field from the original data
       const fieldValues = data.map(item => Number(item[field]));
       const min = Math.min(...fieldValues);
       const max = Math.max(...fieldValues);
       const range = max - min;
       
-      // Add noise to each selected data point
       for (const index of filteredIndices) {
         const originalValue = Number(result[index][field]);
         const noise = (Math.random() * 2 - 1) * noiseLevel * range;
@@ -336,7 +298,6 @@ export const addNoiseToTimeSeries = (
   return result;
 };
 
-// Generate PII data based on sample data
 export const generatePiiData = (
   sampleData: any[],
   schema: Record<string, SchemaFieldType>,
@@ -347,18 +308,15 @@ export const generatePiiData = (
   for (let i = 0; i < count; i++) {
     const newItem: any = {};
     
-    // For each field in the schema
     Object.entries(schema).forEach(([field, type]) => {
       switch (type) {
         case 'name':
-          // Generate a random name based on sample data
           const firstNames = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica'];
           const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia'];
           newItem[field] = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
           break;
           
         case 'email':
-          // Generate a random email
           const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'example.com'];
           const username = Math.random().toString(36).substring(2, 10);
           const domain = domains[Math.floor(Math.random() * domains.length)];
@@ -366,7 +324,6 @@ export const generatePiiData = (
           break;
           
         case 'phone':
-          // Generate a random phone number
           const areaCode = Math.floor(Math.random() * 900) + 100;
           const prefix = Math.floor(Math.random() * 900) + 100;
           const lineNum = Math.floor(Math.random() * 9000) + 1000;
@@ -374,7 +331,6 @@ export const generatePiiData = (
           break;
           
         case 'address':
-          // Generate a random address
           const streetNum = Math.floor(Math.random() * 9000) + 1000;
           const streetNames = ['Main St', 'Oak Ave', 'Maple Rd', 'Washington Blvd', 'Park Lane'];
           const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'];
@@ -387,7 +343,6 @@ export const generatePiiData = (
           break;
           
         case 'ssn':
-          // Generate a random SSN
           const part1 = Math.floor(Math.random() * 900) + 100;
           const part2 = Math.floor(Math.random() * 90) + 10;
           const part3 = Math.floor(Math.random() * 9000) + 1000;
@@ -395,13 +350,11 @@ export const generatePiiData = (
           break;
           
         case 'creditcard':
-          // Generate a random credit card number (simplified)
           const groups = Array.from({length: 4}, () => Math.floor(Math.random() * 9000) + 1000);
           newItem[field] = groups.join('-');
           break;
           
         case 'date':
-          // Generate a random date in the past 50 years
           const now = new Date();
           const pastDate = new Date(
             now.getFullYear() - Math.floor(Math.random() * 50),
@@ -412,7 +365,6 @@ export const generatePiiData = (
           break;
           
         default:
-          // For other types, use the general generateValueForField function
           newItem[field] = generateValueForField(field, type, sampleData, 0.2);
       }
     });
@@ -421,4 +373,305 @@ export const generatePiiData = (
   }
   
   return result;
+};
+
+/**
+ * Interface for AI processing options
+ */
+export interface AIProcessingOptions {
+  apiKey: string | null;
+  processingTypes: ProcessingType[];
+  detailLevel?: 'brief' | 'standard' | 'detailed';
+  outputFormat?: 'json' | 'text';
+  userContext?: string;
+}
+
+/**
+ * Process extracted text data with AI
+ */
+export const processDataWithAI = async (
+  textData: string,
+  options: AIProcessingOptions
+): Promise<Record<string, any>> => {
+  if (!options.apiKey) {
+    throw new Error("API key is required for AI processing");
+  }
+  
+  try {
+    const results: Record<string, any> = {};
+    
+    for (const processingType of options.processingTypes) {
+      try {
+        const result = await processTextWithAI(
+          options.apiKey, 
+          textData, 
+          processingType, 
+          {
+            detailLevel: options.detailLevel || 'standard',
+            outputFormat: options.outputFormat || 'json',
+            userContext: options.userContext
+          }
+        );
+        
+        results[processingType] = result;
+      } catch (error) {
+        console.error(`Error in ${processingType} processing:`, error);
+        toast.error(`Failed to complete ${processingType} analysis`);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('Error in AI processing:', error);
+    throw error;
+  }
+};
+
+/**
+ * Clean and normalize structured data using AI
+ */
+export const cleanDataWithAI = async (
+  data: any[],
+  apiKey: string | null,
+  options?: {
+    detailLevel?: 'brief' | 'standard' | 'detailed';
+    fields?: string[];
+    rules?: string[];
+  }
+): Promise<any[]> => {
+  if (!apiKey || !data.length) {
+    return data;
+  }
+  
+  try {
+    const fields = options?.fields || Object.keys(data[0]);
+    const rules = options?.rules || [];
+    const detailLevel = options?.detailLevel || 'standard';
+    
+    const dataString = JSON.stringify(data.slice(0, 100), null, 2);
+    
+    const systemMessage = `You are an expert data cleaning and normalization assistant.
+    Your task is to clean and normalize the provided data array.
+    
+    Clean and normalize these fields: ${fields.join(', ')}
+    ${rules.length > 0 ? `Apply these specific rules: ${rules.join('; ')}` : ''}
+    
+    Return the cleaned data as a valid JSON array with the same structure but normalized values.
+    Do not add or remove fields - only clean the existing values.
+    
+    Cleaning should include:
+    - Fixing typographical errors
+    - Standardizing date formats (to ISO where possible)
+    - Standardizing phone numbers, email addresses, and other common formats
+    - Removing extra whitespace and normalizing case where appropriate
+    - Fixing obvious data errors
+    - Ensuring consistent formatting across similar values
+    
+    ${detailLevel === 'detailed' ? 'Apply thorough cleaning to all values, with exhaustive normalization.' : 
+      detailLevel === 'brief' ? 'Apply minimal cleaning, focusing only on critical issues.' : 
+      'Apply standard cleaning to maintain data quality while preserving original information.'}`;
+    
+    const userMessage = `Clean and normalize this data:\n\n${dataString}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const cleanedData = JSON.parse(response);
+      
+      if (Array.isArray(cleanedData)) {
+        return cleanedData;
+      } else {
+        throw new Error('Response is not an array');
+      }
+    } catch (error) {
+      console.error('Failed to parse AI response:', error);
+      toast.error('Failed to clean data - invalid response format');
+      return data;
+    }
+  } catch (error) {
+    console.error('Error cleaning data with AI:', error);
+    toast.error('Failed to clean data');
+    return data;
+  }
+};
+
+/**
+ * Detect and extract entities from text data
+ */
+export const extractEntities = async (
+  text: string,
+  apiKey: string | null,
+  entityTypes: ('people' | 'organizations' | 'locations' | 'dates' | 'amounts' | 'all')[] = ['all']
+): Promise<Record<string, string[]>> => {
+  if (!apiKey) {
+    throw new Error("API key is required for entity extraction");
+  }
+  
+  try {
+    const systemMessage = `You are an expert Named Entity Recognition (NER) assistant.
+    Your task is to extract entities from the provided text.
+    
+    Extract these entity types: ${entityTypes.includes('all') ? 'all entity types' : entityTypes.join(', ')}
+    
+    Return the extracted entities as a valid JSON object with entity types as keys and arrays of entities as values.
+    Format:
+    {
+      "people": ["Person 1", "Person 2", ...],
+      "organizations": ["Org 1", "Org 2", ...],
+      "locations": ["Location 1", "Location 2", ...],
+      "dates": ["Date 1", "Date 2", ...],
+      "amounts": ["Amount 1", "Amount 2", ...],
+      "other": ["Entity 1", "Entity 2", ...]
+    }
+    
+    Only include entity types that are found in the text.`;
+    
+    const userMessage = `Extract entities from this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const entities = JSON.parse(response);
+      return entities;
+    } catch (error) {
+      console.error('Failed to parse entity extraction response:', error);
+      throw new Error('Invalid response format from entity extraction');
+    }
+  } catch (error) {
+    console.error('Error extracting entities:', error);
+    throw error;
+  }
+};
+
+/**
+ * Analyze sentiment in text data
+ */
+export const analyzeSentiment = async (
+  text: string,
+  apiKey: string | null
+): Promise<{
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
+  score: number;
+  intent?: string;
+  analysis: string;
+}> => {
+  if (!apiKey) {
+    throw new Error("API key is required for sentiment analysis");
+  }
+  
+  try {
+    const systemMessage = `You are an expert sentiment analysis assistant.
+    Your task is to analyze the sentiment and intent in the provided text.
+    
+    Return your analysis as a valid JSON object with the following structure:
+    {
+      "sentiment": "positive" | "negative" | "neutral" | "mixed",
+      "score": number between -1 and 1,
+      "intent": primary intent detected (e.g., "complaint", "inquiry", "praise", "request", "information"),
+      "analysis": brief explanation of the sentiment and intent detection
+    }`;
+    
+    const userMessage = `Analyze the sentiment in this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const sentimentAnalysis = JSON.parse(response);
+      return sentimentAnalysis;
+    } catch (error) {
+      console.error('Failed to parse sentiment analysis response:', error);
+      throw new Error('Invalid response format from sentiment analysis');
+    }
+  } catch (error) {
+    console.error('Error analyzing sentiment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate tags and categories for text data
+ */
+export const generateTags = async (
+  text: string,
+  apiKey: string | null,
+  options?: {
+    maxTags?: number;
+    categories?: string[];
+    domainSpecific?: boolean;
+  }
+): Promise<{
+  tags: string[];
+  categories: string[];
+  keywords: string[];
+}> => {
+  if (!apiKey) {
+    throw new Error("API key is required for tag generation");
+  }
+  
+  try {
+    const maxTags = options?.maxTags || 10;
+    const categories = options?.categories || [];
+    const domainSpecific = options?.domainSpecific || false;
+    
+    const systemMessage = `You are an expert content tagging and categorization assistant.
+    Your task is to generate relevant tags and categories for the provided text.
+    
+    Generate up to ${maxTags} tags that accurately represent the content.
+    ${categories.length > 0 ? `Categorize the text into these categories if applicable: ${categories.join(', ')}` : 'Suggest appropriate categories for the content.'}
+    ${domainSpecific ? 'Focus on domain-specific terminology and concepts.' : 'Use general terminology that would be widely understood.'}
+    
+    Return your analysis as a valid JSON object with the following structure:
+    {
+      "tags": array of relevant tags,
+      "categories": array of applicable categories,
+      "keywords": array of key terms/phrases that appear in the text
+    }`;
+    
+    const userMessage = `Generate tags for this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const taggingResults = JSON.parse(response);
+      return taggingResults;
+    } catch (error) {
+      console.error('Failed to parse tag generation response:', error);
+      throw new Error('Invalid response format from tag generation');
+    }
+  } catch (error) {
+    console.error('Error generating tags:', error);
+    throw error;
+  }
 };
