@@ -21,19 +21,28 @@ export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefi
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [selectedModel, setSelectedModelState] = useState<OpenAIModel>(DEFAULT_MODEL);
-  const [availableModels, setAvailableModels] = useState<OpenAIModel[]>(AVAILABLE_MODELS);
+  const [availableModels] = useState<OpenAIModel[]>(AVAILABLE_MODELS);
 
   useEffect(() => {
     // Load API key from localStorage
-    const storedKey = localStorage.getItem('openai-api-key');
-    if (storedKey) {
-      setApiKeyState(storedKey);
-    }
-    
-    // Load model preference from localStorage with fallback
-    const storedModel = localStorage.getItem('openai-model') as OpenAIModel | null;
-    if (storedModel && isValidModel(storedModel)) {
-      setSelectedModelState(storedModel);
+    try {
+      const storedKey = localStorage.getItem('openai-api-key');
+      if (storedKey) {
+        setApiKeyState(storedKey);
+      }
+      
+      // Load model preference from localStorage with fallback
+      const storedModel = localStorage.getItem('openai-model');
+      if (storedModel && isValidModel(storedModel)) {
+        setSelectedModelState(storedModel);
+      } else {
+        // If the stored model is invalid, reset to default
+        localStorage.setItem('openai-model', DEFAULT_MODEL);
+      }
+    } catch (error) {
+      console.error("Error loading API key or model from localStorage:", error);
+      // Reset to defaults if there's any issue
+      localStorage.setItem('openai-model', DEFAULT_MODEL);
     }
   }, []);
 

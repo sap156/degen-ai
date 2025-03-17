@@ -52,6 +52,14 @@ const modelInfo: Record<string, {
       'Smaller context window, potentially limiting detailed tasks.',
       'Occasionally requires additional prompt-engineering effort to reach desired output quality.'
     ]
+  },
+  'fallback': {
+    name: 'Unknown Model',
+    limitations: [
+      'This model isn\'t recognized or may not be available.',
+      'Please select a different model from the dropdown.',
+      'Using an unsupported model may result in errors or unexpected behavior.'
+    ]
   }
 };
 
@@ -59,7 +67,7 @@ const ModelSelector: React.FC = () => {
   const { selectedModel, setSelectedModel, isKeySet, availableModels } = useApiKey();
 
   // Ensure we have valid model info for the selected model
-  const safeModelInfo = modelInfo[selectedModel] || modelInfo['gpt-4o'];
+  const safeModelInfo = modelInfo[selectedModel] || modelInfo['fallback'];
 
   return (
     <div className="w-full space-y-3">

@@ -70,7 +70,12 @@ const checkApiEndpoint = async (endpoint: string): Promise<boolean> => {
   }
 };
 
-// Safe JSON parsing function
+// Detect if a response is HTML instead of JSON
+const isHtmlResponse = (text: string): boolean => {
+  return text.trim().startsWith('<') || text.trim().startsWith('<!DOCTYPE');
+};
+
+// Safe JSON parsing function with HTML detection
 const safeParseJSON = async (response: Response): Promise<any> => {
   try {
     // First check if the response is empty
@@ -79,11 +84,24 @@ const safeParseJSON = async (response: Response): Promise<any> => {
       throw new Error("Empty response from server");
     }
     
+    // Check if the response is HTML (common for error pages)
+    if (isHtmlResponse(text)) {
+      throw new Error("Received HTML response instead of JSON. The API endpoint may be returning an error page.");
+    }
+    
     // Then try to parse it
     return JSON.parse(text);
   } catch (error) {
     console.error("JSON parsing error:", error);
-    throw new Error(`Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    // Provide a more specific error message
+    if (error instanceof SyntaxError) {
+      throw new Error(`Invalid JSON response: ${error.message}`);
+    } else if (error instanceof Error && error.message.includes('HTML')) {
+      throw error; // Pass through the HTML detection error
+    } else {
+      throw new Error(`Failed to parse response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 };
 
@@ -170,12 +188,16 @@ const testPostgresConnection = async (config: DatabaseConnectionConfig): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(config),
     });
     
     if (!response.ok) {
       const errorText = await response.text();
+      if (isHtmlResponse(errorText)) {
+        throw new Error("Server returned an HTML error page instead of JSON response");
+      }
       throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
@@ -198,12 +220,16 @@ const testMongoConnection = async (config: DatabaseConnectionConfig): Promise<bo
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(config),
     });
     
     if (!response.ok) {
       const errorText = await response.text();
+      if (isHtmlResponse(errorText)) {
+        throw new Error("Server returned an HTML error page instead of JSON response");
+      }
       throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
@@ -226,12 +252,16 @@ const testSnowflakeConnection = async (config: DatabaseConnectionConfig): Promis
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(config),
     });
     
     if (!response.ok) {
       const errorText = await response.text();
+      if (isHtmlResponse(errorText)) {
+        throw new Error("Server returned an HTML error page instead of JSON response");
+      }
       throw new Error(errorText || `HTTP error ${response.status}`);
     }
     
