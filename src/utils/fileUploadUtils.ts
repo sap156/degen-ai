@@ -2,7 +2,7 @@
 import { parse } from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import * as openAiService from '@/services/openAiService';
-import { SchemaFieldType, DataTypeResult, generateSchema } from './fileTypes';
+import { SchemaFieldType, DataTypeResult, generateSchema, FileProcessingResult, SupportedFileType } from './fileTypes';
 
 // Function to read file content as text
 export const readFileContent = (file: File): Promise<string> => {
@@ -253,4 +253,40 @@ export const generateSyntheticData = (schema: Record<string, SchemaFieldType>, c
   return syntheticData;
 };
 
+// Import and export the functions from fileTypes
 export { formatData, downloadData, getFileType } from './fileTypes';
+
+// Export the extractTextFromFile function
+export const extractTextFromFile = async (file: File, apiKey: string): Promise<FileProcessingResult> => {
+  try {
+    if (file.type.includes('pdf')) {
+      // For PDF files, we'll use a specialized extractor
+      const { extractTextFromPdf } = await import('./textExtraction');
+      return extractTextFromPdf(file);
+    } else {
+      // For other files, use basic text extraction
+      const fileReader = new FileReader();
+      
+      const textContent = await new Promise<string>((resolve, reject) => {
+        fileReader.onload = () => resolve(fileReader.result as string);
+        fileReader.onerror = reject;
+        fileReader.readAsText(file);
+      });
+      
+      return {
+        success: true,
+        text: textContent,
+        metadata: {
+          processingMethod: 'basic text extraction',
+          note: 'Used basic text extraction for text-based file'
+        }
+      };
+    }
+  } catch (error: any) {
+    console.error('Error extracting text from file:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to extract text from file.'
+    };
+  }
+};

@@ -58,24 +58,16 @@ export const extractTextFromPdf = async (file: File): Promise<FileProcessingResu
  */
 export const extractInformationFromText = async (text: string, apiKey: string): Promise<FileProcessingResult> => {
   try {
-    const response = await openAiService.callOpenAI(
-      {
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'Extract and structure the key information from this document.'
-          },
-          {
-            role: 'user',
-            content: `Extract the main information from this text: ${text.substring(0, 4000)}`
-          }
-        ]
-      },
-      apiKey
+    const messages = openAiService.createMessages(
+      'Extract and structure the key information from this document.',
+      `Extract the main information from this text: ${text.substring(0, 4000)}`
     );
     
-    const extractedInfo = response.choices[0].message.content;
+    const extractedInfo = await openAiService.getCompletion(
+      messages,
+      'gpt-4o-mini',
+      apiKey
+    );
     
     return {
       success: true,

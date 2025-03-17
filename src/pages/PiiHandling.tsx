@@ -20,7 +20,7 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
-import { PerFieldMaskingOptions } from '@/types/piiHandling';
+import { PerFieldMaskingOptions, FieldMaskingConfig } from '@/types/piiHandling';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Tooltip,
@@ -40,6 +40,13 @@ import {
   analyzePiiData
 } from '@/services/piiHandlingService';
 
+const initializeFieldMasking = (field: string): FieldMaskingConfig => {
+  return {
+    enabled: true,
+    technique: 'replace' // Set a default technique
+  };
+};
+
 const PiiHandling = () => {
   const { toast } = useToast();
   const { apiKey } = useApiKey();
@@ -56,7 +63,12 @@ const PiiHandling = () => {
   const [dataReady, setDataReady] = useState(false);
   const [aiPrompt, setAiPrompt] = useState<string>("");
   
-  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({});
+  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({
+    email: { enabled: true, technique: 'replace' },
+    phone: { enabled: true, technique: 'replace' },
+    address: { enabled: true, technique: 'replace' },
+    ssn: { enabled: true, technique: 'replace' }
+  });
   
   const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
     preserveFormat: true
@@ -303,7 +315,6 @@ const PiiHandling = () => {
     }));
   };
 
-  // Convert unknown types to ReactNode where needed
   const renderValue = (value: unknown): ReactNode => {
     if (value === null || value === undefined) {
       return '';

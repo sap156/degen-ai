@@ -21,7 +21,9 @@ export type SchemaFieldType =
   'email' |
   'phone' |
   'ssn' |
-  'creditcard';
+  'creditcard' |
+  'name' |
+  'address';
 
 // Data field structure
 export interface DataField {
@@ -34,7 +36,7 @@ export interface DataField {
 }
 
 // For file upload formats
-export type SupportedFileType = 'csv' | 'json' | 'txt' | 'pdf' | 'doc' | 'docx' | 'xls' | 'xlsx';
+export type SupportedFileType = 'csv' | 'json' | 'txt' | 'pdf' | 'doc' | 'docx' | 'xls' | 'xlsx' | 'ppt' | 'pptx';
 
 export const getFileType = (file: File): string => {
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -135,6 +137,14 @@ export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => 
       // Try to detect if it's a date
       if (/^\d{4}-\d{2}-\d{2}/.test(value) || !isNaN(Date.parse(value))) {
         schema[key] = 'date';
+      } else if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+        schema[key] = 'email';
+      } else if (/^(\+\d{1,3})?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value)) {
+        schema[key] = 'phone';
+      } else if (/^\d{3}-\d{2}-\d{4}$/.test(value)) {
+        schema[key] = 'ssn';
+      } else if (/^\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}$/.test(value)) {
+        schema[key] = 'creditcard';
       } else {
         schema[key] = 'string';
       }

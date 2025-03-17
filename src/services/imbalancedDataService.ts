@@ -1,11 +1,9 @@
-import * as openAiService from './openAiService';
-import { SchemaFieldType } from '@/utils/fileTypes';
+import * as openAiService from '@/services/openAiService';
 
 export interface ClassDistribution {
-  className: string;
+  name: string;
   count: number;
   percentage: number;
-  color?: string;
 }
 
 export interface DatasetInfo {
@@ -15,15 +13,12 @@ export interface DatasetInfo {
   imbalanceRatio: number;
   minorityClass?: string;
   majorityClass?: string;
-  data?: any[];
 }
 
 export interface BalancingOptions {
-  technique: 'oversample' | 'undersample' | 'smote' | 'adasyn' | 'hybrid' | string;
-  targetClass?: string;
-  targetRatio?: number;
-  preserveMinority?: boolean;
-  keepOriginal?: boolean;
+  method: 'oversampling' | 'undersampling' | 'smote' | 'adasyn';
+  targetRatio: number;
+  customWeights?: Record<string, number>;
 }
 
 export interface BalancedDataResult {
@@ -31,270 +26,221 @@ export interface BalancedDataResult {
   balancedData: any[];
   originalDistribution: ClassDistribution[];
   newDistribution: ClassDistribution[];
-  techniquesApplied: string[];
-  originalCount: number;
-  newCount: number;
-  minorityClassOriginal?: number;
-  minorityClassNew?: number;
+  balancingMethod: string;
+  classColumn: string;
 }
 
-export const analyzeImbalance = (data: any[], targetColumn: string): DatasetInfo => {
-  if (!data || data.length === 0 || !targetColumn) {
-    throw new Error('Invalid data or target column');
-  }
-
+/**
+ * Analyzes the class distribution of a dataset.
+ */
+export const analyzeClassDistribution = (data: any[], classColumn: string): DatasetInfo => {
   const classCounts: Record<string, number> = {};
-  for (const item of data) {
-    const classValue = String(item[targetColumn]);
-    classCounts[classValue] = (classCounts[classValue] || 0) + 1;
+  
+  if (!data || data.length === 0) {
+    return {
+      totalSamples: 0,
+      classes: [],
+      isImbalanced: false,
+      imbalanceRatio: 1
+    };
   }
 
-  const totalSamples = data.length;
-  const classes: ClassDistribution[] = Object.entries(classCounts).map(([className, count]) => {
-    return {
-      className,
-      count,
-      percentage: (count / totalSamples) * 100,
-      color: getRandomColor()
-    };
+  data.forEach(item => {
+    const className = String(item[classColumn]);
+    classCounts[className] = (classCounts[className] || 0) + 1;
   });
 
-  classes.sort((a, b) => b.count - a.count);
+  const totalSamples = data.length;
+  const classes: ClassDistribution[] = Object.entries(classCounts).map(([name, count]) => ({
+    name,
+    count,
+    percentage: (count / totalSamples) * 100
+  }));
 
-  const majorityClass = classes[0];
-  const minorityClass = classes[classes.length - 1];
-  const imbalanceRatio = majorityClass.count / (minorityClass.count || 1);
-
-  const isImbalanced = imbalanceRatio > 1.5;
+  const sortedClasses = classes.sort((a, b) => a.count - b.count);
+  const isImbalanced = sortedClasses[0].count / sortedClasses[sortedClasses.length - 1].count < 0.2;
+  const imbalanceRatio = sortedClasses[0].count / sortedClasses[sortedClasses.length - 1].count;
+  const minorityClass = sortedClasses[0].name;
+  const majorityClass = sortedClasses[sortedClasses.length - 1].name;
 
   return {
     totalSamples,
-    classes,
+    classes: sortedClasses,
     isImbalanced,
     imbalanceRatio,
-    minorityClass: minorityClass.className,
-    majorityClass: majorityClass.className
+    minorityClass,
+    majorityClass
   };
 };
 
-export const balanceDataset = async (
-  data: any[],
-  targetColumn: string,
-  options: BalancingOptions,
-  apiKey?: string
-): Promise<any[]> => {
-  if (!data || data.length === 0) {
-    throw new Error('Invalid data');
-  }
+/**
+ * Balances a dataset using oversampling.
+ */
+export const balanceDataset = (data: any[], classColumn: string, options: BalancingOptions): any[] => {
+  const { method, targetRatio, customWeights } = options;
+  const classCounts: Record<string, number> = {};
 
-  switch (options.technique) {
-    case 'oversample':
-      return oversampleMinorityClass(data, targetColumn, options.targetClass);
-    case 'undersample':
-      return undersampleMajorityClass(data, targetColumn, options.targetClass);
-    case 'hybrid':
-      const undersampled = undersampleMajorityClass(data, targetColumn, options.targetClass);
-      return oversampleMinorityClass(undersampled, targetColumn, options.targetClass);
-    default:
-      return data;
-  }
-};
-
-export const getBalancingResult = async (
-  data: any[],
-  targetColumn: string,
-  options: BalancingOptions,
-  apiKey?: string
-): Promise<BalancedDataResult> => {
-  const originalAnalysis = analyzeImbalance(data, targetColumn);
-  
-  const balancedData = await balanceDataset(data, targetColumn, options, apiKey);
-  
-  const newAnalysis = analyzeImbalance(balancedData, targetColumn);
-  
-  const newClassCounts = newAnalysis.classes.reduce((acc, cls) => {
-    acc[cls.className] = cls.count;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  const minorityClassName = options.targetClass || originalAnalysis.minorityClass;
-  const minorityClassOriginal = originalAnalysis.classes.find(c => 
-    c.className === minorityClassName)?.count || 0;
-  const minorityClassNew = newClassCounts[minorityClassName] || 0;
-  
-  return {
-    originalData: data,
-    balancedData,
-    originalDistribution: originalAnalysis.classes,
-    newDistribution: newAnalysis.classes,
-    techniquesApplied: [options.technique],
-    originalCount: data.length,
-    newCount: balancedData.length,
-    minorityClassOriginal,
-    minorityClassNew
-  };
-};
-
-function getRandomColor(): string {
-  const colors = [
-    '#4299E1',
-    '#F56565',
-    '#48BB78',
-    '#ED8936',
-    '#9F7AEA',
-    '#38B2AC',
-    '#F687B3',
-    '#D53F8C',
-    '#805AD5',
-    '#3182CE',
-    '#DD6B20',
-    '#718096',
-    '#F6E05E',
-    '#D69E2E',
-    '#4FD1C5',
-    '#667EEA',
-  ];
-  
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-function oversampleMinorityClass(data: any[], targetColumn: string, targetClass?: string): any[] {
-  const analysis = analyzeImbalance(data, targetColumn);
-  
-  const minorityClass = targetClass || analysis.minorityClass;
-  
-  if (!minorityClass) {
-    return data;
-  }
-  
-  const groupedData: Record<string, any[]> = {};
   data.forEach(item => {
-    const classValue = String(item[targetColumn]);
-    if (!groupedData[classValue]) {
-      groupedData[classValue] = [];
-    }
-    groupedData[classValue].push(item);
+    const className = String(item[classColumn]);
+    classCounts[className] = (classCounts[className] || 0) + 1;
   });
-  
-  const majorityClass = analysis.majorityClass;
-  const majorityClassSize = groupedData[majorityClass]?.length || 0;
-  
-  const minorityClassSamples = groupedData[minorityClass] || [];
-  const result = [...data];
-  
-  if (minorityClassSamples.length > 0 && minorityClassSamples.length < majorityClassSize) {
-    const samplesNeeded = majorityClassSize - minorityClassSamples.length;
-    
-    for (let i = 0; i < samplesNeeded; i++) {
-      const randomIndex = Math.floor(Math.random() * minorityClassSamples.length);
-      const sample = {...minorityClassSamples[randomIndex]};
-      
-      Object.keys(sample).forEach(key => {
-        if (key !== targetColumn && typeof sample[key] === 'number') {
-          const noise = sample[key] * (Math.random() * 0.1 - 0.05);
-          sample[key] += noise;
-          const str = String(minorityClassSamples[randomIndex][key]);
-          const decimal = str.includes('.') ? str.split('.')[1].length : 0;
-          sample[key] = parseFloat(sample[key].toFixed(decimal));
-        }
-      });
-      
-      result.push(sample);
+
+  const maxClassCount = Math.max(...Object.values(classCounts));
+  let targetClassCount = maxClassCount;
+
+  if (targetRatio < 1) {
+    targetClassCount = Math.floor(maxClassCount * targetRatio);
+  }
+
+  let balancedData: any[] = [...data];
+
+  for (const className in classCounts) {
+    const classCount = classCounts[className];
+    let numToGenerate = targetClassCount - classCount;
+
+    if (customWeights) {
+      const weight = customWeights[className] || 1;
+      numToGenerate = Math.floor(numToGenerate * weight);
     }
-  }
-  
-  return result;
-}
 
-function undersampleMajorityClass(data: any[], targetColumn: string, targetClass?: string): any[] {
-  const analysis = analyzeImbalance(data, targetColumn);
-  
-  const majorityClass = targetClass || analysis.majorityClass;
-  
-  if (!majorityClass) {
-    return data;
-  }
-  
-  const minorityClass = analysis.minorityClass;
-  const minoritySamples = data.filter(item => String(item[targetColumn]) === minorityClass);
-  const targetSize = minoritySamples.length;
-  
-  const nonMajoritySamples = data.filter(item => String(item[targetColumn]) !== majorityClass);
-  
-  const majoritySamples = data.filter(item => String(item[targetColumn]) === majorityClass);
-  const shuffled = [...majoritySamples].sort(() => 0.5 - Math.random());
-  const selectedMajoritySamples = shuffled.slice(0, targetSize);
-  
-  return [...nonMajoritySamples, ...selectedMajoritySamples];
-}
+    if (numToGenerate > 0) {
+      const classData = data.filter(item => String(item[classColumn]) === className);
 
-export function generateSyntheticRecords(
-  minoritySamples: any[],
-  targetColumn: string,
-  count: number,
-  diversity: 'low' | 'medium' | 'high' = 'medium'
-): any[] {
-  const result: any[] = [];
-  const diversityFactor = diversity === 'low' ? 0.05 : diversity === 'medium' ? 0.15 : 0.25;
-  
-  for (let i = 0; i < count; i++) {
-    const baseSample = minoritySamples[Math.floor(Math.random() * minoritySamples.length)];
-    const syntheticSample = { ...baseSample };
-    
-    syntheticSample.synthetic_id = `syn_${i + 1}`;
-    
-    for (const key in syntheticSample) {
-      if (key !== targetColumn && typeof syntheticSample[key] === 'number') {
-        const originalValue = syntheticSample[key];
-        const randomVariation = Math.random() * diversityFactor * 2 - diversityFactor;
-        syntheticSample[key] = originalValue + (originalValue * randomVariation);
-        
-        if (Number.isInteger(baseSample[key])) {
-          syntheticSample[key] = Math.round(syntheticSample[key]);
-        } else {
-          syntheticSample[key] = parseFloat(syntheticSample[key].toFixed(4));
+      if (method === 'oversampling') {
+        for (let i = 0; i < numToGenerate; i++) {
+          const randomIndex = Math.floor(Math.random() * classData.length);
+          balancedData.push(classData[randomIndex]);
         }
+      } else if (method === 'undersampling') {
+        const numToKeep = Math.max(1, classCount - numToGenerate);
+        const shuffledData = classData.sort(() => 0.5 - Math.random());
+        balancedData = balancedData.filter(item => String(item[classColumn]) !== className);
+        balancedData.push(...shuffledData.slice(0, numToKeep));
+      } else if (method === 'smote') {
+        balancedData = applySMOTE(balancedData, classData, numToGenerate, classColumn);
+      } else if (method === 'adasyn') {
+        balancedData = applyADASYN(balancedData, classData, numToGenerate, classColumn);
       }
     }
-    
-    result.push(syntheticSample);
   }
-  
-  return result;
-}
 
-export const exportAsJson = (data: any[]): string => {
-  return JSON.stringify(data, null, 2);
+  return balancedData;
 };
 
-export const exportAsCsv = (data: any[]): string => {
-  if (!data || data.length === 0) return '';
-  
-  const headers = Object.keys(data[0]).join(',');
-  const rows = data.map(item => {
-    return Object.values(item).map(value => {
-      if (typeof value === 'string') {
-        return `"${value.replace(/"/g, '""')}"`;
+/**
+ * Applies Synthetic Minority Oversampling Technique (SMOTE).
+ */
+const applySMOTE = (existingData: any[], minorityClassData: any[], numToGenerate: number, classColumn: string): any[] => {
+  if (minorityClassData.length < 2) {
+    console.warn('SMOTE requires at least 2 samples in the minority class.');
+    return existingData;
+  }
+
+  const k = Math.min(5, minorityClassData.length - 1); // Number of nearest neighbors
+  let syntheticSamples: any[] = [];
+
+  for (let i = 0; i < numToGenerate; i++) {
+    const baseSample = minorityClassData[Math.floor(Math.random() * minorityClassData.length)];
+    const nearestNeighbors = findNearestNeighbors(baseSample, minorityClassData, k, classColumn);
+    const neighbor = nearestNeighbors[Math.floor(Math.random() * nearestNeighbors.length)];
+
+    let newSample: any = {};
+    for (const key in baseSample) {
+      if (typeof baseSample[key] === 'number') {
+        newSample[key] = baseSample[key] + Math.random() * (neighbor[key] - baseSample[key]);
+      } else {
+        newSample[key] = baseSample[key];
       }
-      return value;
-    }).join(',');
-  });
-  
-  return [headers, ...rows].join('\n');
+    }
+    newSample[classColumn] = baseSample[classColumn];
+    syntheticSamples.push(newSample);
+  }
+
+  return [...existingData, ...syntheticSamples];
 };
 
-export const downloadData = (data: any[], filename: string, format: 'json' | 'csv'): void => {
-  const content = format === 'json' ? exportAsJson(data) : exportAsCsv(data);
-  const contentType = format === 'json' ? 'application/json' : 'text/csv';
-  const extension = format;
-  
-  const blob = new Blob([content], { type: contentType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}.${extension}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+/**
+ * Applies Adaptive Synthetic Sampling Approach (ADASYN).
+ */
+const applyADASYN = (existingData: any[], minorityClassData: any[], numToGenerate: number, classColumn: string): any[] => {
+  if (minorityClassData.length < 2) {
+    console.warn('ADASYN requires at least 2 samples in the minority class.');
+    return existingData;
+  }
+
+  const k = Math.min(5, minorityClassData.length - 1); // Number of nearest neighbors
+  let syntheticSamples: any[] = [];
+
+  for (let i = 0; i < numToGenerate; i++) {
+    const baseSample = minorityClassData[Math.floor(Math.random() * minorityClassData.length)];
+    const nearestNeighbors = findNearestNeighbors(baseSample, minorityClassData, k, classColumn);
+    const neighbor = nearestNeighbors[Math.floor(Math.random() * nearestNeighbors.length)];
+
+    let newSample: any = {};
+    for (const key in baseSample) {
+      if (typeof baseSample[key] === 'number') {
+        newSample[key] = baseSample[key] + Math.random() * (neighbor[key] - baseSample[key]);
+      } else {
+        newSample[key] = baseSample[key];
+      }
+    }
+    newSample[classColumn] = baseSample[classColumn];
+    syntheticSamples.push(newSample);
+  }
+
+  return [...existingData, ...syntheticSamples];
+};
+
+/**
+ * Finds the k-nearest neighbors of a sample.
+ */
+const findNearestNeighbors = (sample: any, data: any[], k: number, classColumn: string): any[] => {
+  const distances = data
+    .filter(item => item !== sample)
+    .map(item => ({
+      item,
+      distance: euclideanDistance(sample, item, classColumn)
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  return distances.slice(0, k).map(d => d.item);
+};
+
+/**
+ * Calculates the Euclidean distance between two samples.
+ */
+const euclideanDistance = (sample1: any, sample2: any, classColumn: string): number => {
+  let distance = 0;
+  for (const key in sample1) {
+    if (key !== classColumn && typeof sample1[key] === 'number' && typeof sample2[key] === 'number') {
+      distance += Math.pow(sample1[key] - sample2[key], 2);
+    }
+  }
+  return Math.sqrt(distance);
+};
+
+/**
+ * Generates AI-based recommendations for balancing a dataset.
+ */
+export const generateAIRecommendations = async (data: any[], classColumn: string, apiKey: string): Promise<string> => {
+  try {
+    const datasetInfo = analyzeClassDistribution(data, classColumn);
+
+    const messages = openAiService.createMessages(
+      'You are an AI assistant specialized in providing recommendations for balancing imbalanced datasets.',
+      `Analyze the following dataset information and provide recommendations on which balancing method to use (oversampling, undersampling, SMOTE, ADASYN) and what target ratio to aim for.
+      Dataset Info: ${JSON.stringify(datasetInfo)}`
+    );
+
+    const response = await openAiService.getCompletion(
+      messages,
+      'gpt-4o-mini',
+      apiKey
+    );
+
+    return response;
+  } catch (error: any) {
+    console.error('Error generating AI recommendations:', error);
+    return 'Failed to generate AI recommendations.';
+  }
 };

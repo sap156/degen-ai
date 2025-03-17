@@ -98,3 +98,13 @@ export const getCompletion = async (
   
   return response.choices[0].message.content;
 };
+
+/**
+ * Converts a string prompt to proper OpenAI message format
+ */
+export const createMessages = (systemPrompt: string, userPrompt: string): OpenAiMessage[] => {
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
+};

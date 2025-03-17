@@ -1,17 +1,7 @@
-import { toast } from "sonner";
-import { SchemaFieldType } from './fileUploadUtils';
-import { processTextWithAI, ProcessingType } from '../services/textProcessingService';
-
-interface GenerateDataOptions {
-  sourceData: any[];
-  schema: Record<string, SchemaFieldType>;
-  count: number;
-  noiseLevel: number;
-  dateField?: string;
-  startDate?: Date;
-  endDate?: Date;
-  isTimeSeries: boolean;
-}
+import { v4 as uuidv4 } from 'uuid';
+import { SchemaFieldType } from './fileTypes';
+import * as openAiService from '@/services/openAiService';
+import { ProcessingType } from '@/services/textProcessingService';
 
 // Helper to get min and max values from an array of numbers
 const getNumericRange = (data: any[], field: string): { min: number; max: number } => {
@@ -379,7 +369,7 @@ export const generatePiiData = (
  * Interface for AI processing options
  */
 export interface AIProcessingOptions {
-  apiKey: string | null;
+  apiKey: string;
   processingTypes: ProcessingType[];
   detailLevel?: 'brief' | 'standard' | 'detailed';
   outputFormat?: 'json' | 'text';
@@ -389,41 +379,95 @@ export interface AIProcessingOptions {
 /**
  * Process extracted text data with AI
  */
-export const processDataWithAI = async (
-  textData: string,
-  options: AIProcessingOptions
-): Promise<Record<string, any>> => {
-  if (!options.apiKey) {
-    throw new Error("API key is required for AI processing");
+export const processDataWithAI = async (text: string, options: AIProcessingOptions): Promise<Record<string, any>> => {
+  const {
+    apiKey,
+    processingTypes,
+    detailLevel = 'standard',
+    outputFormat = 'json',
+    userContext = ''
+  } = options;
+  
+  const results: Record<string, any> = {};
+  
+  for (const type of processingTypes) {
+    try {
+      const systemPrompt = getSystemPromptForType(type, detailLevel, outputFormat);
+      const userPrompt = `${getUserPromptForType(type)}\n\nContent to process: ${text}\n\n${userContext ? `Additional context: ${userContext}` : ''}`;
+      
+      const messages = openAiService.createMessages(systemPrompt, userPrompt);
+      
+      const result = await openAiService.getCompletion(
+        messages,
+        'gpt-4o-mini',
+        apiKey,
+        { temperature: 0.5 }
+      );
+      
+      results[type] = {
+        raw: result,
+        structured: outputFormat === 'json' ? parseJsonResponse(result) : null,
+        format: outputFormat
+      };
+    } catch (error: any) {
+      console.error(`Error processing ${type}:`, error);
+      results[type] = {
+        raw: `Error: ${error.message}`,
+        structured: null,
+        format: 'text'
+      };
+    }
   }
   
+  return results;
+};
+
+const getSystemPromptForType = (type: ProcessingType, detailLevel: 'brief' | 'standard' | 'detailed', outputFormat: 'json' | 'text'): string => {
+  const basePrompt = `You are an AI data processing assistant specialized in ${type}. `;
+  const detailPrompts = {
+    brief: 'Provide a brief analysis with only the most essential information.',
+    standard: 'Provide a standard level of detail in your analysis, balancing comprehensiveness with conciseness.',
+    detailed: 'Provide a comprehensive and detailed analysis with all relevant information and nuance.'
+  };
+  
+  const formatPrompt = outputFormat === 'json' 
+    ? 'Return your analysis in a structured JSON format that can be parsed programmatically.' 
+    : 'Return your analysis in a clear, readable text format.';
+  
+  return `${basePrompt}${detailPrompts[detailLevel]} ${formatPrompt}`;
+};
+
+const getUserPromptForType = (type: ProcessingType): string => {
+  switch (type) {
+    case 'structuring':
+      return 'Transform the following unstructured or semi-structured data into a well-structured format.';
+    case 'cleaning':
+      return 'Identify and fix issues in the data such as inconsistencies, missing values, duplicates, and noise.';
+    case 'ner':
+      return 'Identify all named entities (people, organizations, locations, dates, etc.) in the text.';
+    case 'topics':
+      return 'Extract the main topics and themes from this content.';
+    case 'summarization':
+      return 'Provide a concise summary of the key points in this content.';
+    case 'sentiment':
+      return 'Analyze the sentiment expressed in this content.';
+    case 'tagging':
+      return 'Generate relevant tags or categories for this content.';
+    default:
+      return 'Process the following data based on best practices.';
+  }
+};
+
+const parseJsonResponse = (response: string): any => {
   try {
-    const results: Record<string, any> = {};
+    // Try to extract JSON if it's wrapped in markdown code blocks
+    const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    const jsonStr = jsonMatch ? jsonMatch[1] : response;
     
-    for (const processingType of options.processingTypes) {
-      try {
-        const result = await processTextWithAI(
-          options.apiKey, 
-          textData, 
-          processingType, 
-          {
-            detailLevel: options.detailLevel || 'standard',
-            outputFormat: options.outputFormat || 'json',
-            userContext: options.userContext
-          }
-        );
-        
-        results[processingType] = result;
-      } catch (error) {
-        console.error(`Error in ${processingType} processing:`, error);
-        toast.error(`Failed to complete ${processingType} analysis`);
-      }
-    }
-    
-    return results;
+    return JSON.parse(jsonStr);
   } catch (error) {
-    console.error('Error in AI processing:', error);
-    throw error;
+    console.error('Error parsing JSON response:', error);
+    return { error: 'Could not parse JSON response', rawResponse: response };
   }
 };
 
