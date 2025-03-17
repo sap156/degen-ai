@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -38,7 +37,7 @@ import {
   ExtractedData, 
   ExtractionType 
 } from '@/services/dataExtractionService';
-import { ApiKeyRequirement } from '@/components/ApiKeyRequirement';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();
