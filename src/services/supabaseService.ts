@@ -1,6 +1,4 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { useApiKey } from '@/contexts/ApiKeyContext';
 
 // Types for our Supabase database tables
 export interface Dataset {
@@ -22,17 +20,12 @@ export interface QueryHistory {
 
 class SupabaseService {
   private client: SupabaseClient | null = null;
-  private supabaseUrl: string;
-  private supabaseKey: string;
-
+  // Use the specific project credentials
+  private supabaseUrl: string = 'https://sbp_c08f1c0fb1c423dcb3be206bd5cd701525f819ba.supabase.co';
+  private supabaseKey: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImM3Z204ODVidnhpY3Zwc25laHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MDQ5OTEsImV4cCI6MjA1Mjk4MDk5MX0.CtcJa0PicDIJzE4K7FdXcvH9eVXfKPTjfGTVkWUbYGo';
+  
   constructor() {
-    // We'll get these from environment variables in Supabase
-    this.supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    this.supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-    
-    if (this.supabaseUrl && this.supabaseKey) {
-      this.initClient();
-    }
+    this.initClient();
   }
 
   private initClient() {
