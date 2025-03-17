@@ -17,37 +17,34 @@ import EdgeCases from "./pages/EdgeCases";
 import DataQuery from "./pages/DataQuery";
 import NotFound from "./pages/NotFound";
 import { ApiKeyProvider } from "./contexts/ApiKeyContext";
-import { SupabaseProvider } from "./hooks/useSupabase";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <SupabaseProvider>
-      <ApiKeyProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Index />} />
-                <Route path="/synthetic-data" element={<SyntheticData />} />
-                <Route path="/data-augmentation" element={<DataAugmentation />} />
-                <Route path="/time-series" element={<TimeSeries />} />
-                <Route path="/pii-handling" element={<PiiHandling />} />
-                <Route path="/imbalanced-data" element={<ImbalancedData />} />
-                <Route path="/data-parsing" element={<DataParsing />} />
-                <Route path="/extraction" element={<DataExtraction />} />
-                <Route path="/edge-cases" element={<EdgeCases />} />
-                <Route path="/data-query" element={<DataQuery />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </ApiKeyProvider>
-    </SupabaseProvider>
+    <ApiKeyProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/synthetic-data" element={<SyntheticData />} />
+              <Route path="/data-augmentation" element={<DataAugmentation />} />
+              <Route path="/time-series" element={<TimeSeries />} />
+              <Route path="/pii-handling" element={<PiiHandling />} />
+              <Route path="/imbalanced-data" element={<ImbalancedData />} />
+              <Route path="/data-parsing" element={<DataParsing />} />
+              <Route path="/extraction" element={<DataExtraction />} />
+              <Route path="/edge-cases" element={<EdgeCases />} />
+              <Route path="/data-query" element={<DataQuery />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ApiKeyProvider>
   </QueryClientProvider>
 );
 

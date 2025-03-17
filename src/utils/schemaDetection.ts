@@ -1,119 +1,314 @@
-// Function to prepare schema for AI consumption
-export const prepareSchemaForAI = (schema: Record<string, any>): Record<string, string> => {
-  const aiSchema: Record<string, string> = {};
+
+/**
+ * Utilities for schema detection and data type analysis
+ */
+import { SchemaFieldType } from './fileTypes';
+
+/**
+ * Detect data type and properties of a dataset
+ * @param data Array of data objects to analyze
+ * @returns Data type analysis
+ */
+export const detectDataType = (data: any[]): { 
+  dataType: 'tabular' | 'timeseries' | 'categorical' | 'text' | 'mixed'; 
+  properties: Record<string, any>;
+} => {
+  if (!data || data.length === 0) {
+    return { dataType: 'mixed', properties: {} };
+  }
+
+  const sample = data[0];
+  const keys = Object.keys(sample);
   
-  Object.entries(schema).forEach(([key, value]) => {
-    aiSchema[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+  // Check for timestamp fields which indicate time series data
+  const timeKeys = keys.filter(key => {
+    const value = sample[key];
+    return (
+      key.toLowerCase().includes('time') || 
+      key.toLowerCase().includes('date') || 
+      (typeof value === 'string' && !isNaN(Date.parse(value)))
+    );
   });
   
-  return aiSchema;
-};
-
-// Function to validate schema
-export const validateSchema = (schema: Record<string, any>): void => {
-  if (!schema || typeof schema !== 'object') {
-    throw new Error('Invalid schema format');
+  const numericKeys = keys.filter(key => typeof sample[key] === 'number');
+  const stringKeys = keys.filter(key => typeof sample[key] === 'string');
+  const booleanKeys = keys.filter(key => typeof sample[key] === 'boolean');
+  
+  // Count types of each column across all rows for better accuracy
+  const columnTypes: Record<string, Set<string>> = {};
+  
+  keys.forEach(key => {
+    columnTypes[key] = new Set();
+  });
+  
+  data.forEach(row => {
+    keys.forEach(key => {
+      if (key in row) {
+        columnTypes[key].add(typeof row[key]);
+      }
+    });
+  });
+  
+  // Determine data type based on column composition
+  if (timeKeys.length > 0 && numericKeys.length > 0) {
+    return { 
+      dataType: 'timeseries', 
+      properties: { 
+        timeFields: timeKeys,
+        valueFields: numericKeys.filter(k => !timeKeys.includes(k))
+      }
+    };
+  } 
+  
+  if (numericKeys.length > stringKeys.length) {
+    return { 
+      dataType: 'tabular', 
+      properties: { 
+        numericColumns: numericKeys.length,
+        categoricalColumns: stringKeys.length,
+        booleanColumns: booleanKeys.length
+      }
+    };
   }
   
-  for (const key in schema) {
-    if (typeof key !== 'string') {
-      throw new Error('Schema keys must be strings');
-    }
-    if (typeof schema[key] !== 'string' && typeof schema[key] !== 'object') {
-      throw new Error('Schema values must be strings or objects');
-    }
+  if (stringKeys.length > 0 && keys.length <= 3) {
+    return { 
+      dataType: 'categorical', 
+      properties: { 
+        categories: [...new Set(data.map(item => stringKeys.map(k => item[k]).join(' ')))].length
+      }
+    };
   }
+  
+  // Check if it's predominantly text data
+  const longTextFields = stringKeys.filter(key => {
+    // Sample a few rows to check for long text
+    return data.slice(0, Math.min(5, data.length)).some(row => {
+      const val = row[key];
+      return typeof val === 'string' && val.length > 100;
+    });
+  });
+  
+  if (longTextFields.length > 0) {
+    return { 
+      dataType: 'text', 
+      properties: { 
+        textFields: longTextFields
+      }
+    };
+  }
+  
+  return { 
+    dataType: 'mixed', 
+    properties: {
+      numericColumns: numericKeys.length,
+      stringColumns: stringKeys.length,
+      booleanColumns: booleanKeys.length,
+      timeFields: timeKeys
+    }
+  };
 };
 
-// Generate a schema from data for SQL usage
-export const generateSchema = (data: any[]): Record<string, any> => {
+/**
+ * Generate a schema from a dataset by analyzing field types
+ * @param data Array of data objects to analyze
+ * @returns Schema with field types
+ */
+export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
   if (!data || data.length === 0) {
     return {};
   }
   
-  const schema: Record<string, any> = {};
+  const schema: Record<string, SchemaFieldType> = {};
   const sample = data[0];
+  const keys = Object.keys(sample);
   
-  Object.entries(sample).forEach(([key, value]) => {
-    if (value === null || value === undefined) {
-      schema[key] = { type: 'string' }; // Default for null values
-      return;
+  // Helper function to determine if a string value is a date
+  const isDateString = (value: string): boolean => {
+    // Check common date formats
+    const dateRegex = /^\d{4}-\d{2}-\d{2}|^\d{1,2}\/\d{1,2}\/\d{4}|^\d{1,2}-\d{1,2}-\d{4}/;
+    if (dateRegex.test(value)) {
+      const date = new Date(value);
+      return !isNaN(date.getTime());
+    }
+    return false;
+  };
+  
+  // Helper function to guess if a string field is an email
+  const isEmail = (value: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  };
+  
+  // Helper function to guess if a string field is a phone number
+  const isPhone = (value: string): boolean => {
+    return /^[\d\+\-\(\)\s]{7,20}$/.test(value);
+  };
+  
+  // Helper function to guess if a string field is an address
+  const isAddress = (value: string): boolean => {
+    // Simple heuristic: contains numbers and some address keywords
+    return /\d+/.test(value) && 
+      /street|road|avenue|lane|drive|boulevard|ave|rd|st|blvd|ln|dr/i.test(value);
+  };
+  
+  // Helper function to guess if a string field is a name
+  const isName = (value: string): boolean => {
+    // Simple heuristic: all words start with capital letter, no numbers
+    return /^[A-Z][a-z]+(?: [A-Z][a-z]+)+$/.test(value) && !/\d/.test(value);
+  };
+  
+  // Analyze each field across multiple rows for better accuracy
+  keys.forEach(key => {
+    // Get unique types for this field
+    const types = new Set<string>();
+    const values = [];
+    
+    // Sample up to 50 rows for type detection
+    const sampleSize = Math.min(50, data.length);
+    for (let i = 0; i < sampleSize; i++) {
+      if (data[i] && data[i][key] !== undefined && data[i][key] !== null) {
+        types.add(typeof data[i][key]);
+        values.push(data[i][key]);
+      }
     }
     
-    const type = typeof value;
-    
-    if (type === 'string') {
-      // Check for date format
-      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
-        schema[key] = { type: 'date' };
-      } 
-      // Check for email format
-      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
-        schema[key] = { type: 'email' };
-      } else {
-        schema[key] = { type: 'string' };
+    // If we have multiple types, determine the dominant one
+    if (types.size > 1) {
+      const typeCounts: Record<string, number> = {};
+      values.forEach(val => {
+        const type = typeof val;
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+      });
+      
+      // Find the most common type
+      let dominantType = '';
+      let maxCount = 0;
+      
+      Object.entries(typeCounts).forEach(([type, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantType = type;
+        }
+      });
+      
+      if (dominantType === 'string') {
+        // For string fields, try to detect subtypes
+        const stringValues = values.filter(v => typeof v === 'string') as string[];
+        
+        // Check if values are dates
+        if (stringValues.some(v => isDateString(v))) {
+          schema[key] = 'date';
+        }
+        // Check if values are emails
+        else if (stringValues.some(v => isEmail(v))) {
+          schema[key] = 'email';
+        }
+        // Check if values are phone numbers
+        else if (stringValues.some(v => isPhone(v))) {
+          schema[key] = 'phone';
+        }
+        // Check if values are addresses
+        else if (stringValues.some(v => isAddress(v))) {
+          schema[key] = 'address';
+        }
+        // Check if values are names
+        else if (stringValues.some(v => isName(v))) {
+          schema[key] = 'name';
+        }
+        else {
+          schema[key] = 'string';
+        }
       }
-    } else if (type === 'number') {
-      // Check if it's an integer
-      schema[key] = { type: Number.isInteger(value) ? 'integer' : 'float' };
-    } else if (type === 'boolean') {
-      schema[key] = { type: 'boolean' };
-    } else if (Array.isArray(value)) {
-      schema[key] = { type: 'array' };
-    } else if (type === 'object') {
-      schema[key] = { type: 'object' };
-    } else {
-      schema[key] = { type: 'string' }; // Default fallback
+      else if (dominantType === 'number') {
+        // Check if numbers are integers or floats
+        const allIntegers = values
+          .filter(v => typeof v === 'number')
+          .every(v => Number.isInteger(v));
+          
+        schema[key] = allIntegers ? 'integer' : 'float';
+      }
+      else {
+        schema[key] = dominantType as SchemaFieldType;
+      }
+    }
+    // If we have only one type, it's simpler
+    else if (types.size === 1) {
+      const type = Array.from(types)[0];
+      
+      if (type === 'string') {
+        // For string fields, check if key name or values hint at special types
+        const stringValues = values as string[];
+        const keyLower = key.toLowerCase();
+        
+        if (keyLower.includes('date') || keyLower.includes('time') || 
+            stringValues.some(v => isDateString(v))) {
+          schema[key] = 'date';
+        }
+        else if (keyLower.includes('email') || stringValues.some(v => isEmail(v))) {
+          schema[key] = 'email';
+        }
+        else if (keyLower.includes('phone') || stringValues.some(v => isPhone(v))) {
+          schema[key] = 'phone';
+        }
+        else if (keyLower.includes('address') || stringValues.some(v => isAddress(v))) {
+          schema[key] = 'address';
+        }
+        else if ((keyLower.includes('name') || keyLower.includes('customer')) && 
+                 stringValues.some(v => isName(v))) {
+          schema[key] = 'name';
+        }
+        else {
+          schema[key] = 'string';
+        }
+      }
+      else if (type === 'number') {
+        // Check if all numbers are integers
+        const allIntegers = values.every(v => Number.isInteger(v));
+        schema[key] = allIntegers ? 'integer' : 'float';
+      }
+      else if (type === 'boolean') {
+        schema[key] = 'boolean';
+      }
+      else {
+        schema[key] = type as SchemaFieldType;
+      }
+    }
+    else {
+      // No values found, default to string
+      schema[key] = 'string';
     }
   });
   
   return schema;
 };
 
-// Convert a schema to SQL statements
-export const convertSchemaToSql = (
-  schema: Record<string, any>, 
-  tableName: string
-): string => {
+/**
+ * Convert schema object to SQL CREATE TABLE statement
+ * @param schema Schema object with field types
+ * @param tableName Name to use for the table
+ * @returns SQL CREATE TABLE statement
+ */
+export const convertSchemaToSql = (schema: Record<string, SchemaFieldType>, tableName: string): string => {
   if (!schema || Object.keys(schema).length === 0) {
     return '';
   }
   
-  const sqlTypeMap: Record<string, string> = {
-    'string': 'TEXT',
-    'integer': 'INTEGER',
-    'float': 'REAL',
-    'boolean': 'BOOLEAN',
-    'date': 'TIMESTAMP',
-    'email': 'TEXT',
-    'array': 'TEXT',  // Typically stored as JSON string
-    'object': 'TEXT'  // Typically stored as JSON string
-  };
-  
-  // Start creating the SQL statement
-  let sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
-  
-  // Add each column
-  const columns = Object.entries(schema).map(([column, definition]) => {
-    const type = (definition as any).type || 'string';
-    const sqlType = sqlTypeMap[type] || 'TEXT';
+  // Generate column definitions
+  const columnDefs = Object.entries(schema).map(([column, type]) => {
+    // Check if column is numeric and make a proper name
+    const columnName = /^\d+$/.test(column) 
+      ? `column_${column}` 
+      : column.replace(/[^a-zA-Z0-9_]/g, '_');
     
-    // Check if this column is likely a primary key
-    const isPrimaryKey = column.toLowerCase() === 'id' || 
-                         column.toLowerCase().endsWith('_id') ||
-                         column.toLowerCase() === 'key';
+    // Map field type to SQL type
+    let sqlType = 'TEXT';
+    if (type === 'integer') sqlType = 'INTEGER';
+    if (type === 'float') sqlType = 'REAL';
+    if (type === 'boolean') sqlType = 'BOOLEAN';
+    if (type === 'date') sqlType = 'DATETIME';
     
-    // Add constraints if needed
-    const constraints = isPrimaryKey ? ' PRIMARY KEY' : '';
-    
-    return `  ${column} ${sqlType}${constraints}`;
-  });
+    return `  ${columnName} ${sqlType}`;
+  }).join(',\n');
   
-  // Join columns with commas
-  sql += columns.join(',\n');
-  
-  // Close the statement
-  sql += '\n);';
-  
-  return sql;
+  return `CREATE TABLE ${tableName} (\n${columnDefs}\n);`;
 };

@@ -1,19 +1,16 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Toggle } from '@/components/ui/toggle';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Download, RefreshCw, Scale } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { RefreshCw } from 'lucide-react';
+import { BalancingOptions, DatasetInfo } from '@/services/imbalancedDataService';
 import { toast } from 'sonner';
-import { BalancingOptions } from '@/services/imbalancedDataService';
-import { DatasetInfo } from '@/services/imbalancedDataService';
 
-export interface DataBalancingControlsProps {
-  originalDataset: DatasetInfo;
+interface DataBalancingControlsProps {
+  originalDataset: DatasetInfo | null;
   parsedData: any[];
   onBalanceDataset: (options: BalancingOptions, data?: any[]) => void;
   onDownloadBalanced: (format: 'json' | 'csv') => void;
@@ -21,7 +18,7 @@ export interface DataBalancingControlsProps {
   aiRecommendationsAvailable: boolean;
 }
 
-const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({ 
+const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   originalDataset,
   parsedData,
   onBalanceDataset,
@@ -29,180 +26,146 @@ const DataBalancingControls: React.FC<DataBalancingControlsProps> = ({
   hasBalancedData,
   aiRecommendationsAvailable
 }) => {
-  const [balancingMethod, setBalancingMethod] = useState<'oversampling' | 'undersampling' | 'smote' | 'adasyn'>('oversampling');
-  const [targetRatio, setTargetRatio] = useState<number>(1.0);
-  const [useCustomWeights, setUseCustomWeights] = useState<boolean>(false);
-  const [classWeights, setClassWeights] = useState<Record<string, number>>({});
-  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
-  const [showRecommendations, setShowRecommendations] = useState<boolean>(false);
+  const [balancingMethod, setBalancingMethod] = useState<BalancingOptions['method']>('none');
+  const [targetRatio, setTargetRatio] = useState<number>(1.2);
+  const [isBalancing, setIsBalancing] = useState(false);
   
-  const handleBalanceClick = () => {
-    const options: BalancingOptions = {
-      method: balancingMethod,
-      targetRatio: targetRatio,
-      customWeights: useCustomWeights ? classWeights : undefined
-    };
+  const handleApplyBalancing = () => {
+    if (!originalDataset) return;
     
-    onBalanceDataset(options, parsedData);
-    toast.success('Balancing data with selected options');
+    setIsBalancing(true);
+    
+    try {
+      onBalanceDataset({
+        method: balancingMethod,
+        targetRatio
+      }, parsedData);
+    } catch (error) {
+      console.error('Error balancing dataset:', error);
+      toast.error('Failed to balance dataset. Please try again.');
+    } finally {
+      setIsBalancing(false);
+    }
   };
   
-  const handleDownload = () => {
-    if (!hasBalancedData) {
-      toast.error('No balanced data available to download');
-      return;
-    }
-    
-    onDownloadBalanced(exportFormat);
-  };
+  if (!originalDataset) {
+    return null;
+  }
   
-  const renderClassWeightControls = () => {
-    if (!originalDataset?.classes || originalDataset.classes.length === 0) {
-      return <p className="text-muted-foreground">No class data available</p>;
-    }
-    
+  if (!aiRecommendationsAvailable) {
     return (
-      <div className="space-y-2">
-        {originalDataset.classes.map((cls, index) => (
-          <div key={index} className="flex items-center space-x-2">
-            <Label className="w-24 flex-shrink-0">{cls.name}</Label>
-            <Slider
-              value={[classWeights[cls.name] || 1.0]}
-              min={0.1}
-              max={2}
-              step={0.1}
-              disabled={!useCustomWeights}
-              onValueChange={(value) => {
-                setClassWeights({ ...classWeights, [cls.name]: value[0] });
-              }}
-            />
-            <span className="w-12 text-right text-sm">{classWeights[cls.name] || 1.0}</span>
+      <Card className="mt-6 border-dashed">
+        <CardContent className="pt-6 pb-6">
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <RefreshCw className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">Balance Your Dataset</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+              Get AI recommendations first to understand the best balancing approach for your dataset.
+            </p>
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
     );
-  };
+  }
+  
+  const isImbalanced = originalDataset.imbalanceRatio > 1.5;
   
   return (
-    <Card>
+    <Card className="mt-6">
       <CardHeader>
         <CardTitle className="flex items-center">
-          <Scale className="h-5 w-5 mr-2" />
-          Data Balancing Options
+          <RefreshCw className="mr-2 h-5 w-5 text-primary" />
+          Balance Your Dataset
         </CardTitle>
-        <CardDescription>
-          Adjust class distribution to improve model performance
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="balancing-method">Balancing Method</Label>
-          <Select 
-            value={balancingMethod} 
-            onValueChange={(value: 'oversampling' | 'undersampling' | 'smote' | 'adasyn') => setBalancingMethod(value)}
-          >
-            <SelectTrigger id="balancing-method">
-              <SelectValue placeholder="Select a method" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="oversampling">Oversampling</SelectItem>
-              <SelectItem value="undersampling">Undersampling</SelectItem>
-              <SelectItem value="smote">SMOTE</SelectItem>
-              <SelectItem value="adasyn">ADASYN</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <Label htmlFor="target-ratio">Target Ratio: {targetRatio.toFixed(2)}</Label>
+        {!isImbalanced ? (
+          <div className="text-sm bg-green-50 p-4 rounded-md border border-green-200">
+            <p className="font-medium text-green-800">Your dataset is already balanced</p>
+            <p className="text-green-700 mt-1">
+              The current imbalance ratio of {originalDataset.imbalanceRatio}:1 is considered balanced. No action needed.
+            </p>
           </div>
-          <Slider
-            id="target-ratio"
-            value={[targetRatio]}
-            min={0.1}
-            max={1}
-            step={0.05}
-            onValueChange={(value) => setTargetRatio(value[0])}
-          />
-          <p className="text-xs text-muted-foreground">
-            1.0 = perfect balance, lower values = maintain some imbalance
-          </p>
-        </div>
-        
-        <div className="flex items-center space-x-2 pt-2">
-          <Switch 
-            id="use-custom-weights" 
-            checked={useCustomWeights} 
-            onCheckedChange={setUseCustomWeights}
-          />
-          <Label htmlFor="use-custom-weights">Use custom class weights</Label>
-        </div>
-        
-        {useCustomWeights && (
-          <div className="bg-muted/40 p-3 rounded-md mt-2">
-            {renderClassWeightControls()}
-          </div>
-        )}
-        
-        {aiRecommendationsAvailable && (
-          <Toggle
-            variant="outline"
-            pressed={showRecommendations}
-            onPressedChange={setShowRecommendations}
-            className="mt-2"
-          >
-            Show AI recommendations
-          </Toggle>
-        )}
-        
-        {showRecommendations && aiRecommendationsAvailable && (
-          <div className="bg-muted/40 p-3 rounded-md text-sm space-y-2">
-            <h4 className="font-medium">AI Recommendations</h4>
-            <p>For this dataset, we recommend using SMOTE with a target ratio of 0.8.</p>
-            <p>The minority class would benefit from synthetic samples rather than duplicates.</p>
-            <div className="flex justify-end">
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => {
-                  setBalancingMethod('smote');
-                  setTargetRatio(0.8);
-                  toast.info('Applied AI recommendations');
-                }}
-              >
-                Apply recommendations
-              </Button>
+        ) : (
+          <>
+            <div className="text-sm bg-amber-50 p-4 rounded-md border border-amber-200">
+              <p className="font-medium text-amber-800">Your dataset is imbalanced</p>
+              <p className="text-amber-700 mt-1">
+                The current imbalance ratio is {originalDataset.imbalanceRatio}:1. Apply a balancing technique below.
+              </p>
             </div>
-          </div>
+            
+            <div className="space-y-4 mt-2">
+              <div className="space-y-2">
+                <Label>Balancing Method</Label>
+                <RadioGroup 
+                  value={balancingMethod} 
+                  onValueChange={(value) => setBalancingMethod(value as BalancingOptions['method'])}
+                  className="grid grid-cols-1 gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="none" id="none" />
+                    <Label htmlFor="none">None (keep original)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="undersample" id="undersample" />
+                    <Label htmlFor="undersample">Undersampling (reduce majority classes)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="oversample" id="oversample" />
+                    <Label htmlFor="oversample">Oversampling (increase minority classes)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="smote" id="smote" />
+                    <Label htmlFor="smote">SMOTE (Synthetic Minority Over-sampling)</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              {balancingMethod !== "none" && (
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="targetRatio">Target Imbalance Ratio</Label>
+                    <span className="text-sm text-muted-foreground">{targetRatio}:1</span>
+                  </div>
+                  <Slider
+                    id="targetRatio"
+                    min={1}
+                    max={5}
+                    step={0.1}
+                    defaultValue={[targetRatio]}
+                    onValueChange={(values) => setTargetRatio(values[0])}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Lower values create more balanced datasets (1:1 is perfectly balanced)
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <div className="flex space-x-2">
-          <Select value={exportFormat} onValueChange={(value: 'json' | 'csv') => setExportFormat(value as 'json' | 'csv')}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue placeholder="Format" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="json">JSON</SelectItem>
-              <SelectItem value="csv">CSV</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button
-            variant="outline"
-            onClick={handleDownload}
-            disabled={!hasBalancedData}
+      
+      <CardFooter>
+        {isImbalanced && (
+          <Button 
+            className="w-full" 
+            onClick={handleApplyBalancing}
+            disabled={balancingMethod === 'none' || isBalancing}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export
+            {isBalancing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Balancing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Apply Balancing
+              </>
+            )}
           </Button>
-        </div>
-        
-        <Button onClick={handleBalanceClick}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Balance Data
-        </Button>
+        )}
       </CardFooter>
     </Card>
   );

@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
@@ -165,7 +164,7 @@ export const extractDataFromImage = async (
               detail: 'high'
             } 
           }
-        ] as any
+        ]
       }
     ];
 

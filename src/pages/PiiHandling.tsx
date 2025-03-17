@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
-import { PerFieldMaskingOptions, FieldMaskingConfig, MaskingTechnique } from '@/types/piiHandling';
+import { PerFieldMaskingOptions } from '@/types/piiHandling';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Tooltip,
@@ -40,13 +40,6 @@ import {
   analyzePiiData
 } from '@/services/piiHandlingService';
 
-const initializeFieldMasking = (field: string): FieldMaskingConfig => {
-  return {
-    enabled: true,
-    technique: 'replace' // Set a default technique
-  };
-};
-
 const PiiHandling = () => {
   const { toast } = useToast();
   const { apiKey } = useApiKey();
@@ -63,12 +56,7 @@ const PiiHandling = () => {
   const [dataReady, setDataReady] = useState(false);
   const [aiPrompt, setAiPrompt] = useState<string>("");
   
-  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({
-    email: { enabled: true, technique: 'replace' },
-    phone: { enabled: true, technique: 'replace' },
-    address: { enabled: true, technique: 'replace' },
-    ssn: { enabled: true, technique: 'replace' }
-  });
+  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({});
   
   const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
     preserveFormat: true
@@ -93,7 +81,7 @@ const PiiHandling = () => {
       Object.keys(data[0])
         .filter(key => key !== 'id')
         .forEach(field => {
-          newMaskingOptions[field] = { enabled: true, technique: 'replace' };
+          newMaskingOptions[field] = { enabled: true };
         });
     }
     
@@ -122,18 +110,9 @@ const PiiHandling = () => {
     
     try {
       setIsMaskingData(true);
-      
-      const validatedOptions: PerFieldMaskingOptions = {};
-      Object.entries(perFieldMaskingOptions).forEach(([field, config]) => {
-        validatedOptions[field] = {
-          ...config,
-          technique: config.technique || 'replace'
-        };
-      });
-      
       const masked = await maskPiiData(
         originalData, 
-        validatedOptions as any,
+        perFieldMaskingOptions,
         {
           aiPrompt,
           preserveFormat: globalMaskingPreferences.preserveFormat
@@ -159,13 +138,12 @@ const PiiHandling = () => {
 
   const toggleFieldMasking = (field: string) => {
     setPerFieldMaskingOptions(prev => {
-      const currentConfig = prev[field] || { enabled: false, technique: 'replace' };
+      const config = prev[field] || { enabled: false };
       return {
         ...prev,
         [field]: {
-          ...currentConfig,
-          enabled: !currentConfig.enabled,
-          technique: currentConfig.technique || 'replace'
+          ...config,
+          enabled: !config.enabled
         }
       };
     });
@@ -237,8 +215,7 @@ const PiiHandling = () => {
         
         fields.forEach(field => {
           newPerFieldOptions[field] = {
-            enabled: true,
-            technique: 'replace'
+            enabled: true
           };
         });
         
@@ -326,13 +303,6 @@ const PiiHandling = () => {
     }));
   };
 
-  const renderValue = (value: unknown): ReactNode => {
-    if (value === null || value === undefined) {
-      return '';
-    }
-    return String(value);
-  };
-  
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div>
@@ -646,7 +616,7 @@ const PiiHandling = () => {
                               .filter(([key]) => key !== 'id')
                               .map(([key, value]) => (
                                 <TableCell key={key} className="max-w-[200px] truncate">
-                                  {renderValue(value)}
+                                  {value}
                                 </TableCell>
                               ))
                             }
@@ -686,7 +656,7 @@ const PiiHandling = () => {
                                 .filter(([key]) => key !== 'id')
                                 .map(([key, value]) => (
                                   <TableCell key={key} className="max-w-[200px] truncate">
-                                    {renderValue(value)}
+                                    {value}
                                   </TableCell>
                                 ))
                               }

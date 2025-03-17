@@ -1,37 +1,31 @@
 
-// Field masking configuration
-export type MaskingTechnique = 'replace' | 'redact' | 'hash' | 'truncate' | 'tokenize' | 'pseudonymize';
+import { MaskingTechnique, EncryptionMethod } from '@/services/piiHandlingService';
 
 export interface FieldMaskingConfig {
   enabled: boolean;
-  technique: MaskingTechnique; // Make technique required to match service expectations
 }
 
-// Per-field masking options
 export interface PerFieldMaskingOptions {
-  [field: string]: FieldMaskingConfig;
+  [fieldName: string]: FieldMaskingConfig;
 }
 
-// PII data types
-export interface PiiData {
-  id: string;
-  [key: string]: any;
+export interface AddFieldParams {
+  name: string;
+  type: string;
 }
 
-export interface PiiDataMasked extends PiiData {
-  _masked: boolean;
-  _maskedFields?: string[];
+// New type definitions for enhanced prompt-based masking
+export interface PromptBasedMasking {
+  prompt: string;
+  preserveFormat: boolean;
 }
 
-// Masking options
-export interface MaskingOptions {
-  aiPrompt?: string;
-  preserveFormat?: boolean;
-  maskingLevel?: 'low' | 'medium' | 'high';
+export interface MaskingPattern {
+  original: string;
+  masked: string;
+  pattern: string;
 }
 
-// Analysis result
-export interface PiiAnalysisResult {
-  identifiedPii: string[];
-  suggestions: string;
+export interface FieldMaskingPattern {
+  [fieldName: string]: MaskingPattern[];
 }

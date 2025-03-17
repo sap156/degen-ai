@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { DatasetPreferences, ModelOptions } from '@/services/aiDataAnalysisService';
-import { generateSyntheticRecords, ClassDistribution, DatasetInfo } from '@/services/imbalancedDataService';
+import { DatasetInfo, generateSyntheticRecords } from '@/services/imbalancedDataService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -86,11 +86,13 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         }
         
         // Generate synthetic samples ensuring primary key uniqueness
-        const currentBatch = await generateSyntheticSamplesWithUniqueKeys(
+        const currentBatch = generateSyntheticSamplesWithUniqueKeys(
           minoritySamples,
           selectedPrimaryKeys, // Use user-selected primary keys
           batchCount,
-          modelOptions.syntheticDataPreferences.diversity || 'medium'
+          modelOptions.syntheticDataPreferences.diversity || 'medium',
+          generatedSamples, // Existing samples to ensure uniqueness
+          originalData // Original data to avoid key collisions
         );
         
         generatedSamples = [...generatedSamples, ...currentBatch];
@@ -165,14 +167,14 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   };
   
   // Generate synthetic samples with unique primary key values
-  const generateSyntheticSamplesWithUniqueKeys = async (
+  const generateSyntheticSamplesWithUniqueKeys = (
     minoritySamples: any[],
     primaryKeyFields: string[],
     count: number,
     diversity: 'low' | 'medium' | 'high' = 'medium',
     existingSamples: any[] = [],
     originalData: any[] = []
-  ): Promise<any[]> => {
+  ): any[] => {
     if (!primaryKeyFields.length) {
       // If no primary keys detected, use the standard function from the service
       return generateSyntheticRecords(
@@ -336,7 +338,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   
   // Find the minority class in the original dataset
   const minorityClassName = preferences.minorityClass || '';
-  const minorityClassInfo = originalDataset.classes.find(c => c.name === minorityClassName);
+  const minorityClassInfo = originalDataset.classes.find(c => c.className === minorityClassName);
   const minorityClassCount = minorityClassInfo?.count || 0;
   const targetCount = modelOptions.syntheticDataPreferences?.volume || 100;
   

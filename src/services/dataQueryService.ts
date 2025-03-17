@@ -1,169 +1,205 @@
 
-import { useSupabase } from "@/hooks/useSupabase";
-import { OpenAiMessage } from "./openAiService";
+import { toast } from "sonner";
+import { getCompletion, OpenAiMessage } from "./openAiService";
+import { ProcessingMode, QueryResult } from "@/pages/DataQuery";
 
-export type ProcessingMode = 'generate' | 'optimize' | 'analyze' | 'followup';
-
-export interface QueryResult {
-  query: string;
-  sql: string;
-  optimizedSql?: string;
-  analysis?: string;
-  followUpQueries?: string[];
-  results: any[];
-}
-
+/**
+ * Process a natural language query with AI to generate SQL, analyze, or optimize
+ */
 export const processQueryWithAI = async (
   apiKey: string | null,
   query: string,
   mode: ProcessingMode,
-  schema: string
+  schema?: string
 ): Promise<QueryResult> => {
   if (!apiKey) {
-    throw new Error("OpenAI API key is required");
+    throw new Error("API key is not set");
   }
 
+  // Create system prompt based on the processing mode
+  const systemPrompt = getSystemPromptForMode(mode, schema);
+  
+  // Create the user prompt with the query and explanation of what we want
+  const userPrompt = getUserPromptForMode(mode, query);
+  
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
+  
   try {
-    const supabase = useSupabase().supabase;
-
-    let systemPrompt = "";
-    let userPrompt = "";
+    // Get the model from localStorage
+    const model = localStorage.getItem('openai-model') || 'gpt-3.5-turbo';
     
-    // Define different prompts based on the mode
-    switch (mode) {
-      case 'generate':
-        systemPrompt = `You are a SQL expert that converts natural language queries into SQL code. 
-- Generate only valid SQL based on the schema provided
-- Always include SELECT, FROM, and other required clauses
-- Use common SQL syntax that works across most database engines
-- Return ONLY the SQL query without any markdown formatting or explanations`;
-
-        userPrompt = `Database Schema:
-${schema}
-
-Convert this question to SQL:
-${query}`;
-        break;
-        
-      case 'optimize':
-        systemPrompt = `You are a SQL optimization expert. Your task is to optimize SQL queries for better performance.
-- Look for inefficient patterns like SELECT *, unnecessary JOINs, missing indexes
-- Suggest specific optimizations to improve query execution time
-- Format the optimized query for readability
-- Return a JSON with the optimized SQL and a brief explanation of the improvements`;
-
-        userPrompt = `Optimize this SQL query:
-${query}
-
-Return a JSON response with:
-- "optimizedSql": the optimized SQL query
-- "explanation": brief explanation of the optimizations made`;
-        break;
-        
-      case 'analyze':
-        systemPrompt = `You are a SQL analysis expert. Your task is to analyze a SQL query and explain how it works.
-- Break down the SQL query into logical components
-- Explain the purpose and function of each part
-- Highlight any potential issues or edge cases
-- Format your analysis with HTML for proper display (use <p>, <ul>, <li>, <code>, etc.)
-- Return a detailed, education-focused analysis`;
-
-        userPrompt = `Analyze this SQL query:
-${query}
-
-Provide a detailed breakdown of how this query works.`;
-        break;
-        
-      case 'followup':
-        systemPrompt = `You are a SQL expert that suggests follow-up queries based on an initial query.
-- Suggest 3-5 related SQL queries that a user might want to run next
-- Focus on business insights that would complement the initial query
-- Make each follow-up query distinct and valuable
-- Return a JSON array containing just the natural language descriptions of the follow-up queries`;
-
-        userPrompt = `Based on this SQL query:
-${query}
-
-Suggest 3-5 follow-up queries that would provide additional insights or related information.
-Return ONLY a JSON array of strings, each being a natural language question (not SQL).`;
-        break;
-    }
-
-    const messages: OpenAiMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ];
-
-    // This is a mock response for now
-    const mockResults = [
-      { id: 1, name: 'Product A', price: 29.99, category: 'Electronics' },
-      { id: 2, name: 'Product B', price: 49.99, category: 'Electronics' },
-      { id: 3, name: 'Product C', price: 19.99, category: 'Books' }
-    ];
-
-    // Call OpenAI via Supabase Edge Function
-    const { data, error } = await supabase.functions.invoke('openai-proxy', {
-      body: {
-        endpoint: 'chat/completions',
-        payload: {
-          model: localStorage.getItem('openai-model') || 'gpt-3.5-turbo',
-          temperature: 0.3,
-          max_tokens: 1500,
-          messages
-        },
-        apiKey
-      }
+    // Call the OpenAI API
+    const response = await getCompletion(apiKey, messages, {
+      model,
+      temperature: 0.3,
+      max_tokens: 2000
     });
-
-    if (error) {
-      console.error("Error calling OpenAI via Supabase:", error);
-      throw new Error(`Failed to process query: ${error.message}`);
-    }
-
-    // Process the response based on the mode
-    let result: QueryResult = {
-      query,
-      sql: '',
-      results: mockResults // Using mock results for now
-    };
-
-    if (mode === 'generate') {
-      result.sql = data.choices[0].message.content.trim();
-    } 
-    else if (mode === 'optimize') {
-      try {
-        const response = JSON.parse(data.choices[0].message.content);
-        result.sql = query; // Original SQL
-        result.optimizedSql = response.optimizedSql;
-        result.analysis = `<p><strong>Optimization Notes:</strong></p><p>${response.explanation}</p>`;
-      } catch (e) {
-        console.error("Failed to parse optimization response:", e);
+    
+    // Parse the response (expecting JSON format)
+    try {
+      const result = JSON.parse(response) as QueryResult;
+      
+      // Make sure the original query is always included
+      if (mode === 'optimize' || mode === 'analyze' || mode === 'followup') {
         result.sql = query;
-        result.optimizedSql = data.choices[0].message.content.trim();
       }
-    } 
-    else if (mode === 'analyze') {
-      result.sql = query;
-      result.analysis = data.choices[0].message.content.trim();
-    } 
-    else if (mode === 'followup') {
-      result.sql = query;
-      try {
-        result.followUpQueries = JSON.parse(data.choices[0].message.content);
-      } catch (e) {
-        console.error("Failed to parse follow-up queries:", e);
-        // Try to extract follow-ups from non-JSON response
-        const content = data.choices[0].message.content.trim();
-        const lines = content.split('\n').filter(line => line.trim().length > 0);
-        result.followUpQueries = lines.slice(0, 5); // Take up to 5 lines
-      }
+      
+      return result;
+    } catch (e) {
+      console.error("Failed to parse OpenAI response as JSON:", e);
+      console.log("Raw response:", response);
+      
+      // If parsing fails, return a fallback result with the raw response as SQL
+      return {
+        sql: mode === 'generate' ? response : query,
+        error: "Failed to parse response properly"
+      };
     }
-
-    // In a real implementation, we would save this to the query_history table
-    // For now, we'll just return the result
-    return result;
   } catch (error) {
     console.error("Error processing query with AI:", error);
     throw error;
+  }
+};
+
+// Helper function to get the appropriate system prompt based on processing mode
+const getSystemPromptForMode = (mode: ProcessingMode, schema?: string): string => {
+  const basePrompt = `You are SQLHelper, an expert SQL analyst and optimizer. Your goal is to help users work with databases effectively.`;
+  
+  const schemaContext = schema ? 
+    `\n\nYou have access to the following schema information:\n${schema}` : 
+    `\n\nNo schema information was provided. Make reasonable assumptions about table and column names.`;
+  
+  switch (mode) {
+    case 'generate':
+      return `${basePrompt}
+        
+Your task is to convert natural language queries into precise SQL statements.
+${schemaContext}
+
+Follow these rules:
+1. Generate SQL that is accurate and efficient
+2. Use standard SQL syntax compatible with most database systems
+3. Make reasonable assumptions about table/column names if not in the schema
+4. Return your response as a JSON object with the following fields:
+   - sql: The generated SQL query
+   - explanation: Brief explanation of what the query does
+   - assumptions: Any assumptions you made about the schema
+
+IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
+
+    case 'optimize':
+      return `${basePrompt}
+        
+Your task is to optimize the SQL query provided by the user to make it more efficient and performant.
+${schemaContext}
+
+Follow these rules:
+1. Carefully examine the provided SQL query
+2. If the query is already optimized, state that it's already well-optimized and explain why
+3. Otherwise, identify inefficient patterns in the query (nested subqueries, improper indexing, etc.)
+4. Rewrite the query for better performance, explaining your optimizations
+5. Suggest indexes or schema changes that would improve performance
+6. Return your response as a JSON object with the following fields:
+   - sql: Leave empty as we'll keep the original query
+   - optimizedSql: The optimized version of the query (or null if already optimized)
+   - optimizations: List of specific optimizations made (or why the query is already optimal)
+   - indexSuggestions: Suggested indexes to improve query performance
+
+IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
+
+    case 'analyze':
+      return `${basePrompt}
+        
+Your task is to analyze the SQL query provided by the user and explain what it does.
+${schemaContext}
+
+Follow these rules:
+1. Examine the query to identify what it's trying to achieve
+2. Break down the query clause by clause (SELECT, FROM, JOIN, WHERE, GROUP BY, etc.)
+3. Explain what kind of data it would retrieve and how it's being transformed
+4. Identify potential performance issues or improvements
+5. Format analysis in a clear, human-readable way with bullet points
+6. Return your response as a JSON object with the following fields:
+   - sql: Leave empty as we'll keep the original query
+   - analysis: HTML-formatted analysis explaining what the query does
+   - keyMetrics: Important metrics or statistics this query would retrieve
+
+IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
+
+    case 'followup':
+      return `${basePrompt}
+        
+Your task is to suggest follow-up queries based on the user's SQL query.
+${schemaContext}
+
+Follow these rules:
+1. Analyze the query to identify logical next questions
+2. Suggest 3-5 follow-up queries that would provide deeper insights
+3. Make sure suggestions are relevant to the business context of the original query
+4. Return your response as a JSON object with the following fields:
+   - sql: Leave empty as we'll keep the original query
+   - followUpQueries: Array of suggested follow-up questions in natural language
+   - rationale: Brief explanation of why these follow-ups would be valuable
+
+IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
+
+    default:
+      return basePrompt;
+  }
+};
+
+// Helper function to get the user prompt based on processing mode
+const getUserPromptForMode = (mode: ProcessingMode, query: string): string => {
+  switch (mode) {
+    case 'generate':
+      return `Generate SQL for this query: "${query}"`;
+    
+    case 'optimize':
+      // Check if the input is likely SQL (contains SELECT, FROM, etc.) or a natural language query
+      const isSqlQuery = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
+      
+      if (isSqlQuery) {
+        return `Given this SQL query, please optimize it for better performance or state that it's already well-optimized:
+        
+\`\`\`sql
+${query}
+\`\`\``;
+      } else {
+        return `First generate SQL for this query: "${query}", then optimize it for better performance.`;
+      }
+      
+    case 'analyze':
+      // Check if the input is likely SQL or a natural language query
+      const isLikelySql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
+      
+      if (isLikelySql) {
+        return `Analyze this SQL query and explain in detail what it does, how it works, and any potential improvements:
+        
+\`\`\`sql
+${query}
+\`\`\``;
+      } else {
+        return `First generate SQL for this query: "${query}", then analyze what the query does and how it works.`;
+      }
+      
+    case 'followup':
+      // Check if the input is likely SQL or a natural language query
+      const isSql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
+      
+      if (isSql) {
+        return `Based on this SQL query, suggest meaningful follow-up questions for deeper analysis:
+        
+\`\`\`sql
+${query}
+\`\`\``;
+      } else {
+        return `Based on this query: "${query}", suggest meaningful follow-up questions for deeper analysis.`;
+      }
+      
+    default:
+      return query;
   }
 };

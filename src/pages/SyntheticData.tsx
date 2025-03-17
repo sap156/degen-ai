@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -68,9 +69,6 @@ function SyntheticData() {
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [exportFormat, setExportFormat] = useState<"json" | "csv" | "database">("json");
-  const [tableName, setTableName] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -85,6 +83,7 @@ function SyntheticData() {
     },
   });
   
+  // Watch for dataType changes to update the schema fields
   useEffect(() => {
     const dataType = form.watch("dataType");
     if (dataType in defaultSchemas) {
@@ -98,6 +97,7 @@ function SyntheticData() {
       return;
     }
     
+    // Check if at least one field is included
     const hasIncludedFields = dataFields.some(field => field.included);
     if (!hasIncludedFields) {
       toast.error("Please select at least one field to include in your data");
@@ -129,7 +129,7 @@ function SyntheticData() {
       toast.error(`Error generating data: ${errorMsg}`);
     } finally {
       setIsGenerating(false);
-      setGenerationProgress(100);
+      setGenerationProgress(100); // Ensure progress bar completes
     }
   };
 
@@ -160,10 +160,12 @@ function SyntheticData() {
         return;
       }
       
+      // Detect schema from uploaded data
       const detectedFields = detectSchemaFromData(parsedData);
       setDataFields(detectedFields);
       setUploadedData(parsedData);
       
+      // Update form values
       form.setValue("dataType", "custom");
       form.setValue("aiPrompt", `Generate synthetic data that follows the same pattern as the uploaded ${file.name.split('.').pop()} file`);
       
@@ -181,7 +183,7 @@ function SyntheticData() {
       return;
     }
     
-    downloadSyntheticData(generatedData, form.getValues("outputFormat") as "json" | "csv");
+    downloadSyntheticData(generatedData, form.getValues("outputFormat"));
   };
 
   const handleSaveToDatabase = async () => {
@@ -191,47 +193,10 @@ function SyntheticData() {
     }
     
     try {
-      const result = await saveSyntheticDataToDatabase(generatedData);
-      if (result.success) {
-        toast.success(result.message);
-      } else {
-        toast.error(result.message);
-      }
+      await saveSyntheticDataToDatabase(generatedData);
     } catch (error) {
       console.error("Error saving to database:", error);
       toast.error("Error saving to database. Please try again.");
-    }
-  };
-
-  const handleExportClick = async () => {
-    if (!generatedData || generatedData.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    
-    try {
-      if (exportFormat === "database" && tableName) {
-        setIsSaving(true);
-        const result = await saveSyntheticDataToDatabase(generatedData, tableName);
-        setIsSaving(false);
-        
-        if (result.success) {
-          toast.success(`Saved ${result.count} records to database table: ${tableName}`);
-        } else {
-          toast.error(result.message || 'Failed to save to database');
-        }
-      } else {
-        // Export to file format
-        downloadSyntheticData(
-          generatedData, 
-          `synthetic_data_${new Date().toISOString().slice(0, 10)}`,
-          exportFormat as 'json' | 'csv'
-        );
-      }
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Failed to export data');
-      setIsSaving(false);
     }
   };
 
@@ -247,20 +212,24 @@ function SyntheticData() {
     setDataFields(updatedFields);
   };
   
+  // Function to add a new field to the schema
   const addNewField = () => {
     setDataFields([...dataFields, { name: "", type: "string", included: false }]);
   };
   
+  // Function to update a field's name
   const updateFieldName = (index: number, name: string) => {
     const updatedFields = [...dataFields];
     updatedFields[index].name = name;
     setDataFields(updatedFields);
   };
   
+  // Function to remove a field from the schema
   const removeField = (index: number) => {
     setDataFields(dataFields.filter((_, i) => i !== index));
   };
 
+  // Function to select all fields
   const selectAllFields = (select: boolean) => {
     const updatedFields = dataFields.map(field => ({
       ...field,
@@ -678,14 +647,6 @@ function SyntheticData() {
                       >
                         <Database className="h-4 w-4" />
                         Save to Database
-                      </Button>
-                      <Button 
-                        onClick={handleExportClick}
-                        variant="secondary"
-                        className="gap-2"
-                      >
-                        <FileJson className="h-4 w-4" />
-                        Export to File
                       </Button>
                     </CardFooter>
                   </Card>

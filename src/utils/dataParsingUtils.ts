@@ -1,580 +1,677 @@
-import { v4 as uuidv4 } from 'uuid';
-import { SchemaFieldType, generateSchema } from './fileTypes';
-import { OpenAiMessage, createMessages, getCompletion } from '@/services/openAiService';
-import { getToast as getToastNotification } from '@/hooks/use-toast-notification';
+import { toast } from "sonner";
+import { SchemaFieldType } from './fileUploadUtils';
+import { processTextWithAI, ProcessingType } from '../services/textProcessingService';
 
-// Interface for time series data point
-export interface TimeSeriesDataPoint {
-  timestamp: Date | string;
-  value: number;
-}
-
-// Interface for generating data options
-export interface GenerateTimeSeriesOptions {
-  startDate: Date;
-  endDate: Date;
-  points: number;
+interface GenerateDataOptions {
+  sourceData: any[];
+  schema: Record<string, SchemaFieldType>;
+  count: number;
   noiseLevel: number;
-  valueRange?: [number, number];
-  trend?: 'up' | 'down' | 'cyclic' | 'random';
+  dateField?: string;
+  startDate?: Date;
+  endDate?: Date;
+  isTimeSeries: boolean;
 }
 
-/**
- * Checks if data appears to be time series
- */
-export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean; dateField?: string } => {
-  if (!data || data.length === 0) {
-    return { isTimeSeries: false };
-  }
-
-  // Check for date fields
-  const sample = data[0];
-  let potentialDateField = null;
-
-  for (const key in sample) {
-    const value = sample[key];
-    if (typeof value === 'string') {
-      // Check for date patterns
-      if (/^\d{4}-\d{2}-\d{2}/.test(value) || !isNaN(Date.parse(value))) {
-        potentialDateField = key;
-        break;
-      }
-    } else if (value instanceof Date) {
-      potentialDateField = key;
-      break;
-    }
-  }
-
-  if (!potentialDateField) {
-    return { isTimeSeries: false };
-  }
-
-  // Check for at least one numeric field
-  let hasNumericField = false;
-  for (const key in sample) {
-    if (key !== potentialDateField && typeof sample[key] === 'number') {
-      hasNumericField = true;
-      break;
-    }
-  }
-
+// Helper to get min and max values from an array of numbers
+const getNumericRange = (data: any[], field: string): { min: number; max: number } => {
+  const values = data.map(item => Number(item[field])).filter(val => !isNaN(val));
   return {
-    isTimeSeries: potentialDateField !== null && hasNumericField,
-    dateField: potentialDateField
+    min: Math.min(...values),
+    max: Math.max(...values)
   };
 };
 
-/**
- * Generate time series data within a date range
- */
+// Helper to get min and max dates from an array
+const getDateRange = (data: any[], field: string): { min: Date; max: Date } => {
+  const dates = data
+    .map(item => new Date(item[field]))
+    .filter(date => !isNaN(date.getTime()));
+  
+  return {
+    min: new Date(Math.min(...dates.map(d => d.getTime()))),
+    max: new Date(Math.max(...dates.map(d => d.getTime())))
+  };
+};
+
+// Generate a random value based on the field type and existing data distribution
+const generateValueForField = (
+  field: string,
+  type: SchemaFieldType,
+  sourceData: any[],
+  noiseLevel: number,
+  dateRange?: { min: Date; max: Date }
+): any => {
+  const existingValues = sourceData.map(item => item[field]);
+  
+  switch (type) {
+    case "string":
+    case "email":
+    case "phone":
+      return existingValues[Math.floor(Math.random() * existingValues.length)];
+      
+    case "integer":
+      const intRange = getNumericRange(sourceData, field);
+      const rangeDiff = intRange.max - intRange.min;
+      const noise = (Math.random() * 2 - 1) * noiseLevel * rangeDiff;
+      const baseValue = existingValues[Math.floor(Math.random() * existingValues.length)];
+      return Math.round(Number(baseValue) + noise);
+      
+    case "float":
+    case "number":
+      const floatRange = getNumericRange(sourceData, field);
+      const floatRangeDiff = floatRange.max - floatRange.min;
+      const floatNoise = (Math.random() * 2 - 1) * noiseLevel * floatRangeDiff;
+      const floatBaseValue = existingValues[Math.floor(Math.random() * existingValues.length)];
+      return Number((Number(floatBaseValue) + floatNoise).toFixed(4));
+      
+    case "boolean":
+      return Math.random() > 0.5;
+      
+    case "date":
+      if (dateRange) {
+        const minTime = dateRange.min.getTime();
+        const maxTime = dateRange.max.getTime();
+        const randomTime = minTime + Math.random() * (maxTime - minTime);
+        return new Date(randomTime).toISOString();
+      } else {
+        return existingValues[Math.floor(Math.random() * existingValues.length)];
+      }
+      
+    case "object":
+      return JSON.parse(JSON.stringify(existingValues[Math.floor(Math.random() * existingValues.length)]));
+      
+    default:
+      return existingValues[Math.floor(Math.random() * existingValues.length)];
+  }
+};
+
+// Generate a time series data point with trend and noise
+const generateTimeSeriesPoint = (
+  baseData: any[],
+  dateField: string,
+  fieldSchema: Record<string, SchemaFieldType>,
+  noiseLevel: number,
+  newDate: Date
+): any => {
+  const newPoint: any = {};
+  
+  newPoint[dateField] = newDate.toISOString();
+  
+  const existingDates = baseData.map(item => new Date(item[dateField]));
+  const newTime = newDate.getTime();
+  
+  const sortedIndices = existingDates
+    .map((date, index) => ({ index, diff: Math.abs(date.getTime() - newTime) }))
+    .sort((a, b) => a.diff - b.diff);
+  
+  const closestIndices = sortedIndices.slice(0, 3).map(item => item.index);
+  const closestPoints = closestIndices.map(index => baseData[index]);
+  
+  Object.keys(fieldSchema).forEach(field => {
+    if (field === dateField) return;
+    
+    const type = fieldSchema[field];
+    
+    if (type === 'integer' || type === 'float' || type === 'number') {
+      const values = closestPoints.map(point => Number(point[field]));
+      const avgValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+      const maxDiff = Math.max(...values) - Math.min(...values);
+      const noise = (Math.random() * 2 - 1) * noiseLevel * maxDiff;
+      
+      if (type === 'integer') {
+        newPoint[field] = Math.round(avgValue + noise);
+      } else {
+        newPoint[field] = Number((avgValue + noise).toFixed(4));
+      }
+    } else {
+      newPoint[field] = closestPoints[0][field];
+    }
+  });
+  
+  return newPoint;
+};
+
+// Generate additional data based on source data
+export const generateAdditionalData = (options: GenerateDataOptions): any[] => {
+  const { 
+    sourceData, 
+    schema, 
+    count, 
+    noiseLevel, 
+    dateField, 
+    startDate, 
+    endDate,
+    isTimeSeries 
+  } = options;
+  
+  if (!sourceData.length) {
+    throw new Error('Source data is empty');
+  }
+  
+  try {
+    const result: any[] = [];
+    
+    if (isTimeSeries && dateField) {
+      let dateRange: { min: Date; max: Date };
+      
+      if (startDate && endDate) {
+        dateRange = { min: startDate, max: endDate };
+      } else {
+        dateRange = getDateRange(sourceData, dateField);
+      }
+      
+      const timeStep = (dateRange.max.getTime() - dateRange.min.getTime()) / (count + 1);
+      
+      for (let i = 0; i < count; i++) {
+        const newDate = new Date(dateRange.min.getTime() + timeStep * (i + 1));
+        const newPoint = generateTimeSeriesPoint(sourceData, dateField, schema, noiseLevel, newDate);
+        result.push(newPoint);
+      }
+      
+      result.sort((a, b) => new Date(a[dateField]).getTime() - new Date(b[dateField]).getTime());
+      
+    } else {
+      for (let i = 0; i < count; i++) {
+        const newItem: any = {};
+        
+        Object.keys(schema).forEach(field => {
+          const type = schema[field];
+          
+          newItem[field] = generateValueForField(field, type, sourceData, noiseLevel);
+        });
+        
+        result.push(newItem);
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error generating additional data:', error);
+    toast.error('Failed to generate additional data');
+    return [];
+  }
+};
+
+// Enhance fileUploadUtils.ts to better detect time series data
+export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean, dateField?: string } => {
+  if (!data.length) return { isTimeSeries: false };
+  
+  const sampleItem = data[0];
+  const fields = Object.keys(sampleItem);
+  
+  const possibleDateFields = fields.filter(field => {
+    const value = sampleItem[field];
+    return typeof value === 'string' && (
+      /^\d{4}-\d{2}-\d{2}/.test(value) || 
+      /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) || 
+      !isNaN(Date.parse(value)) || 
+      field.toLowerCase().includes('time') ||
+      field.toLowerCase().includes('date') ||
+      field.toLowerCase() === 'timestamp'
+    );
+  });
+  
+  const hasNumericField = fields.some(field => {
+    const value = sampleItem[field];
+    return typeof value === 'number';
+  });
+  
+  return {
+    isTimeSeries: possibleDateFields.length > 0 && hasNumericField,
+    dateField: possibleDateFields.length > 0 ? possibleDateFields[0] : undefined
+  };
+};
+
+// NEW FUNCTIONS FOR TIME SERIES SPECIFIC OPERATIONS
+
 export const generateTimeSeriesInRange = (
-  existingData: any[],
+  sourceData: any[], 
   dateField: string,
   schema: Record<string, SchemaFieldType>,
   startDate: Date,
   endDate: Date,
-  numPoints: number,
-  noiseLevel: number = 0.2
+  pointCount: number,
+  noiseLevel: number
 ): any[] => {
-  if (!dateField || !startDate || !endDate || numPoints <= 0) {
-    return [];
-  }
-
-  const generatedData = [];
-  const interval = (endDate.getTime() - startDate.getTime()) / (numPoints - 1);
-
-  // Find numeric fields to generate values for
-  const numericFields = Object.entries(schema)
-    .filter(([key, type]) => 
-      (type === 'number' || type === 'integer' || type === 'float') && 
-      key !== dateField
-    )
-    .map(([key]) => key);
-
-  if (numericFields.length === 0) {
-    throw new Error('No numeric fields found in schema to generate values for');
-  }
-
-  // Calculate baseline values and trends from existing data
-  const baselineValues: Record<string, { min: number; max: number; avg: number }> = {};
-  numericFields.forEach(field => {
-    const values = existingData.map(item => parseFloat(item[field])).filter(v => !isNaN(v));
-    if (values.length > 0) {
-      baselineValues[field] = {
-        min: Math.min(...values),
-        max: Math.max(...values),
-        avg: values.reduce((sum, val) => sum + val, 0) / values.length
-      };
-    } else {
-      baselineValues[field] = { min: 0, max: 100, avg: 50 };
-    }
+  const filteredData = sourceData.filter(item => {
+    const itemDate = new Date(item[dateField]);
+    return itemDate >= startDate && itemDate <= endDate;
   });
-
-  // Generate data points
-  for (let i = 0; i < numPoints; i++) {
-    const timestamp = new Date(startDate.getTime() + i * interval);
-    const dataPoint: Record<string, any> = {
-      [dateField]: timestamp.toISOString(),
-      id: uuidv4()
-    };
-
-    // Generate values for each numeric field
-    numericFields.forEach(field => {
-      const { min, max, avg } = baselineValues[field];
-      const range = max - min;
-      
-      // Add trend component (time-based)
-      const normalizedTime = i / (numPoints - 1); // 0 to 1
-      const trendValue = avg + (range * 0.2 * (Math.sin(normalizedTime * Math.PI * 2) - 0.5));
-      
-      // Add random noise
-      const noise = (Math.random() * 2 - 1) * noiseLevel * range;
-      const value = trendValue + noise;
-      
-      // Ensure value is within reasonable bounds
-      dataPoint[field] = Math.max(min * 0.8, Math.min(max * 1.2, value));
-      
-      // Round integers
-      if (schema[field] === 'integer') {
-        dataPoint[field] = Math.round(dataPoint[field]);
-      }
-    });
-
-    // Copy non-numeric fields with default values
-    Object.entries(schema)
-      .filter(([key, type]) => 
-        key !== dateField && 
-        !numericFields.includes(key) &&
-        type !== 'object' && 
-        type !== 'array'
-      )
-      .forEach(([key, type]) => {
-        if (existingData.length > 0) {
-          // Use a value from existing data
-          const sampleIndex = Math.floor(Math.random() * existingData.length);
-          dataPoint[key] = existingData[sampleIndex][key];
-        } else {
-          // Generate a default value based on type
-          switch (type) {
-            case 'string':
-              dataPoint[key] = `value_${i}`;
-              break;
-            case 'boolean':
-              dataPoint[key] = Math.random() > 0.5;
-              break;
-            case 'date':
-              dataPoint[key] = new Date().toISOString();
-              break;
-            default:
-              dataPoint[key] = null;
-          }
-        }
-      });
-
-    generatedData.push(dataPoint);
+  
+  const baseData = filteredData.length > 0 ? filteredData : sourceData;
+  
+  const result: any[] = [];
+  
+  const timeStep = (endDate.getTime() - startDate.getTime()) / (pointCount + 1);
+  
+  for (let i = 0; i < pointCount; i++) {
+    const newDate = new Date(startDate.getTime() + timeStep * (i + 1));
+    const newPoint = generateTimeSeriesPoint(baseData, dateField, schema, noiseLevel, newDate);
+    result.push(newPoint);
   }
-
-  return generatedData;
+  
+  result.sort((a, b) => new Date(a[dateField]).getTime() - new Date(b[dateField]).getTime());
+  
+  return result;
 };
 
-/**
- * Add noise to existing time series data
- */
 export const addNoiseToTimeSeries = (
   data: any[],
   schema: Record<string, SchemaFieldType>,
   noiseLevel: number,
-  dateField: string,
+  dateField?: string,
   startDate?: Date,
   endDate?: Date
 ): any[] => {
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  try {
-    // Find numeric fields to add noise to
-    const numericFields = Object.entries(schema)
-      .filter(([key, type]) => 
-        (type === 'number' || type === 'integer' || type === 'float') && 
-        key !== dateField
-      )
-      .map(([key]) => key);
-
-    if (numericFields.length === 0) {
-      const toastFn = getToastNotification();
-      if (toastFn && toastFn.toast) {
-        toastFn.toast({
-          title: "No numeric fields found",
-          description: "Could not find numeric fields to add noise to",
-          variant: "destructive"
-        });
+  const result = JSON.parse(JSON.stringify(data));
+  
+  const filteredIndices = dateField && startDate && endDate 
+    ? result.map((item, index) => {
+        const itemDate = new Date(item[dateField]);
+        return itemDate >= startDate && itemDate <= endDate ? index : -1;
+      }).filter(index => index !== -1)
+    : result.map((_, index) => index);
+  
+  Object.entries(schema).forEach(([field, type]) => {
+    if (field === dateField) return;
+    
+    if (type === 'integer' || type === 'float' || type === 'number') {
+      const fieldValues = data.map(item => Number(item[field]));
+      const min = Math.min(...fieldValues);
+      const max = Math.max(...fieldValues);
+      const range = max - min;
+      
+      for (const index of filteredIndices) {
+        const originalValue = Number(result[index][field]);
+        const noise = (Math.random() * 2 - 1) * noiseLevel * range;
+        
+        if (type === 'integer') {
+          result[index][field] = Math.round(originalValue + noise);
+        } else {
+          result[index][field] = Number((originalValue + noise).toFixed(4));
+        }
       }
+    }
+  });
+  
+  return result;
+};
+
+export const generatePiiData = (
+  sampleData: any[],
+  schema: Record<string, SchemaFieldType>,
+  count: number
+): any[] => {
+  const result = [];
+  
+  for (let i = 0; i < count; i++) {
+    const newItem: any = {};
+    
+    Object.entries(schema).forEach(([field, type]) => {
+      switch (type) {
+        case 'name':
+          const firstNames = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica'];
+          const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia'];
+          newItem[field] = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+          break;
+          
+        case 'email':
+          const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'example.com'];
+          const username = Math.random().toString(36).substring(2, 10);
+          const domain = domains[Math.floor(Math.random() * domains.length)];
+          newItem[field] = `${username}@${domain}`;
+          break;
+          
+        case 'phone':
+          const areaCode = Math.floor(Math.random() * 900) + 100;
+          const prefix = Math.floor(Math.random() * 900) + 100;
+          const lineNum = Math.floor(Math.random() * 9000) + 1000;
+          newItem[field] = `(${areaCode}) ${prefix}-${lineNum}`;
+          break;
+          
+        case 'address':
+          const streetNum = Math.floor(Math.random() * 9000) + 1000;
+          const streetNames = ['Main St', 'Oak Ave', 'Maple Rd', 'Washington Blvd', 'Park Lane'];
+          const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'];
+          const states = ['NY', 'CA', 'IL', 'TX', 'AZ', 'PA'];
+          const zipCodes = ['10001', '90001', '60601', '77001', '85001', '19101'];
+          const streetName = streetNames[Math.floor(Math.random() * streetNames.length)];
+          const cityIndex = Math.floor(Math.random() * cities.length);
+          
+          newItem[field] = `${streetNum} ${streetName}, ${cities[cityIndex]}, ${states[cityIndex]} ${zipCodes[cityIndex]}`;
+          break;
+          
+        case 'ssn':
+          const part1 = Math.floor(Math.random() * 900) + 100;
+          const part2 = Math.floor(Math.random() * 90) + 10;
+          const part3 = Math.floor(Math.random() * 9000) + 1000;
+          newItem[field] = `${part1}-${part2}-${part3}`;
+          break;
+          
+        case 'creditcard':
+          const groups = Array.from({length: 4}, () => Math.floor(Math.random() * 9000) + 1000);
+          newItem[field] = groups.join('-');
+          break;
+          
+        case 'date':
+          const now = new Date();
+          const pastDate = new Date(
+            now.getFullYear() - Math.floor(Math.random() * 50),
+            Math.floor(Math.random() * 12),
+            Math.floor(Math.random() * 28) + 1
+          );
+          newItem[field] = pastDate.toISOString().split('T')[0];
+          break;
+          
+        default:
+          newItem[field] = generateValueForField(field, type, sampleData, 0.2);
+      }
+    });
+    
+    result.push(newItem);
+  }
+  
+  return result;
+};
+
+/**
+ * Interface for AI processing options
+ */
+export interface AIProcessingOptions {
+  apiKey: string | null;
+  processingTypes: ProcessingType[];
+  detailLevel?: 'brief' | 'standard' | 'detailed';
+  outputFormat?: 'json' | 'text';
+  userContext?: string;
+}
+
+/**
+ * Process extracted text data with AI
+ */
+export const processDataWithAI = async (
+  textData: string,
+  options: AIProcessingOptions
+): Promise<Record<string, any>> => {
+  if (!options.apiKey) {
+    throw new Error("API key is required for AI processing");
+  }
+  
+  try {
+    const results: Record<string, any> = {};
+    
+    for (const processingType of options.processingTypes) {
+      try {
+        const result = await processTextWithAI(
+          options.apiKey, 
+          textData, 
+          processingType, 
+          {
+            detailLevel: options.detailLevel || 'standard',
+            outputFormat: options.outputFormat || 'json',
+            userContext: options.userContext
+          }
+        );
+        
+        results[processingType] = result;
+      } catch (error) {
+        console.error(`Error in ${processingType} processing:`, error);
+        toast.error(`Failed to complete ${processingType} analysis`);
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('Error in AI processing:', error);
+    throw error;
+  }
+};
+
+/**
+ * Clean and normalize structured data using AI
+ */
+export const cleanDataWithAI = async (
+  data: any[],
+  apiKey: string | null,
+  options?: {
+    detailLevel?: 'brief' | 'standard' | 'detailed';
+    fields?: string[];
+    rules?: string[];
+  }
+): Promise<any[]> => {
+  if (!apiKey || !data.length) {
+    return data;
+  }
+  
+  try {
+    const fields = options?.fields || Object.keys(data[0]);
+    const rules = options?.rules || [];
+    const detailLevel = options?.detailLevel || 'standard';
+    
+    const dataString = JSON.stringify(data.slice(0, 100), null, 2);
+    
+    const systemMessage = `You are an expert data cleaning and normalization assistant.
+    Your task is to clean and normalize the provided data array.
+    
+    Clean and normalize these fields: ${fields.join(', ')}
+    ${rules.length > 0 ? `Apply these specific rules: ${rules.join('; ')}` : ''}
+    
+    Return the cleaned data as a valid JSON array with the same structure but normalized values.
+    Do not add or remove fields - only clean the existing values.
+    
+    Cleaning should include:
+    - Fixing typographical errors
+    - Standardizing date formats (to ISO where possible)
+    - Standardizing phone numbers, email addresses, and other common formats
+    - Removing extra whitespace and normalizing case where appropriate
+    - Fixing obvious data errors
+    - Ensuring consistent formatting across similar values
+    
+    ${detailLevel === 'detailed' ? 'Apply thorough cleaning to all values, with exhaustive normalization.' : 
+      detailLevel === 'brief' ? 'Apply minimal cleaning, focusing only on critical issues.' : 
+      'Apply standard cleaning to maintain data quality while preserving original information.'}`;
+    
+    const userMessage = `Clean and normalize this data:\n\n${dataString}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const cleanedData = JSON.parse(response);
+      
+      if (Array.isArray(cleanedData)) {
+        return cleanedData;
+      } else {
+        throw new Error('Response is not an array');
+      }
+    } catch (error) {
+      console.error('Failed to parse AI response:', error);
+      toast.error('Failed to clean data - invalid response format');
       return data;
     }
-
-    return data.map(item => {
-      // Check if this item is within date range
-      if (startDate && endDate && dateField) {
-        const itemDate = new Date(item[dateField]);
-        if (itemDate < startDate || itemDate > endDate) {
-          return item; // Outside range, return unchanged
-        }
-      }
-
-      const noisyItem = { ...item };
-      
-      // Add noise to each numeric field
-      numericFields.forEach(field => {
-        if (typeof item[field] === 'number') {
-          const originalValue = item[field];
-          const noise = (Math.random() * 2 - 1) * noiseLevel * Math.abs(originalValue || 1);
-          const noisyValue = originalValue + noise;
-          
-          // Round to original precision for integers
-          if (schema[field] === 'integer') {
-            noisyItem[field] = Math.round(noisyValue);
-          } else {
-            // For floats, round to reasonable precision
-            const decimalPlaces = countDecimalPlaces(originalValue);
-            noisyItem[field] = parseFloat(noisyValue.toFixed(decimalPlaces));
-          }
-        }
-      });
-
-      return noisyItem;
-    });
   } catch (error) {
-    console.error("Error adding noise to time series:", error);
-    const toastFn = getToastNotification();
-    if (toastFn && toastFn.toast) {
-      toastFn.toast({
-        title: "Error",
-        description: "Failed to add noise to time series data",
-        variant: "destructive"
-      });
-    }
+    console.error('Error cleaning data with AI:', error);
+    toast.error('Failed to clean data');
     return data;
   }
 };
 
 /**
- * Detect trend in time series data using AI
+ * Detect and extract entities from text data
  */
-export const detectTimeSeriesTrend = async (
-  data: any[],
-  dateField: string,
-  valueField: string,
-  apiKey: string
-): Promise<string> => {
-  try {
-    if (!data || data.length < 5) {
-      return "Insufficient data for trend analysis";
-    }
-
-    // Prepare sample data for analysis
-    const timeSeriesData = data
-      .map(item => ({
-        timestamp: item[dateField],
-        value: parseFloat(item[valueField])
-      }))
-      .filter(item => !isNaN(item.value))
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .slice(0, 50); // Limit to 50 points for API call
-
-    const messages = createMessages(
-      "You are a time series data analysis expert. Analyze the data and describe the trend.",
-      `Analyze this time series data and describe the trend:
-      ${JSON.stringify(timeSeriesData, null, 2)}`
-    );
-
-    const analysis = await getCompletion(messages, 'gpt-4o-mini', apiKey);
-    return analysis;
-  } catch (error) {
-    console.error("Error detecting trend:", error);
-    return "Error analyzing trend";
+export const extractEntities = async (
+  text: string,
+  apiKey: string | null,
+  entityTypes: ('people' | 'organizations' | 'locations' | 'dates' | 'amounts' | 'all')[] = ['all']
+): Promise<Record<string, string[]>> => {
+  if (!apiKey) {
+    throw new Error("API key is required for entity extraction");
   }
-};
-
-/**
- * Forecast future values in time series
- */
-export const forecastTimeSeries = async (
-  data: any[],
-  dateField: string,
-  valueField: string,
-  periodsAhead: number,
-  apiKey: string
-): Promise<TimeSeriesDataPoint[]> => {
-  try {
-    if (!data || data.length < 5) {
-      return [];
-    }
-
-    // Prepare time series data
-    const timeSeriesData = data
-      .map(item => ({
-        timestamp: new Date(item[dateField]).toISOString(),
-        value: parseFloat(item[valueField])
-      }))
-      .filter(item => !isNaN(item.value))
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-    // Calculate interval between points
-    const dates = timeSeriesData.map(item => new Date(item.timestamp).getTime());
-    const avgInterval = dates.length > 1 
-      ? (dates[dates.length - 1] - dates[0]) / (dates.length - 1)
-      : 86400000; // Default to 1 day in milliseconds
-
-    const messages = createMessages(
-      "You are a time series forecasting expert. Use appropriate methods to forecast future values.",
-      `Forecast ${periodsAhead} periods ahead for this time series:
-      ${JSON.stringify(timeSeriesData.slice(-20), null, 2)}
-      
-      Response format: JSON array of objects with timestamp and value properties.
-      Use the same interval between data points as in the original data.`
-    );
-
-    const forecastResult = await getCompletion(messages, 'gpt-4o-mini', apiKey);
-    
-    // Parse the forecast result
-    // First try to extract JSON from the response if it contains markdown
-    const jsonMatch = forecastResult.match(/```json\n([\s\S]*?)\n```/) ||
-                      forecastResult.match(/```\n([\s\S]*?)\n```/);
-    
-    const jsonContent = jsonMatch ? jsonMatch[1] : forecastResult;
-    let forecast: TimeSeriesDataPoint[] = [];
-    
-    try {
-      forecast = JSON.parse(jsonContent);
-    } catch (e) {
-      // If parsing fails, generate simple forecast
-      const lastPoint = timeSeriesData[timeSeriesData.length - 1];
-      const lastDate = new Date(lastPoint.timestamp);
-      const lastValue = lastPoint.value;
-      
-      forecast = Array.from({ length: periodsAhead }, (_, i) => {
-        const newDate = new Date(lastDate.getTime() + (i + 1) * avgInterval);
-        return {
-          timestamp: newDate.toISOString(),
-          value: lastValue * (1 + (Math.random() * 0.1 - 0.05)) // Simple random walk
-        };
-      });
-    }
-    
-    return forecast;
-  } catch (error) {
-    console.error("Error forecasting time series:", error);
-    return [];
-  }
-};
-
-/**
- * Find seasonal patterns in time series
- */
-export const findSeasonality = async (
-  data: any[],
-  dateField: string,
-  valueField: string,
-  apiKey: string
-): Promise<string> => {
-  try {
-    if (!data || data.length < 10) {
-      return "Insufficient data for seasonality analysis";
-    }
-
-    // Prepare time series data
-    const timeSeriesData = data
-      .map(item => ({
-        timestamp: new Date(item[dateField]).toISOString(),
-        value: parseFloat(item[valueField])
-      }))
-      .filter(item => !isNaN(item.value))
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-    const messages = createMessages(
-      "You are a time series data analysis expert. Analyze the data for seasonal patterns.",
-      `Analyze this time series data and identify any seasonality or patterns:
-      ${JSON.stringify(timeSeriesData.slice(0, 100), null, 2)}`
-    );
-
-    const analysis = await getCompletion(messages, 'gpt-4o-mini', apiKey);
-    return analysis;
-  } catch (error) {
-    console.error("Error analyzing seasonality:", error);
-    return "Error analyzing seasonality";
-  }
-};
-
-// Helper function to count decimal places in a number
-const countDecimalPlaces = (num: number): number => {
-  if (Number.isInteger(num)) return 0;
-  const text = num.toString();
-  const decimalIndex = text.indexOf('.');
-  if (decimalIndex === -1) return 0;
-  return text.length - decimalIndex - 1;
-};
-
-// Interface for AI processing options
-export interface AIProcessingOptions {
-  apiKey: string;
-  processingTypes: string[];
-  detailLevel: 'brief' | 'standard' | 'detailed';
-  outputFormat: 'json' | 'text';
-  userContext?: string;
-}
-
-// Process data with AI (stub for DataParsing.tsx)
-export const processDataWithAI = async (text: string, options: AIProcessingOptions): Promise<Record<string, any>> => {
-  // This is a simple implementation - you can expand as needed
-  const results: Record<string, any> = {};
   
-  for (const processingType of options.processingTypes) {
+  try {
+    const systemMessage = `You are an expert Named Entity Recognition (NER) assistant.
+    Your task is to extract entities from the provided text.
+    
+    Extract these entity types: ${entityTypes.includes('all') ? 'all entity types' : entityTypes.join(', ')}
+    
+    Return the extracted entities as a valid JSON object with entity types as keys and arrays of entities as values.
+    Format:
+    {
+      "people": ["Person 1", "Person 2", ...],
+      "organizations": ["Org 1", "Org 2", ...],
+      "locations": ["Location 1", "Location 2", ...],
+      "dates": ["Date 1", "Date 2", ...],
+      "amounts": ["Amount 1", "Amount 2", ...],
+      "other": ["Entity 1", "Entity 2", ...]
+    }
+    
+    Only include entity types that are found in the text.`;
+    
+    const userMessage = `Extract entities from this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
     try {
-      const messages = createMessages(
-        `You are an expert in ${processingType} analysis with ${options.detailLevel} detail level.`,
-        `Process the following text for ${processingType} analysis:
-        ${text.slice(0, 5000)}${text.length > 5000 ? '...' : ''}
-        
-        User context: ${options.userContext || 'No specific context provided.'}
-        Output format: ${options.outputFormat.toUpperCase()}`
-      );
-      
-      const result = await getCompletion(messages, 'gpt-4o-mini', options.apiKey);
-      
-      if (options.outputFormat === 'json') {
-        try {
-          // Try to extract JSON from the response
-          const jsonMatch = result.match(/```json\n([\s\S]*?)\n```/) ||
-                          result.match(/```\n([\s\S]*?)\n```/);
-          
-          const jsonContent = jsonMatch ? jsonMatch[1] : result;
-          const structured = JSON.parse(jsonContent);
-          
-          results[processingType] = {
-            raw: result,
-            structured,
-            format: 'json'
-          };
-        } catch (e) {
-          // Fallback to text if JSON parsing fails
-          results[processingType] = {
-            raw: result,
-            format: 'text'
-          };
-        }
-      } else {
-        results[processingType] = {
-          raw: result,
-          format: 'text'
-        };
-      }
+      const entities = JSON.parse(response);
+      return entities;
     } catch (error) {
-      console.error(`Error processing ${processingType}:`, error);
-      results[processingType] = {
-        raw: `Error processing ${processingType}: ${error.message}`,
-        format: 'text',
-        error: true
-      };
+      console.error('Failed to parse entity extraction response:', error);
+      throw new Error('Invalid response format from entity extraction');
     }
-  }
-  
-  return results;
-};
-
-// Generate PII data (stub for PiiDataGenerator.tsx)
-export const generatePiiData = async (
-  schema: Record<string, SchemaFieldType>,
-  count: number, 
-  options: {
-    includeNames?: boolean;
-    includeAddresses?: boolean;
-    includeEmails?: boolean;
-    includePhones?: boolean;
-    includeSSNs?: boolean;
-    includeCreditCards?: boolean;
-    customFields?: Record<string, any>;
-  },
-  apiKey: string
-): Promise<any[]> => {
-  // Simple implementation for now
-  const results = [];
-  
-  for (let i = 0; i < count; i++) {
-    const item: Record<string, any> = {
-      id: uuidv4()
-    };
-    
-    // Add fields based on schema
-    for (const [key, type] of Object.entries(schema)) {
-      switch(type) {
-        case 'name':
-          item[key] = `Person ${i+1}`;
-          break;
-        case 'address':
-          item[key] = `${100 + i} Main St, City ${i % 10}, State ${i % 50}`;
-          break;
-        case 'email':
-          item[key] = `person${i}@example.com`;
-          break;
-        case 'string':
-          item[key] = `value_${i}`;
-          break;
-        case 'number':
-        case 'float':
-          item[key] = i * 1.5;
-          break;
-        case 'integer':
-          item[key] = i;
-          break;
-        case 'boolean':
-          item[key] = i % 2 === 0;
-          break;
-        case 'date':
-          const date = new Date();
-          date.setDate(date.getDate() + i);
-          item[key] = date.toISOString();
-          break;
-        default:
-          item[key] = null;
-      }
-    }
-    
-    // Add custom fields
-    if (options.customFields) {
-      for (const [key, value] of Object.entries(options.customFields)) {
-        item[key] = value;
-      }
-    }
-    
-    results.push(item);
-  }
-  
-  return results;
-};
-
-// Export function for detecting data type
-export const detectDataType = async (file: File, apiKey: string): Promise<{
-  type: string;
-  confidence: number;
-  timeColumn?: string;
-  valueColumns?: string[];
-}> => {
-  // Implementation goes here
-  return {
-    type: 'timeseries',
-    confidence: 0.9,
-    timeColumn: 'timestamp',
-    valueColumns: ['value']
-  };
-};
-
-// Export getToast helper function to avoid direct imports
-export const getToast = () => {
-  try {
-    const toastFn = getToastNotification();
-    return toastFn?.toast || null;
   } catch (error) {
-    return null;
+    console.error('Error extracting entities:', error);
+    throw error;
+  }
+};
+
+/**
+ * Analyze sentiment in text data
+ */
+export const analyzeSentiment = async (
+  text: string,
+  apiKey: string | null
+): Promise<{
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
+  score: number;
+  intent?: string;
+  analysis: string;
+}> => {
+  if (!apiKey) {
+    throw new Error("API key is required for sentiment analysis");
+  }
+  
+  try {
+    const systemMessage = `You are an expert sentiment analysis assistant.
+    Your task is to analyze the sentiment and intent in the provided text.
+    
+    Return your analysis as a valid JSON object with the following structure:
+    {
+      "sentiment": "positive" | "negative" | "neutral" | "mixed",
+      "score": number between -1 and 1,
+      "intent": primary intent detected (e.g., "complaint", "inquiry", "praise", "request", "information"),
+      "analysis": brief explanation of the sentiment and intent detection
+    }`;
+    
+    const userMessage = `Analyze the sentiment in this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const sentimentAnalysis = JSON.parse(response);
+      return sentimentAnalysis;
+    } catch (error) {
+      console.error('Failed to parse sentiment analysis response:', error);
+      throw new Error('Invalid response format from sentiment analysis');
+    }
+  } catch (error) {
+    console.error('Error analyzing sentiment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generate tags and categories for text data
+ */
+export const generateTags = async (
+  text: string,
+  apiKey: string | null,
+  options?: {
+    maxTags?: number;
+    categories?: string[];
+    domainSpecific?: boolean;
+  }
+): Promise<{
+  tags: string[];
+  categories: string[];
+  keywords: string[];
+}> => {
+  if (!apiKey) {
+    throw new Error("API key is required for tag generation");
+  }
+  
+  try {
+    const maxTags = options?.maxTags || 10;
+    const categories = options?.categories || [];
+    const domainSpecific = options?.domainSpecific || false;
+    
+    const systemMessage = `You are an expert content tagging and categorization assistant.
+    Your task is to generate relevant tags and categories for the provided text.
+    
+    Generate up to ${maxTags} tags that accurately represent the content.
+    ${categories.length > 0 ? `Categorize the text into these categories if applicable: ${categories.join(', ')}` : 'Suggest appropriate categories for the content.'}
+    ${domainSpecific ? 'Focus on domain-specific terminology and concepts.' : 'Use general terminology that would be widely understood.'}
+    
+    Return your analysis as a valid JSON object with the following structure:
+    {
+      "tags": array of relevant tags,
+      "categories": array of applicable categories,
+      "keywords": array of key terms/phrases that appear in the text
+    }`;
+    
+    const userMessage = `Generate tags for this text:\n\n${text}`;
+    
+    const { getCompletion } = await import('../services/openAiService');
+    const response = await getCompletion(
+      apiKey, 
+      [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ],
+      { model: 'gpt-4o-mini' }
+    );
+    
+    try {
+      const taggingResults = JSON.parse(response);
+      return taggingResults;
+    } catch (error) {
+      console.error('Failed to parse tag generation response:', error);
+      throw new Error('Invalid response format from tag generation');
+    }
+  } catch (error) {
+    console.error('Error generating tags:', error);
+    throw error;
   }
 };
