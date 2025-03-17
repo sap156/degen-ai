@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { toast } from 'sonner';
 import { ProcessingMode, QueryResult } from '@/pages/DataQuery';
 import { processQueryWithAI } from '@/services/dataQueryService';
 import { Sparkles, Database, Loader2 } from 'lucide-react';
-import { isDatabaseConnected } from '@/services/databaseService';
+import { isDatabaseConnected as checkDatabaseConnection } from '@/services/databaseService';
 
 interface QueryInputProps {
   schema: string;
@@ -27,7 +28,8 @@ const QueryInput: React.FC<QueryInputProps> = ({
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ProcessingMode>('generate');
 
-  const isDatabaseConnected = isDatabaseConnected();
+  // Rename the variable to avoid the naming conflict
+  const isDbConnected = checkDatabaseConnection();
 
   const handleSubmit = async () => {
     if (!query.trim()) {
@@ -41,7 +43,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
       const result = await processQueryWithAI(apiKey, query, mode, schema);
       onQueryProcessed(result);
       
-      if (!isDatabaseConnected) {
+      if (!isDbConnected) {
         if (mode === 'generate') {
           toast.success('SQL query generated successfully!');
         } else if (mode === 'optimize') {
@@ -72,11 +74,11 @@ const QueryInput: React.FC<QueryInputProps> = ({
     "Show sales by region compared to last year"
   ];
 
-  const cardTitle = isDatabaseConnected ? 
+  const cardTitle = isDbConnected ? 
     "SQL Query Generator & Executor" : 
     "SQL Query Generator";
 
-  const cardDescription = isDatabaseConnected ? 
+  const cardDescription = isDbConnected ? 
     "Enter your question in natural language, and we'll convert it to SQL and execute it" : 
     "Enter your question in natural language, and we'll convert it to SQL";
 
