@@ -1,16 +1,38 @@
-import { OpenAIStream, OpenAiMessage, OpenAiRequest } from './openAiService';
-import { supabaseClient } from './supabaseService';
-import { PerFieldMaskingOptions } from '@/types/piiHandling';
+import { getCompletion } from './openAiService';
+import supabaseService from './supabaseService';
 
-// Export these interfaces so they can be imported elsewhere
 export interface PiiData {
   id: string;
-  [key: string]: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  ssn?: string;
+  creditCard?: string;
+  dob?: string;
+  [key: string]: any;
 }
 
 export interface PiiDataMasked {
   id: string;
-  [key: string]: string;
+  [key: string]: any;
+}
+
+export type MaskingTechnique = 'redaction' | 'tokenization' | 'hashing' | 'encryption' | 'partial';
+export type EncryptionMethod = 'aes' | 'rsa' | 'none';
+
+export interface FieldMaskingConfig {
+  technique: MaskingTechnique;
+  showPartial?: boolean;
+  partialFormat?: string;
+  encryptionMethod?: EncryptionMethod;
+  encryptionKey?: string;
+}
+
+export interface MaskingOptions {
+  fields: Record<string, FieldMaskingConfig>;
+  preserveFormat?: boolean;
+  keepOriginal?: boolean;
 }
 
 /**
@@ -60,7 +82,7 @@ export const maskPiiData = async (
     ];
 
     // Call OpenAI via Supabase Edge Function
-    const response = await supabaseClient.functions.invoke('openai-proxy', {
+    const response = await supabaseService.functions.invoke('openai-proxy', {
       body: {
         messages,
         apiKey,
@@ -132,7 +154,7 @@ export const analyzePiiData = async (
       }
     ];
     
-    const response = await supabaseClient.functions.invoke('openai-proxy', {
+    const response = await supabaseService.functions.invoke('openai-proxy', {
       body: {
         messages,
         apiKey,
@@ -194,7 +216,7 @@ export const generateSamplePiiData = (count: number = 10): PiiData[] => {
       phone: `555-123-${String(i).padStart(4, '0')}`,
       address: `${i} Main St, Anytown`,
       ssn: `${String(i).padStart(3, '0')}-${String(i * 2).padStart(2, '0')}-${String(i * 3).padStart(4, '0')}`,
-      credit_card: `411111111111${String(i).padStart(4, '0')}`
+      creditCard: `411111111111${String(i).padStart(4, '0')}`
     });
   }
   

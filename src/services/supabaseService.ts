@@ -116,3 +116,6 @@ class SupabaseService {
 // Create a singleton instance
 const supabaseService = new SupabaseService();
 export default supabaseService;
+
+// Also export as named export for backward compatibility
+export const supabaseClient = supabaseService.getClient();

@@ -1,4 +1,5 @@
-import { supabaseClient } from './supabaseService';
+
+import supabaseService from './supabaseService';
 import { callOpenAI } from './openAiService';
 import { prepareSchemaForAI, validateSchema } from '@/utils/schemaDetection';
 
@@ -7,6 +8,7 @@ export interface DataField {
   name: string;
   type: string;
   attributes?: Record<string, any>;
+  included?: boolean; // Added the included property to fix Type errors
 }
 
 export interface SyntheticDataOptions {
@@ -33,7 +35,7 @@ export const saveSyntheticDataToDatabase = async (
   }
 
   try {
-    const { error, count } = await supabaseClient
+    const { error, count } = await supabaseService.getClient()
       .from(tableName)
       .insert(data);
 

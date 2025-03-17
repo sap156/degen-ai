@@ -1,9 +1,33 @@
-import { supabaseClient } from './supabaseService';
-import { PiiData, PiiDataMasked } from './piiHandlingService';
+
+import supabaseService from './supabaseService';
+
+export interface PiiData {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  ssn?: string;
+  creditCard?: string;
+  dob?: string;
+  [key: string]: any;
+}
+
+export interface PiiDataMasked {
+  id: string;
+  [key: string]: any;
+}
 
 export interface OpenAiMessage {
   role: 'system' | 'user' | 'assistant' | 'function';
-  content: string;
+  content: string | {
+    type: string;
+    text?: string;
+    image_url?: {
+      url: string;
+      detail: string;
+    };
+  }[];
   name?: string;
 }
 
@@ -133,17 +157,17 @@ export class OpenAIStream {
               }
             } catch (err) {
               console.error('Failed to parse JSON data:', err, line);
-              yield encoder.encode(`Error: Malformed JSON data.\n`);
+              yield `Error: Malformed JSON data.\n`;
             }
           }
         }
       }
     } catch (error) {
       console.error('Streaming error:', error);
-      yield encoder.encode(`Error: ${error}\n`);
+      yield `Error: ${error}\n`;
     } finally {
       if (functionCallBuffer.name && functionCallBuffer.arguments) {
-        yield encoder.encode(JSON.stringify(functionCallBuffer));
+        yield JSON.stringify(functionCallBuffer);
       }
     }
   }
@@ -190,7 +214,7 @@ export const createParser = (cb: (event: string) => void) => {
  */
 export const callOpenAI = async (apiRequest: OpenAiRequest) => {
   try {
-    const response = await supabaseClient.functions.invoke('openai-proxy', {
+    const response = await supabaseService.functions.invoke('openai-proxy', {
       body: apiRequest
     });
 
@@ -202,6 +226,38 @@ export const callOpenAI = async (apiRequest: OpenAiRequest) => {
     return response.data;
   } catch (error) {
     console.error('Error in callOpenAI:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets a completion from OpenAI
+ */
+export const getCompletion = async (
+  apiKey: string,
+  messages: OpenAiMessage[],
+  options?: {
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+  }
+): Promise<string> => {
+  try {
+    const response = await callOpenAI({
+      messages,
+      apiKey,
+      model: options?.model || 'gpt-4o',
+      temperature: options?.temperature !== undefined ? options.temperature : 0.5,
+      maxTokens: options?.max_tokens
+    });
+    
+    if (response && response.choices && response.choices[0]) {
+      return response.choices[0].message.content;
+    }
+    
+    throw new Error('No response content received from OpenAI');
+  } catch (error) {
+    console.error('Error in getCompletion:', error);
     throw error;
   }
 };
@@ -237,7 +293,7 @@ export const analyzeWithAI = async (
       }
     ];
     
-    const response = await supabaseClient.functions.invoke('openai-proxy', {
+    const response = await supabaseService.functions.invoke('openai-proxy', {
       body: {
         messages,
         apiKey,
@@ -262,7 +318,7 @@ export const analyzeWithAI = async (
 /**
  * Validates and formats a string to ensure it's JSON-compatible
  */
-export const formatJsonString = (str: string): string => {
+export const formatJsonString = (str: string | number | boolean): string => {
   // Make sure it's a string
   if (typeof str !== 'string') {
     return JSON.stringify(str);

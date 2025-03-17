@@ -1,47 +1,40 @@
 
-/**
- * Common type definitions for file handling utilities
- */
-import { OpenAiMessage } from '../services/openAiService';
+// Define your schema field types
+export type SchemaFieldType = 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'object' | 'array' | 'email' | 'number' | 'function' | 'bigint' | 'symbol' | 'undefined' | 'phone' | 'address' | 'name' | 'ssn' | 'creditcard';
 
-/**
- * Custom schema field type that extends JavaScript's typeof types
- */
-export type SchemaFieldType = 
-  | 'string' 
-  | 'number' 
-  | 'bigint' 
-  | 'boolean' 
-  | 'symbol' 
-  | 'undefined' 
-  | 'object' 
-  | 'function'
-  | 'date'
-  | 'integer'
-  | 'float'
-  | 'email'
-  | 'phone'
-  | 'address'
-  | 'name'
-  | 'ssn'
-  | 'creditcard';
+// Export other file-related types
+export interface FileUploadResult {
+  success: boolean;
+  data?: any[];
+  error?: string;
+  filename?: string;
+  fileType?: string;
+  rowCount?: number;
+}
 
-/**
- * Supported file types for uploading
- */
-export type SupportedFileType = 
-  | 'csv' 
-  | 'json' 
-  | 'txt' 
-  | 'pdf' 
-  | 'docx' 
-  | 'xlsx' 
-  | 'pptx';
+export interface DataParsingOptions {
+  dateFormat?: string;
+  delimiter?: string;
+  skipEmptyLines?: boolean;
+  header?: boolean;
+  dynamicTyping?: boolean;
+}
 
-/**
- * Common interface for file processing results
- */
-export interface FileProcessingResult {
-  text: string;
-  metadata: Record<string, any>;
+export interface FileInfo {
+  name: string;
+  type: string;
+  size: number;
+  lastModified: number;
+}
+
+export interface ParsedFileInfo extends FileInfo {
+  data: any[];
+  rowCount: number;
+  columnCount: number;
+  columns: string[];
+}
+
+export interface FileWithPreview {
+  file: File;
+  preview: string;
 }
