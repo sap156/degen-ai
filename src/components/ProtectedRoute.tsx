@@ -15,15 +15,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
-
-  // Allow access to Dashboard (Index) page without authentication
-  if (location.pathname === '/') {
-    return <>{children}</>;
-  }
   
-  // Redirect to login if not authenticated for other routes
+  // Redirect to login if not authenticated for routes other than dashboard
   if (!user) {
-    return <Navigate to="/auth" />;
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
   // Render the protected content if authenticated

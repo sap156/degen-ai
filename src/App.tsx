@@ -33,25 +33,56 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={
-                <Layout />
-              }>
+              <Route path="/" element={<Layout />}>
+                {/* Dashboard is accessible to everyone */}
                 <Route index element={<Index />} />
-                <Route path="/" element={
+                
+                {/* Protected routes requiring authentication */}
+                <Route path="synthetic-data" element={
                   <ProtectedRoute>
-                    <></>
+                    <SyntheticData />
                   </ProtectedRoute>
-                }>
-                  <Route path="/synthetic-data" element={<SyntheticData />} />
-                  <Route path="/data-augmentation" element={<DataAugmentation />} />
-                  <Route path="/time-series" element={<TimeSeries />} />
-                  <Route path="/pii-handling" element={<PiiHandling />} />
-                  <Route path="/imbalanced-data" element={<ImbalancedData />} />
-                  <Route path="/data-parsing" element={<DataParsing />} />
-                  <Route path="/extraction" element={<DataExtraction />} />
-                  <Route path="/edge-cases" element={<EdgeCases />} />
-                  <Route path="/data-query" element={<DataQuery />} />
-                </Route>
+                } />
+                <Route path="data-augmentation" element={
+                  <ProtectedRoute>
+                    <DataAugmentation />
+                  </ProtectedRoute>
+                } />
+                <Route path="time-series" element={
+                  <ProtectedRoute>
+                    <TimeSeries />
+                  </ProtectedRoute>
+                } />
+                <Route path="pii-handling" element={
+                  <ProtectedRoute>
+                    <PiiHandling />
+                  </ProtectedRoute>
+                } />
+                <Route path="imbalanced-data" element={
+                  <ProtectedRoute>
+                    <ImbalancedData />
+                  </ProtectedRoute>
+                } />
+                <Route path="data-parsing" element={
+                  <ProtectedRoute>
+                    <DataParsing />
+                  </ProtectedRoute>
+                } />
+                <Route path="extraction" element={
+                  <ProtectedRoute>
+                    <DataExtraction />
+                  </ProtectedRoute>
+                } />
+                <Route path="edge-cases" element={
+                  <ProtectedRoute>
+                    <EdgeCases />
+                  </ProtectedRoute>
+                } />
+                <Route path="data-query" element={
+                  <ProtectedRoute>
+                    <DataQuery />
+                  </ProtectedRoute>
+                } />
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/auth" replace />} />
