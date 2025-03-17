@@ -33,21 +33,25 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
+              <Route path="/" element={
+                <Layout />
               }>
-                <Route path="/" element={<Index />} />
-                <Route path="/synthetic-data" element={<SyntheticData />} />
-                <Route path="/data-augmentation" element={<DataAugmentation />} />
-                <Route path="/time-series" element={<TimeSeries />} />
-                <Route path="/pii-handling" element={<PiiHandling />} />
-                <Route path="/imbalanced-data" element={<ImbalancedData />} />
-                <Route path="/data-parsing" element={<DataParsing />} />
-                <Route path="/extraction" element={<DataExtraction />} />
-                <Route path="/edge-cases" element={<EdgeCases />} />
-                <Route path="/data-query" element={<DataQuery />} />
+                <Route index element={<Index />} />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <></>
+                  </ProtectedRoute>
+                }>
+                  <Route path="/synthetic-data" element={<SyntheticData />} />
+                  <Route path="/data-augmentation" element={<DataAugmentation />} />
+                  <Route path="/time-series" element={<TimeSeries />} />
+                  <Route path="/pii-handling" element={<PiiHandling />} />
+                  <Route path="/imbalanced-data" element={<ImbalancedData />} />
+                  <Route path="/data-parsing" element={<DataParsing />} />
+                  <Route path="/extraction" element={<DataExtraction />} />
+                  <Route path="/edge-cases" element={<EdgeCases />} />
+                  <Route path="/data-query" element={<DataQuery />} />
+                </Route>
                 <Route path="*" element={<NotFound />} />
               </Route>
               <Route path="*" element={<Navigate to="/auth" replace />} />
