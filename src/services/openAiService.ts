@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { PiiData, PiiDataMasked } from "./piiHandlingService";
 
@@ -7,9 +8,18 @@ export interface OpenAiOptions {
   max_tokens?: number;
 }
 
+export interface OpenAiMessageContent {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+    detail?: 'low' | 'high' | 'auto';
+  };
+}
+
 export interface OpenAiMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | OpenAiMessageContent[];
 }
 
 // Default options for OpenAI API calls

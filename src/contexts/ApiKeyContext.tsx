@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type OpenAIModel = 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo';
+type OpenAIModel = 'gpt-4o' | 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo';
 
 interface ApiKeyContextType {
   apiKey: string | null;
@@ -16,7 +16,7 @@ export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefi
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4-turbo');
+  const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4o');
 
   useEffect(() => {
     const storedKey = localStorage.getItem('openai-api-key');
