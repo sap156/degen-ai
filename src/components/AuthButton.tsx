@@ -18,9 +18,11 @@ const AuthButton = () => {
     try {
       setIsSigningOut(true);
       await signOut();
-      navigate('/');
+      // We don't need to navigate manually or show toast here
+      // as this is now handled in AuthContext
     } catch (error) {
       console.error('Error in handleSignOut:', error);
+      toast.error('Failed to sign out');
     } finally {
       setIsSigningOut(false);
     }

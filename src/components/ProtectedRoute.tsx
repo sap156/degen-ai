@@ -14,6 +14,7 @@ const ProtectedRoute: React.FC = () => {
 
   // Redirect to login if not authenticated
   if (!user) {
+    console.log("No user found, redirecting to /auth");
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
