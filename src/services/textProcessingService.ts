@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
@@ -58,7 +57,7 @@ export const processTextWithAI = async (
   
   ${userContext ? `Additional context: ${userContext}` : ''}
   
-  ${outputFormat === 'json' ? 'Return your response in valid JSON format with appropriate structure.' : 'Return your response as structured text with clear sections and highlights.'}`;
+  ${outputFormat === 'json' ? 'Return your response as clean JSON without markdown formatting or code blocks.' : 'Return your response as structured text with clear sections and highlights.'}`;
 
   // Create user message with the text to process
   const userMessage = `Process the following text using ${processingType} analysis:\n\n${truncatedText}`;
@@ -74,8 +73,11 @@ export const processTextWithAI = async (
     
     if (outputFormat === 'json') {
       try {
+        // Remove markdown code blocks if present
+        const cleanedResponse = stripMarkdownCodeBlocks(response);
+        
         // Try to parse as JSON
-        const jsonData = JSON.parse(response);
+        const jsonData = JSON.parse(cleanedResponse);
         return {
           raw: response,
           format: 'json',
@@ -100,6 +102,26 @@ export const processTextWithAI = async (
     console.error('Error processing text with AI:', error);
     throw error;
   }
+};
+
+/**
+ * Strip markdown code blocks from a string
+ */
+export const stripMarkdownCodeBlocks = (text: string): string => {
+  // Check if the text starts with ```json or other markdown code indicators
+  const codeBlockRegex = /^```(?:json|javascript|js)?\n([\s\S]*?)```$/m;
+  const match = text.match(codeBlockRegex);
+  
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  
+  // If no code block found or if the regex didn't match properly,
+  // do a more aggressive cleanup to handle partial markdown
+  return text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
 };
 
 /**

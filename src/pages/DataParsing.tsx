@@ -11,11 +11,12 @@ import FileUploader from '@/components/FileUploader';
 import ProcessingTypesGuide from '@/components/ProcessingTypesGuide';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { parseCSV, parseJSON, readFileContent, SchemaFieldType, extractTextFromFile, getFileType, SupportedFileType } from '@/utils/fileUploadUtils';
+import { parseCSV, parseJSON, SchemaFieldType } from '@/utils/fileUploadUtils';
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
-import { ProcessingType } from '@/services/textProcessingService';
+import { ProcessingType, stripMarkdownCodeBlocks } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool } from 'lucide-react';
+import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool, List } from 'lucide-react';
+
 const DataParsing: React.FC = () => {
   const {
     apiKey
@@ -24,18 +25,18 @@ const DataParsing: React.FC = () => {
   const [schema, setSchema] = useState<Record<string, SchemaFieldType>>({});
   const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
-  const [fileType, setFileType] = useState<SupportedFileType | ''>('');
+  const [fileType, setFileType] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('upload');
   const [fileMetadata, setFileMetadata] = useState<Record<string, any>>({});
   const [extractedText, setExtractedText] = useState<string>('');
 
-  // AI processing options
   const [selectedProcessingTypes, setSelectedProcessingTypes] = useState<ProcessingType[]>([]);
   const [processingDetailLevel, setProcessingDetailLevel] = useState<'brief' | 'standard' | 'detailed'>('standard');
   const [processingOutputFormat, setProcessingOutputFormat] = useState<'json' | 'text'>('json');
   const [userContext, setUserContext] = useState<string>('');
   const [aiProcessingResults, setAiProcessingResults] = useState<Record<string, any>>({});
+
   const handleFileUpload = async (file: File) => {
     try {
       setIsLoading(true);
@@ -49,7 +50,6 @@ const DataParsing: React.FC = () => {
       const detectedFileType = getFileType(file);
       setFileType(detectedFileType);
 
-      // Extract text based on file type
       const {
         text,
         metadata
@@ -57,7 +57,6 @@ const DataParsing: React.FC = () => {
       setFileMetadata(metadata);
       setExtractedText(text);
 
-      // For CSV and JSON, also parse the structured data
       if (detectedFileType === 'csv' || detectedFileType === 'json') {
         setFileContent(text);
         let parsedData;
@@ -67,13 +66,11 @@ const DataParsing: React.FC = () => {
           parsedData = parseJSON(text);
         }
 
-        // Handle different parsed data structures
         if (!Array.isArray(parsedData)) {
           if (typeof parsedData === 'object' && parsedData !== null) {
             if (Array.isArray(parsedData.data)) {
               parsedData = parsedData.data;
             } else {
-              // Convert object to array if it's not already an array
               parsedData = [parsedData];
             }
           } else {
@@ -87,10 +84,8 @@ const DataParsing: React.FC = () => {
           setSchema(detectedSchema);
         }
 
-        // Limit the display data but keep all for processing
         setData(parsedData);
 
-        // Update context with data size info
         const dataSize = parsedData.length;
         setUserContext(prev => `${prev ? prev + '\n' : ''}This dataset contains ${dataSize} records.`);
       }
@@ -103,6 +98,7 @@ const DataParsing: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const detectSchema = (data: any[]): Record<string, SchemaFieldType> => {
     if (!data.length) return {};
     const schema: Record<string, SchemaFieldType> = {};
@@ -112,11 +108,8 @@ const DataParsing: React.FC = () => {
       let type = typeof value as SchemaFieldType;
       if (type === 'string') {
         if (/^\d{4}-\d{2}-\d{2}/.test(value) ||
-        // ISO date format
         /^\d{1,2}\/\d{1,2}\/\d{4}/.test(value) ||
-        // MM/DD/YYYY
         /^\d{1,2}-\d{1,2}-\d{4}/.test(value) ||
-        // MM-DD-YYYY
         !isNaN(Date.parse(value))) {
           type = 'date';
         } else if (key.toLowerCase().includes('time') || key.toLowerCase().includes('date') || key.toLowerCase() === 'timestamp') {
@@ -129,9 +122,11 @@ const DataParsing: React.FC = () => {
     });
     return schema;
   };
+
   const handleProcessingTypeToggle = (type: ProcessingType) => {
     setSelectedProcessingTypes(current => current.includes(type) ? current.filter(t => t !== type) : [...current, type]);
   };
+
   const handleProcessWithAI = async () => {
     if (!apiKey) {
       toast.error('API key is required for AI processing');
@@ -147,7 +142,6 @@ const DataParsing: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      // Add dataset information to context
       let contextInfo = userContext || '';
       if (data.length > 0) {
         contextInfo += `\nThis dataset contains ${data.length} records.`;
@@ -162,7 +156,8 @@ const DataParsing: React.FC = () => {
       console.log(`Processing ${extractedText.length} characters of text`);
       const results = await processDataWithAI(extractedText, options);
       setAiProcessingResults(results);
-      setActiveTab('aiResults');
+      
+      setActiveTab('results');
       toast.success('AI processing completed successfully');
     } catch (error) {
       console.error('Error in AI processing:', error);
@@ -171,25 +166,24 @@ const DataParsing: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const downloadProcessedResults = () => {
     if (Object.keys(aiProcessingResults).length === 0) {
       toast.error('No AI processing results available');
       return;
     }
     try {
-      // Format the JSON results properly
       const formattedResults: Record<string, any> = {};
       Object.entries(aiProcessingResults).forEach(([processingType, result]) => {
         if (result.format === 'json' && result.structured) {
           formattedResults[processingType] = result.structured;
         } else {
           formattedResults[processingType] = {
-            raw: result.raw
+            content: result.raw
           };
         }
       });
 
-      // Create properly formatted JSON
       const content = JSON.stringify(formattedResults, null, 2);
       const filename = `ai_processed_${fileName.replace(/\.[^/.]+$/, "") || 'data'}`;
       const blob = new Blob([content], {
@@ -209,6 +203,7 @@ const DataParsing: React.FC = () => {
       toast.error('Error downloading results');
     }
   };
+
   const renderProcessingTypeIcon = (type: ProcessingType) => {
     switch (type) {
       case 'structuring':
@@ -229,6 +224,7 @@ const DataParsing: React.FC = () => {
         return <Sparkles className="h-4 w-4" />;
     }
   };
+
   const renderProcessingTypeLabel = (type: ProcessingType) => {
     switch (type) {
       case 'structuring':
@@ -249,6 +245,7 @@ const DataParsing: React.FC = () => {
         return type;
     }
   };
+
   return <div className="container mx-auto px-4 py-6 max-w-7xl">
       <div className="space-y-2 mb-8">
         <motion.h1 className="text-3xl font-bold tracking-tight" initial={{
@@ -282,7 +279,7 @@ const DataParsing: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-2 mb-6">
+                <TabsList className="grid grid-cols-3 mb-6">
                   <TabsTrigger value="upload">
                     <FileUp className="h-4 w-4 mr-2" />
                     Upload
@@ -290,6 +287,10 @@ const DataParsing: React.FC = () => {
                   <TabsTrigger value="analyze" disabled={!extractedText}>
                     <Filter className="h-4 w-4 mr-2" />
                     Analyze
+                  </TabsTrigger>
+                  <TabsTrigger value="results" disabled={Object.keys(aiProcessingResults).length === 0}>
+                    <List className="h-4 w-4 mr-2" />
+                    Results
                   </TabsTrigger>
                 </TabsList>
                 
@@ -441,36 +442,56 @@ const DataParsing: React.FC = () => {
                     </div>}
                 </TabsContent>
                 
-                {Object.keys(aiProcessingResults).length > 0 && <Card className="mt-8 border-green-200 dark:border-green-800">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center justify-between">
-                        <span>AI Processing Results</span>
-                        <Button variant="outline" size="sm" onClick={downloadProcessedResults}>
-                          <Download className="mr-2 h-4 w-4" />
+                <TabsContent value="results" className="space-y-6">
+                  {Object.keys(aiProcessingResults).length > 0 ? (
+                    <div className="grid grid-cols-1 gap-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Processing Results</h2>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={downloadProcessedResults}
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
                           Download Results
                         </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 gap-6">
-                        {Object.entries(aiProcessingResults).map(([processingType, result]) => <Card key={processingType} className="border-muted">
-                            <CardHeader className="py-3">
-                              <CardTitle className="text-md flex items-center">
-                                {renderProcessingTypeIcon(processingType as ProcessingType)}
-                                <span className="ml-2">{renderProcessingTypeLabel(processingType as ProcessingType)}</span>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              {result.format === 'json' ? <pre className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[400px] text-xs font-mono">
-                                  {JSON.stringify(result.structured, null, 2)}
-                                </pre> : <div className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[400px]">
-                                  <p className="whitespace-pre-wrap font-mono text-xs">{result.raw}</p>
-                                </div>}
-                            </CardContent>
-                          </Card>)}
                       </div>
-                    </CardContent>
-                  </Card>}
+                      
+                      {Object.entries(aiProcessingResults).map(([processingType, result]) => (
+                        <Card key={processingType} className="border-muted">
+                          <CardHeader className="py-3">
+                            <CardTitle className="text-md flex items-center">
+                              {renderProcessingTypeIcon(processingType as ProcessingType)}
+                              <span className="ml-2">{renderProcessingTypeLabel(processingType as ProcessingType)}</span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            {result.format === 'json' && result.structured ? (
+                              <pre className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[400px] text-xs font-mono">
+                                {JSON.stringify(result.structured, null, 2)}
+                              </pre>
+                            ) : (
+                              <div className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[400px]">
+                                <p className="whitespace-pre-wrap font-mono text-xs">{result.raw}</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="text-center space-y-3">
+                        <List className="h-16 w-16 text-muted-foreground mx-auto" />
+                        <h3 className="font-medium text-xl">No Results Yet</h3>
+                        <p className="text-muted-foreground max-w-md">
+                          Process your data using the Analyze tab to see the results here.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
@@ -478,4 +499,5 @@ const DataParsing: React.FC = () => {
       </ApiKeyRequirement>
     </div>;
 };
+
 export default DataParsing;
