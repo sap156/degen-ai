@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -257,5 +257,273 @@ const SyntheticData = () => {
                 <CardTitle>Upload Custom Schema</CardTitle>
                 <CardDescription>
                   Upload a CSV or JSON file to generate synthetic data matching your schema
-                </
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FileUploader onFileUpload={handleFileUpload} />
+                {uploadedFile && (
+                  <div className="mt-4">
+                    <p>Uploaded File: {uploadedFile.name}</p>
+                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="generator">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configure Dataset</CardTitle>
+                <CardDescription>
+                  Set up the parameters for your synthetic data generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                    <FormField
+                      control={form.control}
+                      name="dataType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Data Type</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a data type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {dataTypes.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="rowCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Row Count</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="100" {...field} />
+                          </FormControl>
+                          <FormDescription>Number of rows to generate.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="aiPrompt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>AI Prompt</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Generate a dataset of fictional users..."
+                              className="resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Instructions for the AI to generate data.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="outputFormat"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Output Format</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select output format" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="json">JSON</SelectItem>
+                              <SelectItem value="csv">CSV</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <div className="space-y-2">
+                      <FormLabel>Data Fields</FormLabel>
+                      <FormDescription>Select which fields to include in the generated data.</FormDescription>
+                      <div className="flex items-center space-x-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => selectAllFields(true)}>Select All</Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => selectAllFields(false)}>Deselect All</Button>
+                        <Button type="button" variant="outline" size="sm" onClick={addNewField}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Field
+                        </Button>
+                      </div>
+                      
+                      <div className="grid gap-4">
+                        {dataFields.map((field, index) => (
+                          <div key={index} className="flex items-center space-x-4">
+                            <FormField
+                              control={form.control}
+                              name={`fields[${index}].included`}
+                              render={() => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.included}
+                                      onCheckedChange={() => toggleFieldInclusion(index)}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="text-sm font-normal">Include</FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={form.control}
+                              name={`fields[${index}].name`}
+                              render={() => (
+                                <FormItem className="w-1/3">
+                                  <FormControl>
+                                    <Input 
+                                      type="text" 
+                                      placeholder="Field Name" 
+                                      value={field.name}
+                                      onChange={(e) => updateFieldName(index, e.target.value)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={form.control}
+                              name={`fields[${index}].type`}
+                              render={() => (
+                                <FormItem className="w-1/3">
+                                  <Select onValueChange={(value) => updateFieldType(index, value)} defaultValue={field.type}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select a type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="string">String</SelectItem>
+                                      <SelectItem value="number">Number</SelectItem>
+                                      <SelectItem value="boolean">Boolean</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeField(index)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <FormField
+                      control={form.control}
+                      name="includeNulls"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Include Nulls</FormLabel>
+                            <FormDescription>
+                              Include null values in the generated data.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {form.getValues("includeNulls") && (
+                      <FormField
+                        control={form.control}
+                        name="nullPercentage"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Null Percentage</FormLabel>
+                            <FormControl>
+                              <Slider
+                                defaultValue={[field.value]}
+                                max={100}
+                                step={1}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                className="w-full"
+                              />
+                            </FormControl>
+                            <FormDescription>Percentage of null values to include in the data.</FormDescription>
+                            <FormMessage>{field.value}%</FormMessage>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    
+                    <Button disabled={isGenerating}>
+                      {isGenerating ? (
+                        <>
+                          Generating <Progress value={generationProgress} className="w-24 ml-2" />
+                        </>
+                      ) : (
+                        <>
+                          Generate Data <Sparkles className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                    
+                    {errorMessage && (
+                      <div className="text-red-500">Error: {errorMessage}</div>
+                    )}
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+        
+        {generatedData && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">Generated Data</h2>
+            <Textarea value={generatedData} className="min-h-[300px]" readOnly />
+            <div className="flex space-x-4">
+              <Button onClick={handleDownload}>
+                Download <Download className="ml-2 h-4 w-4" />
+              </Button>
+              <Button onClick={handleSaveToDatabase}>
+                Save to Database <Database className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </ApiKeyRequirement>
+  );
+};
 
+export default SyntheticData;
