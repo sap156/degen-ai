@@ -1,8 +1,7 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { SchemaFieldType, generateSchema } from './fileTypes';
 import { OpenAiMessage, createMessages, getCompletion } from '@/services/openAiService';
-import { getToast } from '@/hooks/use-toast-notification';
+import { getToast as getToastNotification } from '@/hooks/use-toast-notification';
 
 // Interface for time series data point
 export interface TimeSeriesDataPoint {
@@ -203,7 +202,7 @@ export const addNoiseToTimeSeries = (
       .map(([key]) => key);
 
     if (numericFields.length === 0) {
-      const toast = getToast();
+      const toast = getToastNotification();
       if (toast) {
         toast({
           title: "No numeric fields found",
@@ -247,7 +246,7 @@ export const addNoiseToTimeSeries = (
     });
   } catch (error) {
     console.error("Error adding noise to time series:", error);
-    const toast = getToast();
+    const toast = getToastNotification();
     if (toast) {
       toast({
         title: "Error",
@@ -416,10 +415,164 @@ const countDecimalPlaces = (num: number): number => {
   return text.length - decimalIndex - 1;
 };
 
+// Interface for AI processing options
+export interface AIProcessingOptions {
+  apiKey: string;
+  processingTypes: string[];
+  detailLevel: 'brief' | 'standard' | 'detailed';
+  outputFormat: 'json' | 'text';
+  userContext?: string;
+}
+
+// Process data with AI (stub for DataParsing.tsx)
+export const processDataWithAI = async (text: string, options: AIProcessingOptions): Promise<Record<string, any>> => {
+  // This is a simple implementation - you can expand as needed
+  const results: Record<string, any> = {};
+  
+  for (const processingType of options.processingTypes) {
+    try {
+      const messages = createMessages(
+        `You are an expert in ${processingType} analysis with ${options.detailLevel} detail level.`,
+        `Process the following text for ${processingType} analysis:
+        ${text.slice(0, 5000)}${text.length > 5000 ? '...' : ''}
+        
+        User context: ${options.userContext || 'No specific context provided.'}
+        Output format: ${options.outputFormat.toUpperCase()}`
+      );
+      
+      const result = await getCompletion(messages, 'gpt-4o-mini', options.apiKey);
+      
+      if (options.outputFormat === 'json') {
+        try {
+          // Try to extract JSON from the response
+          const jsonMatch = result.match(/```json\n([\s\S]*?)\n```/) ||
+                          result.match(/```\n([\s\S]*?)\n```/);
+          
+          const jsonContent = jsonMatch ? jsonMatch[1] : result;
+          const structured = JSON.parse(jsonContent);
+          
+          results[processingType] = {
+            raw: result,
+            structured,
+            format: 'json'
+          };
+        } catch (e) {
+          // Fallback to text if JSON parsing fails
+          results[processingType] = {
+            raw: result,
+            format: 'text'
+          };
+        }
+      } else {
+        results[processingType] = {
+          raw: result,
+          format: 'text'
+        };
+      }
+    } catch (error) {
+      console.error(`Error processing ${processingType}:`, error);
+      results[processingType] = {
+        raw: `Error processing ${processingType}: ${error.message}`,
+        format: 'text',
+        error: true
+      };
+    }
+  }
+  
+  return results;
+};
+
+// Generate PII data (stub for PiiDataGenerator.tsx)
+export const generatePiiData = async (
+  schema: Record<string, SchemaFieldType>,
+  count: number, 
+  options: {
+    includeNames?: boolean;
+    includeAddresses?: boolean;
+    includeEmails?: boolean;
+    includePhones?: boolean;
+    includeSSNs?: boolean;
+    includeCreditCards?: boolean;
+    customFields?: Record<string, any>;
+  },
+  apiKey: string
+): Promise<any[]> => {
+  // Simple implementation for now
+  const results = [];
+  
+  for (let i = 0; i < count; i++) {
+    const item: Record<string, any> = {
+      id: uuidv4()
+    };
+    
+    // Add fields based on schema
+    for (const [key, type] of Object.entries(schema)) {
+      switch(type) {
+        case 'name':
+          item[key] = `Person ${i+1}`;
+          break;
+        case 'address':
+          item[key] = `${100 + i} Main St, City ${i % 10}, State ${i % 50}`;
+          break;
+        case 'email':
+          item[key] = `person${i}@example.com`;
+          break;
+        case 'string':
+          item[key] = `value_${i}`;
+          break;
+        case 'number':
+        case 'float':
+          item[key] = i * 1.5;
+          break;
+        case 'integer':
+          item[key] = i;
+          break;
+        case 'boolean':
+          item[key] = i % 2 === 0;
+          break;
+        case 'date':
+          const date = new Date();
+          date.setDate(date.getDate() + i);
+          item[key] = date.toISOString();
+          break;
+        default:
+          item[key] = null;
+      }
+    }
+    
+    // Add custom fields
+    if (options.customFields) {
+      for (const [key, value] of Object.entries(options.customFields)) {
+        item[key] = value;
+      }
+    }
+    
+    results.push(item);
+  }
+  
+  return results;
+};
+
+// Export function for detecting data type
+export const detectDataType = async (file: File, apiKey: string): Promise<{
+  type: string;
+  confidence: number;
+  timeColumn?: string;
+  valueColumns?: string[];
+}> => {
+  // Implementation goes here
+  return {
+    type: 'timeseries',
+    confidence: 0.9,
+    timeColumn: 'timestamp',
+    valueColumns: ['value']
+  };
+};
+
 // Export getToast helper function to avoid direct imports
 export const getToast = () => {
   try {
-    return getToast();
+    return getToastNotification();
   } catch (error) {
     return null;
   }
