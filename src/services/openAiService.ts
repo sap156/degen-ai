@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { PiiData, PiiDataMasked } from "./piiHandlingService";
+import { PiiData, PiiDataMasked } from '@/types/piiHandling';
 
 export interface OpenAiOptions {
   model?: string;

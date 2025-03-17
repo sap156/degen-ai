@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -83,7 +82,6 @@ function SyntheticData() {
     },
   });
   
-  // Watch for dataType changes to update the schema fields
   useEffect(() => {
     const dataType = form.watch("dataType");
     if (dataType in defaultSchemas) {
@@ -97,7 +95,6 @@ function SyntheticData() {
       return;
     }
     
-    // Check if at least one field is included
     const hasIncludedFields = dataFields.some(field => field.included);
     if (!hasIncludedFields) {
       toast.error("Please select at least one field to include in your data");
@@ -129,7 +126,7 @@ function SyntheticData() {
       toast.error(`Error generating data: ${errorMsg}`);
     } finally {
       setIsGenerating(false);
-      setGenerationProgress(100); // Ensure progress bar completes
+      setGenerationProgress(100);
     }
   };
 
@@ -160,12 +157,10 @@ function SyntheticData() {
         return;
       }
       
-      // Detect schema from uploaded data
       const detectedFields = detectSchemaFromData(parsedData);
       setDataFields(detectedFields);
       setUploadedData(parsedData);
       
-      // Update form values
       form.setValue("dataType", "custom");
       form.setValue("aiPrompt", `Generate synthetic data that follows the same pattern as the uploaded ${file.name.split('.').pop()} file`);
       
@@ -183,7 +178,7 @@ function SyntheticData() {
       return;
     }
     
-    downloadSyntheticData(generatedData, form.getValues("outputFormat"));
+    downloadSyntheticData(generatedData, form.getValues("outputFormat") as "json" | "csv");
   };
 
   const handleSaveToDatabase = async () => {
@@ -212,24 +207,20 @@ function SyntheticData() {
     setDataFields(updatedFields);
   };
   
-  // Function to add a new field to the schema
   const addNewField = () => {
     setDataFields([...dataFields, { name: "", type: "string", included: false }]);
   };
   
-  // Function to update a field's name
   const updateFieldName = (index: number, name: string) => {
     const updatedFields = [...dataFields];
     updatedFields[index].name = name;
     setDataFields(updatedFields);
   };
   
-  // Function to remove a field from the schema
   const removeField = (index: number) => {
     setDataFields(dataFields.filter((_, i) => i !== index));
   };
 
-  // Function to select all fields
   const selectAllFields = (select: boolean) => {
     const updatedFields = dataFields.map(field => ({
       ...field,

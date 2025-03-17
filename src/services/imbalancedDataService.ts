@@ -1,12 +1,22 @@
+
 /**
  * Service for handling imbalanced datasets
  */
 
+export interface ClassDistribution {
+  className: string;
+  count: number;
+  percentage: number;
+  color?: string; // Add color property for visualization
+}
+
 export interface DatasetInfo {
-  classes: Array<{ className: string; count: number; percentage: number }>;
+  classes: Array<ClassDistribution>;
   imbalanceRatio: number;
   minorityClass: string;
   majorityClass: string;
+  totalSamples: number;  // Add the missing totalSamples property
+  isImbalanced: boolean; // Add the missing isImbalanced property
 }
 
 export interface BalancedDataResult {
@@ -16,6 +26,12 @@ export interface BalancedDataResult {
   majorityCount: number;
   targetColumn: string;
   technique: string;
+}
+
+export interface BalancingOptions {
+  method: 'none' | 'undersample' | 'oversample' | 'smote' | 'hybrid';
+  targetRatio: number;
+  targetColumn?: string;
 }
 
 /**
@@ -217,4 +233,107 @@ export const balanceByHybrid = (
     targetColumn,
     technique: 'hybrid'
   };
+};
+
+/**
+ * Balance a dataset based on specified options
+ * @param data The dataset to balance
+ * @param options Balancing options
+ * @returns Balanced dataset result
+ */
+export const balanceDataset = (
+  data: any[],
+  options: BalancingOptions,
+  targetColumn: string,
+  minorityClass: string,
+  majorityClass: string
+): BalancedDataResult => {
+  switch (options.method) {
+    case 'undersample':
+      return balanceByUndersampling(data, targetColumn, minorityClass, majorityClass, options.targetRatio);
+    case 'oversample':
+      return balanceByOversampling(data, targetColumn, minorityClass, majorityClass, options.targetRatio);
+    case 'smote':
+      // SMOTE is a specialized form of oversampling
+      return balanceByOversampling(data, targetColumn, minorityClass, majorityClass, options.targetRatio);
+    case 'hybrid':
+      return balanceByHybrid(data, targetColumn, minorityClass, majorityClass, options.targetRatio);
+    case 'none':
+    default:
+      return {
+        originalData: data,
+        balancedData: data,
+        minorityCount: data.filter(item => String(item[targetColumn]) === minorityClass).length,
+        majorityCount: data.filter(item => String(item[targetColumn]) === majorityClass).length,
+        targetColumn,
+        technique: 'none'
+      };
+  }
+};
+
+/**
+ * Exports data as JSON
+ * @param data The data to export
+ * @returns JSON string
+ */
+export const exportAsJson = (data: any[]): string => {
+  return JSON.stringify(data, null, 2);
+};
+
+/**
+ * Exports data as CSV
+ * @param data The data to export
+ * @returns CSV string
+ */
+export const exportAsCsv = (data: any[]): string => {
+  if (!data || data.length === 0) return '';
+  
+  // Get headers from first item
+  const headers = Object.keys(data[0]);
+  
+  // Convert each data row to CSV
+  const rows = data.map(item => {
+    return headers.map(header => {
+      const value = item[header];
+      
+      // Handle CSV special characters
+      const cellValue = value === null || value === undefined ? '' : String(value);
+      
+      // Quote values with commas, quotes, or newlines
+      if (cellValue.includes(',') || cellValue.includes('"') || cellValue.includes('\n')) {
+        return `"${cellValue.replace(/"/g, '""')}"`;
+      }
+      
+      return cellValue;
+    }).join(',');
+  });
+  
+  // Combine headers and rows
+  return [headers.join(','), ...rows].join('\n');
+};
+
+/**
+ * Downloads data as a file
+ * @param data The data content to download
+ * @param filename The name of the file without extension
+ * @param format The file format ('json' or 'csv')
+ */
+export const downloadData = (data: string, filename: string, format: 'json' | 'csv'): void => {
+  // Create file extension based on format
+  const extension = format === 'json' ? 'json' : 'csv';
+  const mimeType = format === 'json' ? 'application/json' : 'text/csv';
+  
+  // Create a blob and download link
+  const blob = new Blob([data], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.${extension}`;
+  
+  // Append to the document, click, and clean up
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
