@@ -31,6 +31,11 @@ const QueryOutput: React.FC<QueryOutputProps> = ({ queryResult }) => {
     toast.success(`${filename} downloaded`);
   };
 
+  // Determine if each tab should be disabled
+  const isOptimizedDisabled = !queryResult.optimizedSql;
+  const isAnalysisDisabled = !queryResult.analysis;
+  const isFollowupDisabled = !queryResult.followUpQueries?.length;
+
   return (
     <Card>
       <CardHeader>
@@ -40,9 +45,9 @@ const QueryOutput: React.FC<QueryOutputProps> = ({ queryResult }) => {
         <Tabs defaultValue="generated" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="generated">Generated SQL</TabsTrigger>
-            <TabsTrigger value="optimized" disabled={!queryResult.optimizedSql}>Optimized SQL</TabsTrigger>
-            <TabsTrigger value="analysis" disabled={!queryResult.analysis}>Analysis</TabsTrigger>
-            <TabsTrigger value="followup" disabled={!queryResult.followUpQueries?.length}>Follow-ups</TabsTrigger>
+            <TabsTrigger value="optimized" disabled={isOptimizedDisabled}>Optimized SQL</TabsTrigger>
+            <TabsTrigger value="analysis" disabled={isAnalysisDisabled}>Analysis</TabsTrigger>
+            <TabsTrigger value="followup" disabled={isFollowupDisabled}>Follow-ups</TabsTrigger>
           </TabsList>
           
           <TabsContent value="generated" className="space-y-4">
@@ -98,7 +103,7 @@ const QueryOutput: React.FC<QueryOutputProps> = ({ queryResult }) => {
               </div>
             ) : (
               <p className="text-center text-muted-foreground py-8">
-                No optimized SQL available for this query
+                The query is already well-optimized or no optimization suggestions are available.
               </p>
             )}
           </TabsContent>

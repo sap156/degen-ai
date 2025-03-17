@@ -60,7 +60,7 @@ const DataQuery = () => {
               <CardHeader>
                 <CardTitle>Database Schema</CardTitle>
                 <CardDescription>
-                  Upload or enter your database schema to improve SQL generation
+                  Upload your database schema or sample data to improve SQL generation
                 </CardDescription>
               </CardHeader>
               <CardContent>

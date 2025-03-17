@@ -19,9 +19,6 @@ export const processQueryWithAI = async (
   // Create system prompt based on the processing mode
   const systemPrompt = getSystemPromptForMode(mode, schema);
   
-  // We're not showing mock results anymore when no database is connected
-  // Just leave the results field empty
-  
   // Create the user prompt with the query and explanation of what we want
   const userPrompt = getUserPromptForMode(mode, query);
   
@@ -45,8 +42,10 @@ export const processQueryWithAI = async (
     try {
       const result = JSON.parse(response) as QueryResult;
       
-      // We no longer include mock results since there's no database connection
-      // This will be implemented later when actual database connection is added
+      // Make sure the original query is always included
+      if (mode === 'optimize' || mode === 'analyze' || mode === 'followup') {
+        result.sql = query;
+      }
       
       return result;
     } catch (e) {
@@ -55,7 +54,7 @@ export const processQueryWithAI = async (
       
       // If parsing fails, return a fallback result with the raw response as SQL
       return {
-        sql: response,
+        sql: mode === 'generate' ? response : query,
         error: "Failed to parse response properly"
       };
     }
@@ -94,17 +93,19 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
     case 'optimize':
       return `${basePrompt}
         
-Your task is to optimize a SQL query to make it more efficient and performant.
+Your task is to optimize the SQL query provided by the user to make it more efficient and performant.
 ${schemaContext}
 
 Follow these rules:
-1. Identify inefficient patterns in the query (nested subqueries, improper indexing, etc.)
-2. Rewrite the query for better performance, explaining your optimizations
-3. Suggest indexes or schema changes that would improve performance
-4. Return your response as a JSON object with the following fields:
-   - sql: The original SQL query
-   - optimizedSql: The optimized version of the query
-   - optimizations: List of specific optimizations made
+1. Carefully examine the provided SQL query
+2. If the query is already optimized, state that it's already well-optimized and explain why
+3. Otherwise, identify inefficient patterns in the query (nested subqueries, improper indexing, etc.)
+4. Rewrite the query for better performance, explaining your optimizations
+5. Suggest indexes or schema changes that would improve performance
+6. Return your response as a JSON object with the following fields:
+   - sql: Leave empty as we'll keep the original query
+   - optimizedSql: The optimized version of the query (or null if already optimized)
+   - optimizations: List of specific optimizations made (or why the query is already optimal)
    - indexSuggestions: Suggested indexes to improve query performance
 
 IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any additional text.`;
@@ -112,15 +113,17 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
     case 'analyze':
       return `${basePrompt}
         
-Your task is to analyze what this SQL query would return and provide insights.
+Your task is to analyze the SQL query provided by the user and explain what it does.
 ${schemaContext}
 
 Follow these rules:
 1. Examine the query to identify what it's trying to achieve
-2. Explain what kind of data it would retrieve
-3. Format analysis in a clear, human-readable way with bullet points
-4. Return your response as a JSON object with the following fields:
-   - sql: The SQL query being analyzed
+2. Break down the query clause by clause (SELECT, FROM, JOIN, WHERE, GROUP BY, etc.)
+3. Explain what kind of data it would retrieve and how it's being transformed
+4. Identify potential performance issues or improvements
+5. Format analysis in a clear, human-readable way with bullet points
+6. Return your response as a JSON object with the following fields:
+   - sql: Leave empty as we'll keep the original query
    - analysis: HTML-formatted analysis explaining what the query does
    - keyMetrics: Important metrics or statistics this query would retrieve
 
@@ -129,15 +132,15 @@ IMPORTANT: Only output valid JSON. Do not include markdown, code blocks, or any 
     case 'followup':
       return `${basePrompt}
         
-Your task is to suggest follow-up queries based on an initial query.
+Your task is to suggest follow-up queries based on the user's SQL query.
 ${schemaContext}
 
 Follow these rules:
-1. Analyze the initial query to identify logical next questions
+1. Analyze the query to identify logical next questions
 2. Suggest 3-5 follow-up queries that would provide deeper insights
 3. Make sure suggestions are relevant to the business context of the original query
 4. Return your response as a JSON object with the following fields:
-   - sql: The original SQL query
+   - sql: Leave empty as we'll keep the original query
    - followUpQueries: Array of suggested follow-up questions in natural language
    - rationale: Brief explanation of why these follow-ups would be valuable
 
@@ -155,78 +158,48 @@ const getUserPromptForMode = (mode: ProcessingMode, query: string): string => {
       return `Generate SQL for this query: "${query}"`;
     
     case 'optimize':
-      return `Given this SQL query, please optimize it for better performance:
+      // Check if the input is likely SQL (contains SELECT, FROM, etc.) or a natural language query
+      const isSqlQuery = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       
+      if (isSqlQuery) {
+        return `Given this SQL query, please optimize it for better performance or state that it's already well-optimized:
+        
 \`\`\`sql
-SELECT 
-  c.customer_name, 
-  COUNT(o.order_id) as total_orders,
-  SUM(o.order_total) as revenue
-FROM 
-  customers c
-JOIN 
-  (SELECT * FROM orders WHERE order_date >= '2023-01-01') o
-ON 
-  c.customer_id = o.customer_id
-WHERE 
-  c.status = 'active'
-GROUP BY 
-  c.customer_name
-HAVING 
-  COUNT(o.order_id) > 5
-ORDER BY 
-  revenue DESC
-LIMIT 10;
+${query}
 \`\`\``;
+      } else {
+        return `First generate SQL for this query: "${query}", then optimize it for better performance.`;
+      }
       
     case 'analyze':
-      return `Analyze this SQL query:
+      // Check if the input is likely SQL or a natural language query
+      const isLikelySql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       
+      if (isLikelySql) {
+        return `Analyze this SQL query and explain in detail what it does, how it works, and any potential improvements:
+        
 \`\`\`sql
-SELECT 
-  category_name,
-  COUNT(product_id) as product_count,
-  ROUND(AVG(unit_price), 2) as avg_price,
-  MIN(unit_price) as min_price,
-  MAX(unit_price) as max_price,
-  SUM(units_in_stock) as total_stock
-FROM 
-  products p
-JOIN 
-  categories c ON p.category_id = c.category_id
-GROUP BY 
-  category_name
-ORDER BY 
-  product_count DESC;
+${query}
 \`\`\``;
+      } else {
+        return `First generate SQL for this query: "${query}", then analyze what the query does and how it works.`;
+      }
       
     case 'followup':
-      return `Based on this query, suggest meaningful follow-up questions for deeper analysis:
+      // Check if the input is likely SQL or a natural language query
+      const isSql = /SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER/i.test(query);
       
-Original Question: "${query}"
-
-SQL Query:
+      if (isSql) {
+        return `Based on this SQL query, suggest meaningful follow-up questions for deeper analysis:
+        
 \`\`\`sql
-SELECT 
-  customer_name,
-  COUNT(order_id) as order_count,
-  SUM(order_total) as total_revenue
-FROM 
-  customers c
-JOIN 
-  orders o ON c.customer_id = o.customer_id
-WHERE 
-  order_date BETWEEN '2023-01-01' AND '2023-03-31'
-GROUP BY 
-  customer_name
-ORDER BY 
-  total_revenue DESC
-LIMIT 10;
+${query}
 \`\`\``;
+      } else {
+        return `Based on this query: "${query}", suggest meaningful follow-up questions for deeper analysis.`;
+      }
       
     default:
       return query;
   }
 };
-
-// We no longer need the generateMockResults function since we're not showing mock results
