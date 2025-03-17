@@ -193,14 +193,14 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       // Add values from original data
       originalData.forEach(record => {
         if (record[field] !== undefined) {
-          existingKeyValues[field].add(record[field]);
+          existingKeyValues[field].add(String(record[field]));
         }
       });
       
       // Add values from already generated samples
       existingSamples.forEach(record => {
         if (record[field] !== undefined) {
-          existingKeyValues[field].add(record[field]);
+          existingKeyValues[field].add(String(record[field]));
         }
       });
     });
@@ -210,6 +210,30 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     
     // Generate unique samples one by one
     let attemptsLeft = count * 5; // Allow multiple attempts
+    let nextId = 1;
+    
+    // Find highest existing numeric ID to start from
+    if (primaryKeyFields.length > 0) {
+      const numericIds: number[] = [];
+      const firstKeyField = primaryKeyFields[0];
+      
+      // Collect all numeric IDs from original data and existing samples
+      [...originalData, ...existingSamples].forEach(record => {
+        if (record[firstKeyField] !== undefined) {
+          const value = record[firstKeyField];
+          if (typeof value === 'number') {
+            numericIds.push(value);
+          } else if (typeof value === 'string' && /^\d+$/.test(value)) {
+            numericIds.push(parseInt(value, 10));
+          }
+        }
+      });
+      
+      // Find the highest ID
+      if (numericIds.length > 0) {
+        nextId = Math.max(...numericIds) + 1;
+      }
+    }
     
     while (syntheticSamples.length < count && attemptsLeft > 0) {
       // Pick a random sample to use as base
@@ -219,47 +243,62 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       // Add synthetic_id
       syntheticSample.synthetic_id = `syn_${existingSamples.length + syntheticSamples.length + 1}`;
       
+      // Create a unique composite key to check if this combination exists
+      let isDuplicate = false;
+      let keyValues: Record<string, any> = {};
+      
       // Generate unique primary key values
       primaryKeyFields.forEach(field => {
         const originalValue = baseSample[field];
         
         // Create a new unique ID value based on the field type
         if (typeof originalValue === 'number') {
-          // For numeric IDs, find the highest ID and increment
-          const existingNumericIds = Array.from(existingKeyValues[field]).filter(
-            v => typeof v === 'number'
-          ) as number[];
-          
-          const highestId = existingNumericIds.length > 0 
-            ? Math.max(...existingNumericIds)
-            : 0;
-            
-          syntheticSample[field] = highestId + syntheticSamples.length + 1;
+          // For numeric IDs, use our nextId counter
+          syntheticSample[field] = nextId;
+          keyValues[field] = nextId;
+          nextId++;
         } 
         else if (typeof originalValue === 'string' && /^[0-9]+$/.test(originalValue)) {
           // For string IDs containing only numbers
-          const numericIds = Array.from(existingKeyValues[field])
-            .filter(v => typeof v === 'string' && /^[0-9]+$/.test(v as string))
-            .map(v => parseInt(v as string, 10));
-          
-          const highestId = numericIds.length > 0
-            ? Math.max(...numericIds)
-            : 0;
-            
-          syntheticSample[field] = String(highestId + syntheticSamples.length + 1);
+          syntheticSample[field] = String(nextId);
+          keyValues[field] = String(nextId);
+          nextId++;
         }
         else if (typeof originalValue === 'string') {
           // For string IDs, add a unique suffix
-          syntheticSample[field] = `${originalValue}_syn_${syntheticSamples.length + 1}`;
+          syntheticSample[field] = `${originalValue}_syn_${nextId}`;
+          keyValues[field] = syntheticSample[field];
+          nextId++;
         }
         else {
-          // For other types, preserve the original but make it unique somehow
-          syntheticSample[field] = `${String(originalValue)}_syn_${syntheticSamples.length + 1}`;
+          // For other types, preserve the original but make it unique
+          syntheticSample[field] = `${String(originalValue)}_syn_${nextId}`;
+          keyValues[field] = syntheticSample[field];
+          nextId++;
+        }
+      });
+      
+      // Check if this composite key already exists in our generated samples
+      if (primaryKeyFields.length > 0) {
+        isDuplicate = syntheticSamples.some(sample => {
+          return primaryKeyFields.every(field => String(sample[field]) === String(keyValues[field]));
+        });
+        
+        if (isDuplicate) {
+          attemptsLeft--;
+          continue; // Skip this sample and try again
         }
         
-        // Add to tracking sets
-        existingKeyValues[field].add(syntheticSample[field]);
-      });
+        // Also check if key exists in original data
+        isDuplicate = originalData.some(sample => {
+          return primaryKeyFields.every(field => String(sample[field]) === String(keyValues[field]));
+        });
+        
+        if (isDuplicate) {
+          attemptsLeft--;
+          continue; // Skip this sample and try again
+        }
+      }
       
       // Vary other numeric features
       for (const key in syntheticSample) {
@@ -284,6 +323,11 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
           }
         }
       }
+      
+      // Update tracking sets with new key values
+      primaryKeyFields.forEach(field => {
+        existingKeyValues[field].add(String(syntheticSample[field]));
+      });
       
       syntheticSamples.push(syntheticSample);
       attemptsLeft--;
