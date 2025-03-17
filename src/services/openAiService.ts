@@ -12,6 +12,12 @@ export interface CompletionOptions {
   presence_penalty?: number;
 }
 
+// New interface for OpenAI messages
+export interface OpenAiMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 /**
  * Call OpenAI API for text completion
  */
@@ -70,4 +76,25 @@ export const callOpenAI = async (
       throw new Error(`Error setting up OpenAI request: ${error.message}`);
     }
   }
+};
+
+/**
+ * Helper function to get completion from OpenAI
+ */
+export const getCompletion = async (
+  messages: OpenAiMessage[],
+  model: string = 'gpt-4o-mini',
+  apiKey: string,
+  options: Partial<CompletionOptions> = {}
+) => {
+  const response = await callOpenAI(
+    {
+      model,
+      messages,
+      ...options
+    },
+    apiKey
+  );
+  
+  return response.choices[0].message.content;
 };

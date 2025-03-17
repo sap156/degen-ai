@@ -1,3 +1,4 @@
+
 // Field masking configuration
 export type MaskingTechnique = 'replace' | 'redact' | 'hash' | 'truncate' | 'tokenize' | 'pseudonymize' | string;
 

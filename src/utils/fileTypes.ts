@@ -1,58 +1,68 @@
 
-// Define your schema field types
-export type SchemaFieldType = 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'object' | 'array' | 'email' | 'number' | 'function' | 'bigint' | 'symbol' | 'undefined' | 'phone' | 'address' | 'name' | 'ssn' | 'creditcard';
-
-// Define SupportedFileType type for fileOperations.ts
-export type SupportedFileType = 'csv' | 'json' | 'txt' | 'xml' | 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'unknown';
-
-// Define FileProcessingResult for textExtraction.ts
+// Basic file processing result interface
 export interface FileProcessingResult {
   success: boolean;
-  data?: any;
   text?: string;
+  data?: any;
   error?: string;
-  format?: string;
   metadata?: Record<string, any>;
 }
 
-// Export other file-related types
-export interface FileUploadResult {
-  success: boolean;
-  data?: any[];
-  error?: string;
-  filename?: string;
-  fileType?: string;
-  rowCount?: number;
-}
+// Schema field type definition
+export type SchemaFieldType = 'string' | 'number' | 'boolean' | 'date' | 'integer' | 'float' | 'object' | 'array';
 
-export interface DataParsingOptions {
-  dateFormat?: string;
-  delimiter?: string;
-  skipEmptyLines?: boolean;
-  header?: boolean;
-  dynamicTyping?: boolean;
-}
-
-export interface FileInfo {
+// Data field structure
+export interface DataField {
   name: string;
-  type: string;
-  size: number;
-  lastModified: number;
+  type: SchemaFieldType;
+  description?: string;
+  required?: boolean;
+  format?: string;
+  example?: any;
 }
 
-export interface ParsedFileInfo extends FileInfo {
-  data: any[];
-  rowCount: number;
-  columnCount: number;
-  columns: string[];
-}
+// For file upload formats
+export const getFileType = (file: File): string => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  return extension;
+};
 
-export interface FileWithPreview {
-  file: File;
-  preview: string;
-}
+// Function to extract text from various file types
+export const extractTextFromFile = async (file: File, apiKey: string): Promise<FileProcessingResult> => {
+  try {
+    if (file.type.includes('pdf')) {
+      // For PDF files, we'll use a specialized extractor
+      const { extractTextFromPdf } = await import('./textExtraction');
+      return extractTextFromPdf(file);
+    } else {
+      // For other files, use basic text extraction
+      const fileReader = new FileReader();
+      
+      const textContent = await new Promise<string>((resolve, reject) => {
+        fileReader.onload = () => resolve(fileReader.result as string);
+        fileReader.onerror = reject;
+        fileReader.readAsText(file);
+      });
+      
+      return {
+        success: true,
+        text: textContent,
+        metadata: {
+          processingMethod: 'basic text extraction',
+          note: 'Used basic text extraction for text-based file'
+        }
+      };
+    }
+  } catch (error: any) {
+    console.error('Error extracting text from file:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to extract text from file.'
+    };
+  }
+};
 
-// Data Type Detection Interface
+// Data type result for type detection
 export interface DataTypeResult {
   type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
   dataType?: string;
@@ -62,13 +72,68 @@ export interface DataTypeResult {
   categoricalColumns?: string[];
 }
 
-// FieldMaskingConfig interface for PiiHandling
-export interface FieldMaskingConfig {
-  enabled: boolean;
-  technique?: string;
-}
+// Functions for data formatting and download
+export const formatData = (data: any[], format: 'json' | 'csv' | 'txt' = 'json'): string => {
+  switch (format) {
+    case 'json':
+      return JSON.stringify(data, null, 2);
+    case 'csv':
+      // Simple CSV conversion
+      if (!data.length) return '';
+      const headers = Object.keys(data[0]).join(',');
+      const rows = data.map(item => 
+        Object.values(item).map(value => 
+          typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : String(value)
+        ).join(',')
+      );
+      return [headers, ...rows].join('\n');
+    case 'txt':
+      return JSON.stringify(data, null, 2);
+    default:
+      return JSON.stringify(data);
+  }
+};
 
-// PerFieldMaskingOptions interface for PiiHandling
-export interface PerFieldMaskingOptions {
-  [field: string]: FieldMaskingConfig;
-}
+export const downloadData = (content: string, filename: string, format: 'json' | 'csv' | 'txt' = 'json'): void => {
+  const blob = new Blob([content], { type: `text/${format === 'json' ? 'json' : format}` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Schema generation from data
+export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
+  if (!data.length) return {};
+  
+  const schema: Record<string, SchemaFieldType> = {};
+  const sample = data[0];
+  
+  for (const key in sample) {
+    const value = sample[key];
+    const type = typeof value;
+    
+    if (type === 'string') {
+      // Try to detect if it's a date
+      if (/^\d{4}-\d{2}-\d{2}/.test(value) || !isNaN(Date.parse(value))) {
+        schema[key] = 'date';
+      } else {
+        schema[key] = 'string';
+      }
+    } else if (type === 'number') {
+      schema[key] = Number.isInteger(value) ? 'integer' : 'float';
+    } else if (type === 'boolean') {
+      schema[key] = 'boolean';
+    } else if (type === 'object') {
+      schema[key] = Array.isArray(value) ? 'array' : 'object';
+    } else {
+      schema[key] = 'string'; // Default fallback
+    }
+  }
+  
+  return schema;
+};

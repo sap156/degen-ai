@@ -1,4 +1,5 @@
-import { PDFDocument, PDFPageProxy } from 'pdfjs-dist';
+
+import { PDFDocumentProxy, getDocument } from 'pdfjs-dist';
 import * as openAiService from '@/services/openAiService';
 import { FileProcessingResult } from './fileTypes';
 
@@ -9,28 +10,29 @@ export const extractTextFromPdf = async (file: File): Promise<FileProcessingResu
   try {
     const fileReader = new FileReader();
     
-    await new Promise((resolve, reject) => {
-      fileReader.onload = resolve;
+    const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      fileReader.onload = () => resolve(fileReader.result as ArrayBuffer);
       fileReader.onerror = reject;
       fileReader.readAsArrayBuffer(file);
     });
-    
-    const arrayBuffer = fileReader.result as ArrayBuffer;
     
     if (!arrayBuffer) {
       throw new Error('Failed to read file as ArrayBuffer.');
     }
     
-    // Load the PDF document
-    const pdf = await PDFDocument.load(arrayBuffer);
-    const totalPages = pdf.numPages;
+    // Load the PDF document using PDF.js
+    const loadingTask = getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdfDocument = await loadingTask.promise;
+    const totalPages = pdfDocument.numPages;
     let extractedText = '';
     
-    // Iterate over each page and extract text
+    // Extract text from each page
     for (let i = 1; i <= totalPages; i++) {
-      const page: PDFPageProxy = await pdf.getPage(i);
+      const page = await pdfDocument.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
+      const pageText = textContent.items
+        .map(item => 'str' in item ? item.str : '')
+        .join(' ');
       extractedText += pageText + '\n';
     }
     
@@ -47,42 +49,6 @@ export const extractTextFromPdf = async (file: File): Promise<FileProcessingResu
     return {
       success: false,
       error: error.message || 'Failed to extract text from PDF.'
-    };
-  }
-};
-
-/**
- * Extracts text from various file types.
- */
-export const extractTextFromFile = async (file: File, apiKey: string): Promise<FileProcessingResult> => {
-  try {
-    const fileReader = new FileReader();
-    
-    await new Promise((resolve, reject) => {
-      fileReader.onload = resolve;
-      fileReader.onerror = reject;
-      fileReader.readAsText(file);
-    });
-    
-    const text = fileReader.result as string;
-    
-    if (!text) {
-      throw new Error('Failed to read file as text.');
-    }
-    
-    return {
-      success: true,
-      text: text,
-      metadata: {
-        processingMethod: 'basic text extraction',
-        note: 'Used basic text extraction for unsupported file type'
-      }
-    };
-  } catch (error: any) {
-    console.error('Error extracting text from file:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to extract text from file.'
     };
   }
 };

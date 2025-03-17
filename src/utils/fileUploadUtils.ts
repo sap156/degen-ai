@@ -1,7 +1,8 @@
-import { SchemaFieldType } from './fileTypes';
+
 import { parse } from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import * as openAiService from '@/services/openAiService';
+import { SchemaFieldType, DataTypeResult } from './fileTypes';
 
 // Function to read file content as text
 export const readFileContent = (file: File): Promise<string> => {
@@ -218,7 +219,7 @@ export const maskPiiData = (data: any[], fieldsToMask: string[]): any[] => {
   });
 };
 
-// Function to generate synthetic data (placeholder)
+// Function to generate synthetic data
 export const generateSyntheticData = (schema: Record<string, SchemaFieldType>, count: number): any[] => {
   const syntheticData: any[] = [];
   
@@ -237,7 +238,9 @@ export const generateSyntheticData = (schema: Record<string, SchemaFieldType>, c
         case 'boolean':
           item[key] = Math.random() < 0.5;
           break;
-        // Add more type handling as needed
+        default:
+          // Handle other types
+          item[key] = `Value for ${key}`;
       }
     });
     syntheticData.push(item);
@@ -246,11 +249,4 @@ export const generateSyntheticData = (schema: Record<string, SchemaFieldType>, c
   return syntheticData;
 };
 
-export interface DataTypeResult {
-  type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
-  dataType?: string;
-  confidence: number;
-  timeColumn?: string;
-  valueColumns?: string[];
-  categoricalColumns?: string[];
-}
+export { formatData, downloadData, getFileType } from './fileTypes';
