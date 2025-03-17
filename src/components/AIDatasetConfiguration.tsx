@@ -45,14 +45,21 @@ const AIDatasetConfiguration = ({
   const getUniqueClassValues = (): string[] => {
     if (!datasetAnalysis || !targetColumn) return [];
     
+    // Create a Set to store unique values
     const uniqueValues = new Set<string>();
+    
+    // Check each row in the preview data
     datasetAnalysis.preview.forEach(item => {
       if (targetColumn in item) {
-        uniqueValues.add(String(item[targetColumn]));
+        // Convert to string to ensure consistent handling of all value types
+        const value = String(item[targetColumn]);
+        if (value !== undefined && value !== null && value !== '') {
+          uniqueValues.add(value);
+        }
       }
     });
     
-    return Array.from(uniqueValues);
+    return Array.from(uniqueValues).sort();
   };
 
   const uniqueClassValues = getUniqueClassValues();
@@ -189,7 +196,7 @@ const AIDatasetConfiguration = ({
                 </SelectContent>
               </Select>
               
-              {targetColumn && (
+              {targetColumn && uniqueClassValues.length > 0 && (
                 <div className="mt-4 space-y-3">
                   <Label>Preview of target values:</Label>
                   <div className="border rounded-md p-3">
@@ -211,7 +218,7 @@ const AIDatasetConfiguration = ({
             <Button 
               onClick={handleTargetSelection} 
               className="mt-4"
-              disabled={!targetColumn}
+              disabled={!targetColumn || uniqueClassValues.length === 0}
             >
               Continue
               <ChevronRight className="ml-2 h-4 w-4" />
