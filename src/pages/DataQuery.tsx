@@ -2,6 +2,7 @@
 import React from 'react';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryResult, ProcessingMode } from '@/types/dataQuery';
 
 const DataQuery = () => {
   return (
@@ -23,4 +24,5 @@ const DataQuery = () => {
   );
 };
 
+export { DataQuery, ProcessingMode, QueryResult };
 export default DataQuery;
