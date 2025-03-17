@@ -100,6 +100,7 @@ class SupabaseService {
   // Forward OpenAI requests through Supabase Edge Functions
   async callOpenAI(endpoint: string, payload: any, apiKey: string): Promise<any> {
     const client = this.getClient();
+    // Use invoke to call the edge function
     const { data, error } = await client.functions.invoke('openai-proxy', {
       body: {
         endpoint,
@@ -111,11 +112,16 @@ class SupabaseService {
     if (error) throw error;
     return data;
   }
+
+  // Add a functions property for compatibility
+  functions = {
+    invoke: async (functionName: string, options: { body: any }) => {
+      const client = this.getClient();
+      return await client.functions.invoke(functionName, options);
+    }
+  };
 }
 
 // Create a singleton instance
 const supabaseService = new SupabaseService();
 export default supabaseService;
-
-// Also export as named export for backward compatibility
-export const supabaseClient = supabaseService.getClient();

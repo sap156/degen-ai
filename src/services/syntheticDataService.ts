@@ -8,7 +8,7 @@ export interface DataField {
   name: string;
   type: string;
   attributes?: Record<string, any>;
-  included?: boolean; // Added the included property to fix Type errors
+  included?: boolean; // Make sure this property is defined
 }
 
 export interface SyntheticDataOptions {

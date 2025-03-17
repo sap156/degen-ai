@@ -1,155 +1,119 @@
-
-/**
- * Utilities for schema detection and validation
- */
-import { SchemaFieldType } from './fileTypes';
-
-/**
- * Validates a schema format before processing
- * @param schema The schema to validate
- */
-export const validateSchema = (schema: Record<string, string | Record<string, any>>): void => {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-    throw new Error('Schema must be a non-array object');
-  }
+// Function to prepare schema for AI consumption
+export const prepareSchemaForAI = (schema: Record<string, any>): Record<string, string> => {
+  const aiSchema: Record<string, string> = {};
   
-  // Check if schema has at least one property
-  if (Object.keys(schema).length === 0) {
-    throw new Error('Schema cannot be empty');
-  }
-  
-  // Validate each field
   Object.entries(schema).forEach(([key, value]) => {
-    if (!key || typeof key !== 'string') {
-      throw new Error('Field names must be non-empty strings');
-    }
-    
-    if (typeof value !== 'string' && typeof value !== 'object') {
-      throw new Error(`Field "${key}" has invalid type definition`);
-    }
-  });
-};
-
-/**
- * Prepares a schema for AI processing
- * @param schema The schema to prepare
- * @returns A simplified schema ready for AI consumption
- */
-export const prepareSchemaForAI = (schema: Record<string, string | Record<string, any>>): Record<string, any> => {
-  const preparedSchema: Record<string, any> = {};
-  
-  Object.entries(schema).forEach(([field, definition]) => {
-    if (typeof definition === 'string') {
-      // For simple string type definitions
-      preparedSchema[field] = { type: definition };
-    } else if (typeof definition === 'object') {
-      // Keep complex definitions as they are
-      preparedSchema[field] = definition;
-    }
+    aiSchema[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
   });
   
-  return preparedSchema;
+  return aiSchema;
 };
 
-/**
- * Generates a schema from sample data
- * @param data Sample data to analyze
- * @returns A generated schema
- */
-export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
-  if (!data || !data.length) {
+// Function to validate schema
+export const validateSchema = (schema: Record<string, any>): void => {
+  if (!schema || typeof schema !== 'object') {
+    throw new Error('Invalid schema format');
+  }
+  
+  for (const key in schema) {
+    if (typeof key !== 'string') {
+      throw new Error('Schema keys must be strings');
+    }
+    if (typeof schema[key] !== 'string' && typeof schema[key] !== 'object') {
+      throw new Error('Schema values must be strings or objects');
+    }
+  }
+};
+
+// Generate a schema from data for SQL usage
+export const generateSchema = (data: any[]): Record<string, any> => {
+  if (!data || data.length === 0) {
     return {};
   }
   
-  const schema: Record<string, SchemaFieldType> = {};
-  const sampleRecord = data[0];
+  const schema: Record<string, any> = {};
+  const sample = data[0];
   
-  Object.entries(sampleRecord).forEach(([key, value]) => {
+  Object.entries(sample).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      schema[key] = { type: 'string' }; // Default for null values
+      return;
+    }
+    
     const type = typeof value;
+    
     if (type === 'string') {
-      // Detect date strings
-      if (
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value as string) || 
-        /^\d{4}-\d{2}-\d{2}/.test(value as string)
-      ) {
-        schema[key] = 'date';
+      // Check for date format
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
+        schema[key] = { type: 'date' };
+      } 
+      // Check for email format
+      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
+        schema[key] = { type: 'email' };
       } else {
-        schema[key] = 'string';
+        schema[key] = { type: 'string' };
       }
     } else if (type === 'number') {
-      // Detect integers vs floats
-      if (Number.isInteger(value)) {
-        schema[key] = 'integer';
-      } else {
-        schema[key] = 'float';
-      }
+      // Check if it's an integer
+      schema[key] = { type: Number.isInteger(value) ? 'integer' : 'float' };
     } else if (type === 'boolean') {
-      schema[key] = 'boolean';
-    } else if (value === null) {
-      // Try to infer type from other records
-      for (let i = 1; i < Math.min(data.length, 10); i++) {
-        const alternateValue = data[i][key];
-        if (alternateValue !== null) {
-          schema[key] = typeof alternateValue as SchemaFieldType;
-          break;
-        }
-      }
-      // If still undetermined
-      if (!schema[key]) {
-        schema[key] = 'string';
-      }
+      schema[key] = { type: 'boolean' };
     } else if (Array.isArray(value)) {
-      schema[key] = 'object';
+      schema[key] = { type: 'array' };
     } else if (type === 'object') {
-      schema[key] = 'object';
+      schema[key] = { type: 'object' };
     } else {
-      schema[key] = 'string'; // Default
+      schema[key] = { type: 'string' }; // Default fallback
     }
   });
   
   return schema;
 };
 
-/**
- * Converts a detected schema to SQL CREATE TABLE statement
- * @param schema The schema to convert
- * @param tableName The name for the SQL table
- * @returns SQL CREATE TABLE statement
- */
-export const convertSchemaToSql = (schema: Record<string, SchemaFieldType>, tableName: string = 'table_name'): string => {
+// Convert a schema to SQL statements
+export const convertSchemaToSql = (
+  schema: Record<string, any>, 
+  tableName: string
+): string => {
   if (!schema || Object.keys(schema).length === 0) {
     return '';
   }
   
-  const typeMap: Record<string, string> = {
+  const sqlTypeMap: Record<string, string> = {
     'string': 'TEXT',
     'integer': 'INTEGER',
     'float': 'REAL',
-    'number': 'REAL',
     'boolean': 'BOOLEAN',
     'date': 'TIMESTAMP',
-    'object': 'JSONB',
-    'function': 'TEXT',
-    'bigint': 'BIGINT',
-    'symbol': 'TEXT',
-    'undefined': 'TEXT',
     'email': 'TEXT',
-    'phone': 'TEXT',
-    'address': 'TEXT',
-    'name': 'TEXT',
-    'ssn': 'TEXT',
-    'creditcard': 'TEXT'
+    'array': 'TEXT',  // Typically stored as JSON string
+    'object': 'TEXT'  // Typically stored as JSON string
   };
   
-  const columns = Object.entries(schema).map(([column, type]) => {
-    const sqlType = typeMap[type] || 'TEXT';
-    return `  "${column}" ${sqlType}`;
+  // Start creating the SQL statement
+  let sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
+  
+  // Add each column
+  const columns = Object.entries(schema).map(([column, definition]) => {
+    const type = (definition as any).type || 'string';
+    const sqlType = sqlTypeMap[type] || 'TEXT';
+    
+    // Check if this column is likely a primary key
+    const isPrimaryKey = column.toLowerCase() === 'id' || 
+                         column.toLowerCase().endsWith('_id') ||
+                         column.toLowerCase() === 'key';
+    
+    // Add constraints if needed
+    const constraints = isPrimaryKey ? ' PRIMARY KEY' : '';
+    
+    return `  ${column} ${sqlType}${constraints}`;
   });
   
-  // Add id primary key if it doesn't exist
-  if (!schema.id && !schema.ID && !schema.Id) {
-    columns.unshift('  "id" SERIAL PRIMARY KEY');
-  }
+  // Join columns with commas
+  sql += columns.join(',\n');
   
-  return `CREATE TABLE "${tableName}" (\n${columns.join(',\n')}\n);`;
+  // Close the statement
+  sql += '\n);';
+  
+  return sql;
 };

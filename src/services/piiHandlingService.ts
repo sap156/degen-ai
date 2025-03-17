@@ -1,4 +1,5 @@
-import { getCompletion } from './openAiService';
+
+import { getCompletion, OpenAiMessage } from './openAiService';
 import supabaseService from './supabaseService';
 
 export interface PiiData {
@@ -27,12 +28,29 @@ export interface FieldMaskingConfig {
   partialFormat?: string;
   encryptionMethod?: EncryptionMethod;
   encryptionKey?: string;
+  enabled?: boolean; // Add enabled property
+}
+
+export interface PerFieldMaskingOptions {
+  [fieldName: string]: FieldMaskingConfig;
 }
 
 export interface MaskingOptions {
   fields: Record<string, FieldMaskingConfig>;
   preserveFormat?: boolean;
   keepOriginal?: boolean;
+}
+
+// Add the OpenAiRequest interface used in the service
+export interface OpenAiRequest {
+  messages: OpenAiMessage[];
+  model: string;
+  temperature?: number;
+  apiKey: string;
+  stream?: boolean;
+  maxTokens?: number;
+  functions?: any[];
+  functionCall?: 'auto' | 'none' | { name: string };
 }
 
 /**
@@ -81,20 +99,15 @@ export const maskPiiData = async (
       }
     ];
 
-    // Call OpenAI via Supabase Edge Function
-    const response = await supabaseService.functions.invoke('openai-proxy', {
-      body: {
-        messages,
-        apiKey,
-        model: 'gpt-4o',
-        temperature: 0.2,
-        stream: false
-      } as OpenAiRequest
-    });
+    // Call OpenAI via Supabase
+    const response = await supabaseService.callOpenAI('chat/completions', {
+      messages,
+      model: 'gpt-4o',
+      temperature: 0.2,
+    }, apiKey);
 
-    if (response.error) {
-      console.error('Error masking PII data:', response.error);
-      throw new Error(`Failed to mask PII data: ${response.error.message}`);
+    if (!response) {
+      throw new Error('Failed to receive response from AI service');
     }
 
     // Process the response
@@ -102,14 +115,14 @@ export const maskPiiData = async (
     
     try {
       // Try to extract the masked data from the response
-      const aiResponse = response.data as { content: string };
+      const aiResponse = response.choices[0].message.content;
       
       // Find JSON in the response
-      const jsonMatch = aiResponse.content.match(/```json\n([\s\S]*?)\n```/) || 
-                        aiResponse.content.match(/```\n([\s\S]*?)\n```/) ||
-                        [null, aiResponse.content];
+      const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/) || 
+                      aiResponse.match(/```\n([\s\S]*?)\n```/) ||
+                      [null, aiResponse];
       
-      const jsonContent = jsonMatch[1] || aiResponse.content;
+      const jsonContent = jsonMatch[1] || aiResponse;
       maskedData = JSON.parse(jsonContent);
       
       // Ensure all records have IDs
@@ -154,23 +167,18 @@ export const analyzePiiData = async (
       }
     ];
     
-    const response = await supabaseService.functions.invoke('openai-proxy', {
-      body: {
-        messages,
-        apiKey,
-        model: 'gpt-4o',
-        temperature: 0.3,
-        stream: false
-      } as OpenAiRequest
-    });
+    const response = await supabaseService.callOpenAI('chat/completions', {
+      messages,
+      model: 'gpt-4o',
+      temperature: 0.3,
+    }, apiKey);
     
-    if (response.error) {
-      console.error('Error analyzing data with AI:', response.error);
-      throw new Error(`Failed to analyze data: ${response.error.message}`);
+    if (!response) {
+      throw new Error('Failed to receive response from AI service');
     }
     
     // Process the response
-    const aiResponse = response.data as { content: string };
+    const aiResponse = response.choices[0].message.content;
     
     // Extract identified PII types and suggestions from the response
     const identifiedPii: string[] = [];
@@ -178,7 +186,7 @@ export const analyzePiiData = async (
     
     try {
       // Try to parse the response as JSON
-      const jsonContent = JSON.parse(aiResponse.content);
+      const jsonContent = JSON.parse(aiResponse);
       
       if (Array.isArray(jsonContent.identifiedPii)) {
         identifiedPii.push(...jsonContent.identifiedPii);
@@ -189,7 +197,7 @@ export const analyzePiiData = async (
       }
     } catch (error) {
       // If JSON parsing fails, treat the entire response as suggestions
-      suggestions = aiResponse.content;
+      suggestions = aiResponse;
     }
     
     return {

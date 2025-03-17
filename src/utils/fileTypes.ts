@@ -2,6 +2,18 @@
 // Define your schema field types
 export type SchemaFieldType = 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'object' | 'array' | 'email' | 'number' | 'function' | 'bigint' | 'symbol' | 'undefined' | 'phone' | 'address' | 'name' | 'ssn' | 'creditcard';
 
+// Define SupportedFileType type for fileOperations.ts
+export type SupportedFileType = 'csv' | 'json' | 'txt' | 'xml' | 'unknown';
+
+// Define FileProcessingResult for textExtraction.ts
+export interface FileProcessingResult {
+  success: boolean;
+  data?: any;
+  text?: string;
+  error?: string;
+  format?: string;
+}
+
 // Export other file-related types
 export interface FileUploadResult {
   success: boolean;

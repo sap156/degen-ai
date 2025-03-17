@@ -1,22 +1,6 @@
 
 import supabaseService from './supabaseService';
-
-export interface PiiData {
-  id: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  ssn?: string;
-  creditCard?: string;
-  dob?: string;
-  [key: string]: any;
-}
-
-export interface PiiDataMasked {
-  id: string;
-  [key: string]: any;
-}
+import { PiiData, PiiDataMasked } from './piiHandlingService';
 
 export interface OpenAiMessage {
   role: 'system' | 'user' | 'assistant' | 'function';
@@ -164,7 +148,7 @@ export class OpenAIStream {
       }
     } catch (error) {
       console.error('Streaming error:', error);
-      yield `Error: ${error}\n`;
+      yield `Error: ${error instanceof Error ? error.message : String(error)}\n`;
     } finally {
       if (functionCallBuffer.name && functionCallBuffer.arguments) {
         yield JSON.stringify(functionCallBuffer);
@@ -214,16 +198,20 @@ export const createParser = (cb: (event: string) => void) => {
  */
 export const callOpenAI = async (apiRequest: OpenAiRequest) => {
   try {
-    const response = await supabaseService.functions.invoke('openai-proxy', {
-      body: apiRequest
-    });
+    const response = await supabaseService.callOpenAI('chat/completions', 
+      {
+        messages: apiRequest.messages,
+        model: apiRequest.model,
+        temperature: apiRequest.temperature,
+        max_tokens: apiRequest.maxTokens,
+        stream: apiRequest.stream,
+        functions: apiRequest.functions,
+        function_call: apiRequest.functionCall
+      },
+      apiRequest.apiKey
+    );
 
-    if (response.error) {
-      console.error('Error calling OpenAI:', response.error);
-      throw new Error(`Failed to call OpenAI: ${response.error.message}`);
-    }
-
-    return response.data;
+    return response;
   } catch (error) {
     console.error('Error in callOpenAI:', error);
     throw error;
@@ -293,22 +281,17 @@ export const analyzeWithAI = async (
       }
     ];
     
-    const response = await supabaseService.functions.invoke('openai-proxy', {
-      body: {
+    const response = await supabaseService.callOpenAI('chat/completions', 
+      {
         messages,
-        apiKey,
         model: options?.model || 'gpt-4o',
         temperature: options?.temperature !== undefined ? options.temperature : 0.3,
         stream: false
-      } as OpenAiRequest
-    });
+      },
+      apiKey
+    );
     
-    if (response.error) {
-      console.error('Error analyzing data with AI:', response.error);
-      throw new Error(`Failed to analyze data: ${response.error.message}`);
-    }
-    
-    return response.data;
+    return response;
   } catch (error) {
     console.error('Error in analyzeWithAI:', error);
     throw error;

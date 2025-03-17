@@ -1,83 +1,141 @@
+import { SchemaFieldType } from './fileTypes';
 
-/**
- * Utilities for handling file uploads across different data types
- */
-// Re-export types from fileTypes
-export * from './fileTypes';
-
-// Re-export basic file operations
-export * from './fileOperations';
-
-// Re-export data parsing functions
-export * from './dataParsing';
-
-// Re-export text extraction utilities
-export * from './textExtraction';
-
-// Re-export schema detection utilities
-export * from './schemaDetection';
-
-/**
- * Result type for data type detection
- */
 export interface DataTypeResult {
-  dataType: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
+  type: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
+  confidence: number;
+  timeColumn?: string;
+  valueColumns?: string[];
+  categoricalColumns?: string[];
 }
 
-/**
- * Detects the type of data in a file
- * @param data The parsed data from a file
- * @returns The detected data type result
- */
 export const detectDataType = (data: any[]): DataTypeResult => {
   if (!data || data.length === 0) {
-    return { dataType: 'unknown' };
+    return { 
+      type: 'unknown', 
+      confidence: 0 
+    };
   }
-  
-  const sampleRecord = data[0];
-  const keys = Object.keys(sampleRecord);
-  
-  // Check for time series data (has date/time fields)
-  const dateFields = keys.filter(key => {
-    const value = sampleRecord[key];
-    if (typeof value !== 'string') return false;
+
+  let hasTimeColumn = false;
+  let timeColumn = '';
+  const potentialTimeColumns: string[] = [];
+  const valueColumns: string[] = [];
+  const categoricalColumns: string[] = [];
+
+  // Check the first row to identify column types
+  const firstRow = data[0];
+  const columns = Object.keys(firstRow);
+
+  // Check each column to determine if it's a time, value, or categorical column
+  columns.forEach(column => {
+    // Sample some values for type detection
+    const sampleValues = data.slice(0, Math.min(10, data.length)).map(row => row[column]);
     
-    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value) || 
-           /^\d{4}-\d{2}-\d{2}/.test(value) ||
-           /timestamp|date|time/i.test(key);
+    // Check if column might be a date/time
+    const timeRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}.*)?$/;
+    const isTimeFormat = sampleValues.some(val => typeof val === 'string' && timeRegex.test(val as string));
+    
+    if (isTimeFormat || column.toLowerCase().includes('date') || column.toLowerCase().includes('time')) {
+      hasTimeColumn = true;
+      potentialTimeColumns.push(column);
+      timeColumn = timeColumn || column; // Use the first detected time column as default
+    }
+    // Check if column is numeric (likely a value column)
+    else if (sampleValues.every(val => !isNaN(Number(val)) && val !== null)) {
+      valueColumns.push(column);
+    }
+    // Otherwise, it's categorical
+    else {
+      categoricalColumns.push(column);
+    }
   });
-  
-  if (dateFields.length > 0) {
-    return { dataType: 'timeseries' };
+
+  // Determine the most likely time column
+  if (potentialTimeColumns.length > 0) {
+    // Prefer columns with "date" or "time" in the name
+    const dateNamedColumns = potentialTimeColumns.filter(
+      col => col.toLowerCase().includes('date') || col.toLowerCase().includes('time')
+    );
+    
+    if (dateNamedColumns.length > 0) {
+      timeColumn = dateNamedColumns[0];
+    } else {
+      timeColumn = potentialTimeColumns[0];
+    }
+  }
+
+  // Determine the data type
+  if (hasTimeColumn && valueColumns.length > 0) {
+    return {
+      type: 'timeseries',
+      confidence: 0.9,
+      timeColumn,
+      valueColumns,
+      categoricalColumns
+    };
+  } else if (categoricalColumns.length > valueColumns.length) {
+    return {
+      type: 'categorical',
+      confidence: 0.7,
+      categoricalColumns,
+      valueColumns
+    };
+  } else {
+    return {
+      type: 'tabular',
+      confidence: 0.8,
+      valueColumns,
+      categoricalColumns
+    };
+  }
+};
+
+// Function to generate a schema from data
+export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
+  if (!data || data.length === 0) {
+    return {};
   }
   
-  // Check for categorical data (mostly string values)
-  let stringCount = 0;
-  let numericCount = 0;
+  const schema: Record<string, SchemaFieldType> = {};
+  const sample = data[0];
   
-  keys.forEach(key => {
-    const value = sampleRecord[key];
-    if (typeof value === 'string' && !/^\d+$/.test(value)) {
-      stringCount++;
-    } else if (typeof value === 'number' || /^\d+$/.test(value)) {
-      numericCount++;
+  Object.entries(sample).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      schema[key] = 'string'; // Default for null values
+      return;
+    }
+    
+    const type = typeof value;
+    
+    if (type === 'string') {
+      // Check for date format
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
+        schema[key] = 'date';
+      } 
+      // Check for email format
+      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
+        schema[key] = 'email';
+      } 
+      // Check for phone format
+      else if (/^(\+\d{1,3})?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value as string)) {
+        schema[key] = 'phone';
+      }
+      else {
+        schema[key] = 'string';
+      }
+    } else if (type === 'number') {
+      // Check if it's an integer
+      schema[key] = Number.isInteger(value) ? 'integer' : 'float';
+    } else if (type === 'boolean') {
+      schema[key] = 'boolean';
+    } else if (Array.isArray(value)) {
+      schema[key] = 'array';
+    } else if (type === 'object') {
+      schema[key] = 'object';
+    } else {
+      schema[key] = 'string'; // Default fallback
     }
   });
   
-  if (stringCount > numericCount) {
-    return { dataType: 'categorical' };
-  }
-  
-  // Default to tabular
-  return { dataType: 'tabular' };
-};
-
-/**
- * Generates a schema from sample data
- * This is a re-export from schemaDetection for convenience
- */
-export const generateSchema = (data: any[]): Record<string, string> => {
-  // Import from the actual implementation to maintain DRY principle
-  const { generateSchema: importedGenerateSchema } = require('./schemaDetection');
-  return importedGenerateSchema(data);
+  return schema;
 };

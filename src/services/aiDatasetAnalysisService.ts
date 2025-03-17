@@ -1,4 +1,3 @@
-
 /**
  * AI Data Analysis Service
  * Provides functionality for analyzing datasets and improving ML models
@@ -14,6 +13,7 @@ export interface DatasetPreferences {
   datasetName?: string;
   classLabels?: string[];
   datasetContext?: string;
+  primaryKeys?: string[]; // Added primaryKeys field
 }
 
 export interface ModelOptions {
@@ -34,6 +34,17 @@ export interface DatasetAnalysis {
   classDistribution?: Record<string, number>;
   correlations?: Record<string, Record<string, number>>;
   recommendations?: string;
+  potentialIssues?: string[];
+  detectedTarget?: string;
+  schema?: Record<string, string>;
+  preview?: any[];
+  summary?: {
+    totalSamples: number;
+    missingValues: number;
+    duplicates: number;
+    outliers: number;
+  };
+  potentialPrimaryKeys?: string[];
 }
 
 export interface FeatureSuggestion {
@@ -319,6 +330,8 @@ export const analyzeDataset = async (
     1. Basic statistics about the columns (types, null percentages)
     2. Potential target columns for ML tasks
     3. Initial recommendations for preprocessing
+    4. Potential issues in the data
+    5. A schema representation of the dataset
     
     Format your response as valid JSON with the following structure:
     {
@@ -327,7 +340,17 @@ export const analyzeDataset = async (
       ],
       "rowCount": 1000,
       "potentialTargetColumns": ["column1", "column2"],
-      "recommendations": "Your preprocessing suggestions here"
+      "recommendations": "Your preprocessing suggestions here",
+      "potentialIssues": ["issue1", "issue2"],
+      "detectedTarget": "most_likely_target_column",
+      "schema": { "column1": "type1", "column2": "type2" },
+      "summary": {
+        "totalSamples": 1000,
+        "missingValues": 50,
+        "duplicates": 10,
+        "outliers": 20
+      },
+      "potentialPrimaryKeys": ["id", "record_id"]
     }`;
     
     const messages: OpenAiMessage[] = [
