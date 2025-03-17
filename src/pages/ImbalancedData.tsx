@@ -70,7 +70,8 @@ const ImbalancedData = () => {
       enabled: true,
       volume: 100,
       diversity: 'medium' as 'low' | 'medium' | 'high'
-    }
+    },
+    enableFeatureEngineering: false
   });
   
   const { apiKey } = useApiKey();
@@ -824,4 +825,3 @@ const ImbalancedData = () => {
 };
 
 export default ImbalancedData;
-
