@@ -11,6 +11,7 @@ import {
 } from '@/services/imbalancedDataService';
 
 // Import components
+import { Button } from '@/components/ui/button'; // Add this import
 import DatasetControls from '@/components/imbalanced-data/DatasetControls';
 import DatasetConfiguration from '@/components/imbalanced-data/DatasetConfiguration';
 import DatasetSummary from '@/components/imbalanced-data/DatasetSummary';

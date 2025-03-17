@@ -1,6 +1,6 @@
 
 import { DatasetInfo } from './types';
-import { getCompletion } from '../openAiService';
+import { getCompletion, OpenAiMessage } from '../openAiService';
 
 /**
  * Get AI-powered recommendations for handling imbalanced data
@@ -13,7 +13,7 @@ export const getAIRecommendations = async (
   apiKey: string
 ): Promise<string> => {
   try {
-    const messages = [
+    const messages: OpenAiMessage[] = [
       {
         role: "system",
         content: "You are a machine learning expert specializing in imbalanced datasets. Provide detailed, actionable recommendations for handling class imbalance."
