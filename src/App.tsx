@@ -14,6 +14,7 @@ import ImbalancedData from "./pages/ImbalancedData";
 import DataParsing from "./pages/DataParsing";
 import DataExtraction from "./pages/DataExtraction";
 import EdgeCases from "./pages/EdgeCases";
+import DataQuery from "./pages/DataQuery";
 import NotFound from "./pages/NotFound";
 import { ApiKeyProvider } from "./contexts/ApiKeyContext";
 
@@ -37,9 +38,9 @@ const App = () => (
               <Route path="/data-parsing" element={<DataParsing />} />
               <Route path="/extraction" element={<DataExtraction />} />
               <Route path="/edge-cases" element={<EdgeCases />} />
-              <Route path="/data-query" element={<NotFound />} />
+              <Route path="/data-query" element={<DataQuery />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
-            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
