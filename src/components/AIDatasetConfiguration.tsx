@@ -1,7 +1,8 @@
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { DatasetAnalysis, DatasetPreferences } from '@/services/aiDatasetAnalysisService';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface AIDatasetConfigurationProps {
   datasetAnalysis: DatasetAnalysis | null;
@@ -26,16 +28,18 @@ const AIDatasetConfiguration = ({
   onConfigurationComplete,
   apiKeyAvailable
 }: AIDatasetConfigurationProps) => {
-  const [step, setStep] = useState<'target' | 'classes' | 'context'>('target');
+  const [step, setStep] = useState<'target' | 'classes' | 'primaryKeys' | 'context'>('target');
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<DatasetPreferences>({
     defaultValues: {
       targetColumn: datasetAnalysis?.detectedTarget || '',
       classLabels: [],
-      datasetContext: ''
+      datasetContext: '',
+      primaryKeys: []
     }
   });
 
   const targetColumn = watch('targetColumn');
+  const selectedPrimaryKeys = watch('primaryKeys') || [];
 
   // Get unique values for the selected target column
   const getUniqueClassValues = (): string[] => {
@@ -74,6 +78,10 @@ const AIDatasetConfiguration = ({
   };
 
   const handleClassesSelection = () => {
+    setStep('primaryKeys');
+  };
+
+  const handlePrimaryKeysSelection = () => {
     setStep('context');
   };
 
@@ -83,6 +91,10 @@ const AIDatasetConfiguration = ({
 
   const handleBackToClasses = () => {
     setStep('classes');
+  };
+
+  const handleBackToPrimaryKeys = () => {
+    setStep('primaryKeys');
   };
 
   const handleComplete = (data: DatasetPreferences) => {
@@ -265,11 +277,95 @@ const AIDatasetConfiguration = ({
           </div>
         )}
         
+        {step === 'primaryKeys' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 mb-4">
+              <Key className="h-5 w-5 text-amber-500" />
+              <h3 className="text-lg font-medium">3. Select Primary Key Fields</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <Label>Select the primary key field(s) that uniquely identify each record</Label>
+              <p className="text-sm text-muted-foreground">
+                Primary keys are fields with unique values for each record. They help maintain data integrity and uniqueness.
+              </p>
+              
+              {datasetAnalysis.potentialPrimaryKeys && datasetAnalysis.potentialPrimaryKeys.length > 0 ? (
+                <div className="p-3 bg-blue-50 rounded-md text-sm mb-2">
+                  <p className="font-medium text-blue-800">AI-Detected Primary Keys</p>
+                  <p className="text-blue-700 mt-1">
+                    We've detected potential primary key fields. Please confirm or select different ones.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 rounded-md text-sm mb-2">
+                  <p className="font-medium text-amber-800">No Primary Keys Detected</p>
+                  <p className="text-amber-700 mt-1">
+                    No obvious primary key fields were detected. Please select fields that uniquely identify each record.
+                  </p>
+                </div>
+              )}
+              
+              <div className="border rounded-md p-3">
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.keys(datasetAnalysis.schema).map(field => (
+                    <div key={field} className="flex items-center">
+                      <Checkbox
+                        id={`pk-${field}`}
+                        checked={selectedPrimaryKeys.includes(field)}
+                        onCheckedChange={(checked) => {
+                          const current = selectedPrimaryKeys || [];
+                          if (checked) {
+                            setValue('primaryKeys', [...current, field]);
+                          } else {
+                            setValue('primaryKeys', current.filter(k => k !== field));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`pk-${field}`} className="ml-2 flex items-center">
+                        {field}
+                        {datasetAnalysis.potentialPrimaryKeys?.includes(field) && (
+                          <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-800 border-amber-200">
+                            <Key className="h-3 w-3 mr-1" />
+                            Suggested
+                          </Badge>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {selectedPrimaryKeys.length > 0 && (
+                <div className="text-xs text-primary">
+                  {selectedPrimaryKeys.length} primary key field(s) selected
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-between mt-4">
+              <Button
+                variant="outline"
+                onClick={handleBackToClasses}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button 
+                onClick={handlePrimaryKeysSelection}
+              >
+                Continue
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+        
         {step === 'context' && (
           <form onSubmit={handleSubmit(handleComplete)} className="space-y-4">
             <div className="flex items-center space-x-2 mb-4">
               <FileText className="h-5 w-5 text-purple-500" />
-              <h3 className="text-lg font-medium">3. Add Context (Optional)</h3>
+              <h3 className="text-lg font-medium">4. Add Context (Optional)</h3>
             </div>
             
             <div className="space-y-3">
@@ -290,7 +386,7 @@ const AIDatasetConfiguration = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleBackToClasses}
+                onClick={handleBackToPrimaryKeys}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back

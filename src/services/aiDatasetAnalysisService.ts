@@ -1,4 +1,3 @@
-
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
 // Dataset analysis data types
@@ -13,6 +12,7 @@ export interface DatasetAnalysis {
   preview: any[]; // Preview of the dataset (first 10 rows)
   potentialIssues: string[];
   detectedTarget?: string;
+  potentialPrimaryKeys?: string[];
 }
 
 // Dataset preferences selected by user
@@ -22,6 +22,7 @@ export interface DatasetPreferences {
   majorityClass?: string;
   minorityClass?: string;
   datasetContext?: string;
+  primaryKeys?: string[];
 }
 
 // Model options interface
@@ -31,7 +32,7 @@ export interface ModelOptions {
     volume: number;
     diversity: 'low' | 'medium' | 'high';
   };
-  modelType?: string;
+  enableFeatureEngineering: boolean;
 }
 
 /**
@@ -62,8 +63,11 @@ export const analyzeDataset = async (
     // Get potential issues through AI
     const potentialIssues = await detectIssues(data, schema, apiKey);
     
-    // Try to detect target variable
+    // Try to detect target variable with improved methods
     const detectedTarget = detectPotentialTargetVariable(data, schema);
+    
+    // Detect potential primary keys
+    const potentialPrimaryKeys = detectPotentialPrimaryKeys(data);
     
     return {
       schema,
@@ -71,6 +75,7 @@ export const analyzeDataset = async (
       preview: sampleData,
       potentialIssues,
       detectedTarget,
+      potentialPrimaryKeys,
     };
   } catch (error) {
     console.error('Error analyzing dataset:', error);
@@ -243,44 +248,153 @@ const detectIssues = async (
 
 /**
  * Try to detect which column might be the target variable
+ * Improved with better heuristics for class detection
  */
 const detectPotentialTargetVariable = (
   data: any[],
   schema: Record<string, string>
 ): string | undefined => {
-  // Common target column names
+  if (!data.length) return undefined;
+  
+  // Common target column names (expanded list)
   const possibleTargetNames = [
-    'target', 'label', 'class', 'outcome', 'result', 'y',
-    'Target', 'Label', 'Class', 'Outcome', 'Result', 'Y'
+    'target', 'label', 'class', 'outcome', 'result', 'y', 'category',
+    'Target', 'Label', 'Class', 'Outcome', 'Result', 'Y', 'Category',
+    'diagnosis', 'Diagnosis', 'disease', 'Disease', 'condition', 'Condition',
+    'type', 'Type', 'classification', 'Classification', 'status', 'Status',
+    'group', 'Group', 'response', 'Response', 'dependent', 'Dependent'
   ];
   
-  // First check for common target column names
+  // First check existing columns against common target column names
   for (const name of possibleTargetNames) {
     if (schema[name]) {
       return name;
     }
   }
   
-  // Then check for columns with a small number of unique values (categorical)
-  const categoricalColumns = [];
-  
+  // Check for columns that contain any of the target names
   for (const column of Object.keys(schema)) {
-    const values = data.map(row => row[column]);
-    const uniqueValues = new Set(values);
-    
-    // A good target usually has fewer than 10 distinct values and is not a numeric ID
-    if (uniqueValues.size > 1 && uniqueValues.size <= 10 && !column.toLowerCase().includes('id')) {
-      categoricalColumns.push({
-        name: column,
-        uniqueCount: uniqueValues.size
-      });
+    for (const targetName of possibleTargetNames) {
+      if (column.toLowerCase().includes(targetName.toLowerCase())) {
+        return column;
+      }
     }
   }
   
-  // Sort by uniqueCount ascending (fewer classes is more likely to be target)
-  categoricalColumns.sort((a, b) => a.uniqueCount - b.uniqueCount);
+  // Find columns with low cardinality (few unique values)
+  const columnStats = Object.keys(schema).map(column => {
+    const values = data.map(row => row[column]);
+    const uniqueValues = new Set(values);
+    
+    // Calculate entropy to determine if values look like classes
+    const valueCounts: Record<string, number> = {};
+    values.forEach(val => {
+      const strVal = String(val);
+      valueCounts[strVal] = (valueCounts[strVal] || 0) + 1;
+    });
+    
+    // Calculate class-like score: lower is more class-like
+    // We want columns with few unique values but not too few (at least 2)
+    // and not numeric ID-like columns
+    const uniqueCount = uniqueValues.size;
+    const isNumeric = Array.from(uniqueValues).every(v => !isNaN(Number(v)));
+    const hasCommonClassNames = Array.from(uniqueValues).some(val => 
+      ['yes', 'no', 'true', 'false', 'positive', 'negative', 'normal', 'abnormal',
+       'benign', 'malignant', 'healthy', 'sick', 'active', 'inactive'].includes(String(val).toLowerCase())
+    );
+    
+    // Higher score = more likely to be a target column
+    let score = 0;
+    
+    // Ideal number of classes is between 2 and 10
+    if (uniqueCount >= 2 && uniqueCount <= 10) {
+      score += 3;
+    } else if (uniqueCount > 10 && uniqueCount <= 20) {
+      score += 1;
+    }
+    
+    // Prefer non-numeric classes (unless they're binary 0/1)
+    if (!isNumeric || (isNumeric && uniqueCount <= 2)) {
+      score += 2;
+    }
+    
+    // Bonus for columns that have common class names
+    if (hasCommonClassNames) {
+      score += 3;
+    }
+    
+    // Penalty for columns that look like IDs
+    if (column.toLowerCase().includes('id') || 
+        column.toLowerCase().endsWith('_id') || 
+        column.toLowerCase().startsWith('id_')) {
+      score -= 5;
+    }
+    
+    return {
+      column,
+      uniqueCount,
+      score
+    };
+  });
   
-  return categoricalColumns.length > 0 ? categoricalColumns[0].name : undefined;
+  // Sort by score descending
+  columnStats.sort((a, b) => b.score - a.score);
+  
+  // Return the column with the highest score if it's positive
+  return columnStats.length > 0 && columnStats[0].score > 0 
+    ? columnStats[0].column 
+    : undefined;
+};
+
+/**
+ * Detect potential primary key fields in the dataset
+ */
+const detectPotentialPrimaryKeys = (data: any[]): string[] => {
+  if (!data || data.length === 0) return [];
+  
+  const commonPrimaryKeyNames = [
+    'id', 'ID', 'Id', '_id', 
+    'patient_id', 'patientId', 'PatientId', 'patientID', 'PatientID',
+    'user_id', 'userId', 'UserId', 'userID', 'UserID',
+    'customer_id', 'customerId', 'CustomerId', 'customerID', 'CustomerID',
+    'record_id', 'recordId', 'RecordId', 'recordID', 'RecordID',
+    'uuid', 'UUID', 'guid', 'GUID'
+  ];
+  
+  const potentialKeys: string[] = [];
+  const sample = data[0];
+  
+  // Check for fields with names typically used for primary keys
+  Object.keys(sample).forEach(field => {
+    if (commonPrimaryKeyNames.includes(field)) {
+      potentialKeys.push(field);
+      return;
+    }
+    
+    // Check if field name ends with _id, ID, Id
+    if (field.endsWith('_id') || field.endsWith('ID') || field.endsWith('Id')) {
+      potentialKeys.push(field);
+      return;
+    }
+  });
+  
+  // If no obvious primary key fields found, check for fields with unique values
+  if (potentialKeys.length === 0) {
+    Object.keys(sample).forEach(field => {
+      // Skip obvious non-key fields
+      if (typeof sample[field] === 'object') {
+        return;
+      }
+      
+      // Check if values are unique across all records
+      const values = new Set(data.map(item => item[field]));
+      if (values.size === data.length) {
+        potentialKeys.push(field);
+      }
+    });
+  }
+  
+  return potentialKeys;
 };
 
 /**

@@ -10,7 +10,6 @@ import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
 import DataBalancingControls from '@/components/DataBalancingControls';
-import SyntheticDataGenerator from '@/components/SyntheticDataGenerator';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
@@ -26,8 +25,7 @@ import {
   balanceDataset, 
   exportAsJson, 
   exportAsCsv, 
-  downloadData,
-  generateSyntheticRecords 
+  downloadData
 } from '@/services/imbalancedDataService';
 
 import {
@@ -230,14 +228,18 @@ const ImbalancedData = () => {
       
       setAiRecommendations(recommendations);
       
-      const featureSuggestions = await getFeatureEngineeringSuggestions(
-        parsedData,
-        datasetPreferences,
-        apiKey
-      );
-      
-      if (featureSuggestions) {
-        setFeatureEngineering(featureSuggestions);
+      try {
+        const featureSuggestions = await getFeatureEngineeringSuggestions(
+          parsedData,
+          datasetPreferences,
+          apiKey
+        );
+        
+        if (featureSuggestions) {
+          setFeatureEngineering(featureSuggestions);
+        }
+      } catch (error) {
+        console.error('Error parsing feature suggestions:', error);
       }
       
     } catch (error) {
@@ -245,20 +247,6 @@ const ImbalancedData = () => {
       toast.error('Failed to get AI recommendations');
     } finally {
       setIsLoadingRecommendations(false);
-    }
-  };
-
-  const handleSyntheticDataGenerated = (syntheticData: any[]) => {
-    if (syntheticData.length > 0 && originalDataset && datasetPreferences?.targetColumn) {
-      setBalancedParsedData(syntheticData);
-      
-      const updatedDataset = processDataWithTargetColumn(
-        [...parsedData, ...syntheticData], 
-        datasetPreferences.targetColumn
-      );
-      setBalancedDataset(updatedDataset);
-      
-      toast.success(`Added ${syntheticData.length} synthetic samples to the dataset`);
     }
   };
 
@@ -476,12 +464,23 @@ const ImbalancedData = () => {
   const detectClassField = (data: any[]): string | null => {
     if (data.length === 0) return null;
     
-    const possibleClassFields = ['class', 'label', 'category', 'target', 'y', 'Class', 'Label', 'Category', 'Target'];
+    const possibleClassFields = [
+      'class', 'label', 'category', 'target', 'y', 'Class', 'Label', 'Category', 'Target',
+      'diagnosis', 'Diagnosis', 'disease', 'Disease', 'condition', 'Condition', 'type', 'Type'
+    ];
     
     const firstItem = data[0];
     for (const field of possibleClassFields) {
       if (field in firstItem) {
         return field;
+      }
+    }
+    
+    for (const field of Object.keys(firstItem)) {
+      for (const classField of possibleClassFields) {
+        if (field.toLowerCase().includes(classField.toLowerCase())) {
+          return field;
+        }
       }
     }
     
@@ -573,17 +572,6 @@ const ImbalancedData = () => {
               onDownloadBalanced={handleDownloadBalanced}
               hasBalancedData={!!balancedDataset}
               aiRecommendationsAvailable={!!aiRecommendations}
-            />
-          )}
-          
-          {originalDataset && datasetPreferences && (
-            <SyntheticDataGenerator
-              preferences={datasetPreferences}
-              modelOptions={modelOptions}
-              originalData={parsedData}
-              apiKeyAvailable={!!apiKey}
-              onSyntheticDataGenerated={handleSyntheticDataGenerated}
-              originalDataset={originalDataset}
             />
           )}
         </div>
