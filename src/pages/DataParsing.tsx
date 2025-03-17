@@ -31,6 +31,7 @@ const DataParsing: React.FC = () => {
   const [fileMetadata, setFileMetadata] = useState<Record<string, any>>({});
   const [extractedText, setExtractedText] = useState<string>('');
   const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
+  const [isProcessingKeywords, setIsProcessingKeywords] = useState<boolean>(false);
 
   const [selectedProcessingTypes, setSelectedProcessingTypes] = useState<ProcessingType[]>([]);
   const [processingDetailLevel, setProcessingDetailLevel] = useState<'brief' | 'standard' | 'detailed'>('standard');
@@ -53,10 +54,12 @@ const DataParsing: React.FC = () => {
 
       const {
         text,
-        metadata
+        metadata,
+        keywords
       } = await extractTextFromFile(file, apiKey);
       setFileMetadata(metadata);
       setExtractedText(text);
+      setExtractedKeywords(keywords || []);
 
       if (detectedFileType === 'csv' || detectedFileType === 'json') {
         setFileContent(text);
@@ -205,24 +208,21 @@ const DataParsing: React.FC = () => {
     }
   };
 
-  const handleExtractKeywords = async (file: File) => {
-    setIsProcessing(true);
+  const handleExtractKeywords = async () => {
+    setIsProcessingKeywords(true);
     try {
-      const keywords = await extractTextFromFile(fileContent, apiKey);
+      if (!apiKey || !fileContent) {
+        toast.error("API key and file content are required for keyword extraction");
+        return;
+      }
+      const keywords = await extractKeywords(fileContent, apiKey);
       setExtractedKeywords(keywords);
-      toast({
-        title: "Keywords Extracted",
-        description: `Found ${keywords.length} keywords in the document.`,
-      });
+      toast.success(`Found ${keywords.length} keywords in the document.`);
     } catch (error) {
       console.error("Error extracting keywords:", error);
-      toast({
-        title: "Extraction Error",
-        description: "Failed to extract keywords from the file.",
-        variant: "destructive",
-      });
+      toast.error("Failed to extract keywords from the file.");
     } finally {
-      setIsProcessing(false);
+      setIsProcessingKeywords(false);
     }
   };
 
@@ -393,7 +393,7 @@ const DataParsing: React.FC = () => {
                               {isLoading ? <>
                                   <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin mr-2" />
                                   Processing...
-                                </> : <>
+                                </>} : <>
                                   <Sparkles className="mr-2 h-4 w-4" />
                                   Process with AI
                                 </>}
