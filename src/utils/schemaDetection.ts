@@ -2,6 +2,7 @@
 /**
  * Utilities for schema detection and validation
  */
+import { SchemaFieldType } from './fileTypes';
 
 /**
  * Validates a schema format before processing
@@ -55,12 +56,12 @@ export const prepareSchemaForAI = (schema: Record<string, string | Record<string
  * @param data Sample data to analyze
  * @returns A generated schema
  */
-export const generateSchema = (data: any[]): Record<string, string> => {
+export const generateSchema = (data: any[]): Record<string, SchemaFieldType> => {
   if (!data || !data.length) {
     return {};
   }
   
-  const schema: Record<string, string> = {};
+  const schema: Record<string, SchemaFieldType> = {};
   const sampleRecord = data[0];
   
   Object.entries(sampleRecord).forEach(([key, value]) => {
@@ -89,7 +90,7 @@ export const generateSchema = (data: any[]): Record<string, string> => {
       for (let i = 1; i < Math.min(data.length, 10); i++) {
         const alternateValue = data[i][key];
         if (alternateValue !== null) {
-          schema[key] = typeof alternateValue;
+          schema[key] = typeof alternateValue as SchemaFieldType;
           break;
         }
       }
@@ -98,7 +99,7 @@ export const generateSchema = (data: any[]): Record<string, string> => {
         schema[key] = 'string';
       }
     } else if (Array.isArray(value)) {
-      schema[key] = 'array';
+      schema[key] = 'object';
     } else if (type === 'object') {
       schema[key] = 'object';
     } else {
@@ -115,7 +116,7 @@ export const generateSchema = (data: any[]): Record<string, string> => {
  * @param tableName The name for the SQL table
  * @returns SQL CREATE TABLE statement
  */
-export const convertSchemaToSql = (schema: Record<string, string>, tableName: string = 'table_name'): string => {
+export const convertSchemaToSql = (schema: Record<string, SchemaFieldType>, tableName: string = 'table_name'): string => {
   if (!schema || Object.keys(schema).length === 0) {
     return '';
   }
@@ -128,7 +129,16 @@ export const convertSchemaToSql = (schema: Record<string, string>, tableName: st
     'boolean': 'BOOLEAN',
     'date': 'TIMESTAMP',
     'object': 'JSONB',
-    'array': 'JSONB'
+    'function': 'TEXT',
+    'bigint': 'BIGINT',
+    'symbol': 'TEXT',
+    'undefined': 'TEXT',
+    'email': 'TEXT',
+    'phone': 'TEXT',
+    'address': 'TEXT',
+    'name': 'TEXT',
+    'ssn': 'TEXT',
+    'creditcard': 'TEXT'
   };
   
   const columns = Object.entries(schema).map(([column, type]) => {

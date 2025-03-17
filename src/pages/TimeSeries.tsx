@@ -1,1141 +1,497 @@
-
-import { useState, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
-import { 
-  Calendar as CalendarIcon, 
-  DownloadCloud, 
-  Copy, 
-  Save, 
-  BarChart, 
-  RefreshCw,
-  Sparkles,
-  Upload
-} from 'lucide-react';
-import { useForm, Controller } from 'react-hook-form';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import { useApiKey } from '@/contexts/ApiKeyContext';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Progress } from '@/components/ui/progress';
-import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import TimeSeriesChart from '@/components/TimeSeriesChart';
-import FileUploader from '@/components/FileUploader';
-import SchemaEditor from '@/components/SchemaEditor';
-import DataGenerationOptions from '@/components/DataGenerationOptions';
-import DateRangeInfo from '@/components/DateRangeInfo';
-import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema, SchemaFieldType } from '@/utils/fileUploadUtils';
-import { detectTimeSeriesFields, analyzeDataset } from '@/utils/schemaDetectionUtils';
-
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  generateTimeSeriesData,
-  generateTimeSeriesWithAI,
-  addAINoiseToTimeSeries,
-  formatAsCSV,
-  formatAsJSON,
-  downloadData,
-  saveToMockDatabase,
-  TimeSeriesDataPoint,
-  TimeSeriesOptions,
-  AINoiseOptions
-} from '@/services/timeSeriesService';
+  ArrowDown,
+  ArrowUp,
+  Download,
+  Upload,
+  Copy,
+  LineChart,
+  BarChart,
+  AreaChart,
+  Scatter,
+  PanelLeft,
+  PanelRight,
+  RefreshCw
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema } from '@/utils/fileUploadUtils';
+import { SchemaFieldType } from '@/utils/fileTypes';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  AreaElement,
+  ScatterElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  Colors,
+  ScaleOptions,
+  ChartOptions,
+  Plugin
+} from 'chart.js';
+import { Line, Bar, Scatter as ScatterChart, Bubble, Pie, Doughnut, PolarArea, Radar } from 'react-chartjs-2';
+import FileUploader from '@/components/FileUploader';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-type FormValues = TimeSeriesOptions & {
-  outputFormat: 'json' | 'csv';
-  datasetName: string;
-  additionalFieldCount: number;
-  aiPrompt?: string;
-  useAi?: boolean;
-  excludeDefaultValue?: boolean;
-  generationMode: 'new' | 'append';
-};
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  AreaElement,
+  ScatterElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  Colors
+);
 
 const TimeSeries = () => {
-  const { apiKey } = useApiKey();
-  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesDataPoint[]>([]);
-  const [formattedData, setFormattedData] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [isProcessingFile, setIsProcessingFile] = useState(false);
-  const [aiNoisePrompt, setAiNoisePrompt] = useState<string>('');
-  const [isApplyingAiNoise, setIsApplyingAiNoise] = useState<boolean>(false);
-  const [progressPercentage, setProgressPercentage] = useState<number>(0);
-  const [showProgress, setShowProgress] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<string>('generate');
-  const [detectedSchema, setDetectedSchema] = useState<Record<string, SchemaFieldType> | null>(null);
-  const [uploadedTimestampField, setUploadedTimestampField] = useState<string | null>(null);
-  const [datasetAnalysis, setDatasetAnalysis] = useState<any>(null);
-  
-  const { handleSubmit, control, watch, setValue, register, reset, formState: { errors } } = useForm<FormValues>({
-    defaultValues: {
-      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-      endDate: new Date(),
-      interval: 'daily',
-      trend: 'random',
-      noiseLevel: 0.3,
-      dataPoints: 100,
-      outputFormat: 'json',
-      datasetName: 'time_series_' + format(new Date(), 'yyyyMMdd'),
-      additionalFieldCount: 0,
-      additionalFields: [],
-      categories: ['category-A', 'category-B', 'category-C', 'category-D'],
-      seed: Math.floor(Math.random() * 10000),
-      aiPrompt: '',
-      useAi: false,
-      excludeDefaultValue: false,
-      generationMode: 'new'
-    }
-  });
-  
-  const outputFormat = watch('outputFormat');
-  const additionalFields = watch('additionalFields') || [];
-  const useAi = watch('useAi');
-  const excludeDefaultValue = watch('excludeDefaultValue');
-  const generationMode = watch('generationMode');
-  const startDate = watch('startDate');
-  const endDate = watch('endDate');
-  const interval = watch('interval');
-  const dataPoints = watch('dataPoints');
-  
-  // Handle additionalFields changes directly instead of through additionalFieldCount
-  const setAdditionalFields = (fields: any[]) => {
-    setValue('additionalFields', fields);
-    setValue('additionalFieldCount', fields.length);
-  };
-  
-  const onSubmit = async (data: FormValues) => {
-    setLoading(true);
-    setShowProgress(true);
-    setProgressPercentage(0);
-    
-    try {
-      let generatedData: TimeSeriesDataPoint[];
-      
-      if (data.useAi && data.aiPrompt) {
-        generatedData = await generateTimeSeriesWithAI({
-          apiKey,
-          prompt: data.aiPrompt,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          interval: data.interval,
-          dataPoints: data.dataPoints,
-          additionalFields: data.additionalFields,
-          existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
-            ? timeSeriesData 
-            : undefined,
-          excludeDefaultValue: data.excludeDefaultValue,
-          onProgressUpdate: setProgressPercentage
-        });
-      } else {
-        // For manual generation, simulate progress
-        setProgressPercentage(25);
-        setTimeout(() => setProgressPercentage(50), 300);
-        setTimeout(() => setProgressPercentage(75), 500);
-        
-        generatedData = generateTimeSeriesData({
-          ...data,
-          excludeDefaultValue: data.excludeDefaultValue,
-          existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
-            ? timeSeriesData 
-            : undefined
-        });
-        
-        setTimeout(() => setProgressPercentage(100), 700);
-      }
-      
-      // If appending, combine with existing data
-      if (data.generationMode === 'append' && timeSeriesData.length > 0) {
-        // Ensure no duplicate timestamps by creating a Map
-        const uniqueData = new Map<string, TimeSeriesDataPoint>();
-        
-        // Add existing data to map
-        timeSeriesData.forEach(item => {
-          uniqueData.set(item.timestamp, item);
-        });
-        
-        // Add or replace with new data
-        generatedData.forEach(item => {
-          uniqueData.set(item.timestamp, item);
-        });
-        
-        // Convert map back to array and sort by timestamp
-        generatedData = Array.from(uniqueData.values()).sort((a, b) => {
-          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-        });
-      }
-      
-      setTimeSeriesData(generatedData);
-      
-      const formatted = data.outputFormat === 'csv'
-        ? formatAsCSV(generatedData)
-        : formatAsJSON(generatedData);
-        
-      setFormattedData(formatted);
-      
-      // Update date range info when new data is generated
-      if (generatedData.length > 0) {
-        updateDatasetAnalysis(generatedData);
-      }
-      
-      toast.success(`Generated ${generatedData.length} time series data points`);
-    } catch (error) {
-      console.error('Error generating time series data:', error);
-      toast.error('Failed to generate time series data');
-    } finally {
-      setLoading(false);
-      // Hide progress after a delay
-      setTimeout(() => setShowProgress(false), 1000);
-    }
-  };
-  
-  // Update additional fields when schema changes
+  const { toast } = useToast();
+  const [data, setData] = useState<any[]>([]);
+  const [schema, setSchema] = useState<Record<string, SchemaFieldType>>({});
+  const [timeColumn, setTimeColumn] = useState<string>('');
+  const [valueColumn, setValueColumn] = useState<string>('');
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'scatter' | 'area'>('line');
+  const [chartTitle, setChartTitle] = useState<string>('Time Series Data');
+  const [xAxisLabel, setXAxisLabel] = useState<string>('Time');
+  const [yAxisLabel, setYAxisLabel] = useState<string>('Value');
+  const [loading, setLoading] = useState(false);
+  const [chartOptions, setChartOptions] = useState<ChartOptions>({});
+  const [customOptions, setCustomOptions] = useState<string>('');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [chartData, setChartData] = useState<any>(null);
+
   useEffect(() => {
-    if (detectedSchema && Object.keys(detectedSchema).length > 0) {
-      const schemaFields = Object.entries(detectedSchema)
-        .filter(([key, type]) => {
-          // Exclude timestamp and optionally value fields
-          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
-        })
-        .map(([key, type]) => {
-          // Convert schema type to additionalField type
-          let fieldType: 'number' | 'boolean' | 'category' = 'number';
-          
-          if (type === 'boolean') {
-            fieldType = 'boolean';
-          } else if (type === 'string' || type === 'address' || type === 'name') {
-            fieldType = 'category';
-          }
-          
-          return { name: key, type: fieldType };
-        });
-      
-      setAdditionalFields(schemaFields);
-    }
-  }, [detectedSchema, excludeDefaultValue]);
-  
-  const handleSave = async () => {
-    if (!timeSeriesData.length) {
-      toast.warning('No data to save. Please generate data first.');
+    updateChartData();
+  }, [data, timeColumn, valueColumn, chartType, chartTitle, xAxisLabel, yAxisLabel, schema, isDarkTheme]);
+
+  const updateChartData = () => {
+    if (!data || data.length === 0 || !timeColumn || !valueColumn) {
+      setChartData(null);
       return;
     }
-    
-    setSaving(true);
-    
-    try {
-      const datasetName = watch('datasetName');
-      await saveToMockDatabase(timeSeriesData, datasetName);
-    } finally {
-      setSaving(false);
-    }
+
+    const labels = data.map(item => item[timeColumn]);
+    const values = data.map(item => item[valueColumn]);
+
+    const datasets = [
+      {
+        label: yAxisLabel,
+        data: values,
+        backgroundColor: chartType === 'bar' ? 'rgba(54, 162, 235, 0.8)' : 'rgba(54, 162, 235, 0.4)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 2,
+        fill: chartType === 'area',
+        tension: 0.4,
+        pointRadius: chartType === 'scatter' ? 5 : 3,
+        pointHoverRadius: chartType === 'scatter' ? 8 : 5,
+      }
+    ];
+
+    setChartData({
+      labels,
+      datasets,
+    });
   };
-  
-  const handleDownload = () => {
-    if (!formattedData) {
-      toast.warning('No data to download. Please generate data first.');
-      return;
-    }
-    
-    const format = watch('outputFormat');
-    const fileName = `${watch('datasetName')}.${format}`;
-    downloadData(formattedData, fileName, format);
-  };
-  
-  const handleCopyToClipboard = () => {
-    if (!formattedData) {
-      toast.warning('No data to copy. Please generate data first.');
-      return;
-    }
-    
-    navigator.clipboard.writeText(formattedData)
-      .then(() => toast.success('Data copied to clipboard'))
-      .catch(() => toast.error('Failed to copy data'));
-  };
-  
-  const handleApplyAiNoise = async () => {
-    if (!timeSeriesData.length) {
-      toast.warning('No data to modify. Please generate or upload data first.');
-      return;
-    }
-    
-    if (!aiNoisePrompt) {
-      toast.warning('Please provide instructions for AI noise generation.');
-      return;
-    }
-    
-    setIsApplyingAiNoise(true);
-    setShowProgress(true);
-    setProgressPercentage(0);
-    
-    try {
-      const noiseLevel = watch('noiseLevel');
-      const options: AINoiseOptions = {
-        apiKey,
-        data: timeSeriesData,
-        prompt: aiNoisePrompt,
-        noiseLevel,
-        onProgressUpdate: setProgressPercentage
-      };
-      
-      const modifiedData = await addAINoiseToTimeSeries(options);
-      
-      setTimeSeriesData(modifiedData);
-      
-      const formatted = outputFormat === 'csv'
-        ? formatAsCSV(modifiedData)
-        : formatAsJSON(modifiedData);
-        
-      setFormattedData(formatted);
-      
-      toast.success('Applied AI-generated noise to time series data');
-    } catch (error) {
-      console.error('Error applying AI noise:', error);
-      toast.error('Failed to apply AI noise');
-    } finally {
-      setIsApplyingAiNoise(false);
-      // Hide progress after a delay
-      setTimeout(() => setShowProgress(false), 1000);
-    }
-  };
-  
-  const updateDatasetAnalysis = (data: TimeSeriesDataPoint[]) => {
-    if (!data.length) return;
-    
-    try {
-      // Get timestamps from data
-      const timestamps = data.map(item => new Date(item.timestamp));
-      
-      // Find min and max dates
-      const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
-      const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
-      
-      // Get time interval if available
-      const timeInterval = detectTimeInterval(timestamps);
-      
-      const analysis = {
-        dataPoints: data.length,
-        dateRange: {
-          start: minDate,
-          end: maxDate,
-          interval: timeInterval
-        }
-      };
-      
-      setDatasetAnalysis(analysis);
-    } catch (error) {
-      console.error('Error analyzing dataset:', error);
-    }
-  };
-  
+
   const handleFileUpload = async (file: File) => {
     try {
-      setUploadedFile(file);
-      setIsProcessingFile(true);
-      
+      setLoading(true);
       const content = await readFileContent(file);
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
       
       let parsedData;
-      
-      if (fileExt === 'csv') {
+      if (file.name.endsWith('.csv')) {
         parsedData = parseCSV(content);
-      } else if (fileExt === 'json') {
+      } else if (file.name.endsWith('.json')) {
         parsedData = parseJSON(content);
       } else {
-        throw new Error('Unsupported file format. Please upload CSV or JSON.');
+        toast({
+          title: "Error",
+          description: "Unsupported file format. Please upload CSV or JSON.",
+          variant: "destructive",
+        });
+        return;
       }
       
-      // Process the data and detect schema
-      const timeSeriesData = processUploadedTimeSeriesData(parsedData);
-      setTimeSeriesData(timeSeriesData);
+      setData(parsedData);
       
-      // Generate formatted data for display
-      const formatted = outputFormat === 'csv'
-        ? formatAsCSV(timeSeriesData)
-        : formatAsJSON(timeSeriesData);
+      const typeResult = detectDataType(parsedData);
+      if (typeResult.dataType !== 'timeseries') {
+        toast({
+          title: "Warning",
+          description: "The uploaded data doesn't appear to be time series data. Some features may not work correctly.",
+          variant: "warning",
+        });
+      }
       
-      setFormattedData(formatted);
+      // Convert the schema to SchemaFieldType format
+      const detectedSchema = generateSchema(parsedData);
       
-      // Extract schema from the data
-      const schema = generateSchema(timeSeriesData);
-      setDetectedSchema(schema);
+      // Type conversion for the schema
+      const convertedSchema: Record<string, SchemaFieldType> = {};
+      Object.entries(detectedSchema).forEach(([key, value]) => {
+        convertedSchema[key] = value as SchemaFieldType;
+      });
       
-      // Analyze the dataset and extract properties
-      updateDatasetAnalysis(timeSeriesData);
+      setSchema(convertedSchema);
       
-      // Set detected dataset properties to the form
-      updateFormWithDetectedSchema(timeSeriesData, schema);
+      // Identify time columns
+      const timeColumns = Object.entries(convertedSchema)
+        .filter(([_, type]) => type === 'date')
+        .map(([col]) => col);
       
-      // Automatically switch to generate tab
-      setActiveTab('generate');
+      if (timeColumns.length > 0) {
+        setTimeColumn(timeColumns[0]);
+      }
       
-      toast.success(`Processed ${timeSeriesData.length} time series data points and detected schema`);
+      // Identify numeric columns for values
+      const numericColumns = Object.entries(convertedSchema)
+        .filter(([_, type]) => type === 'integer' || type === 'float' || type === 'number')
+        .map(([col]) => col);
+      
+      if (numericColumns.length > 0) {
+        setValueColumn(numericColumns[0]);
+      }
+      
+      toast({
+        title: "Success",
+        description: `Loaded ${parsedData.length} rows of data`,
+      });
     } catch (error) {
       console.error('Error processing file:', error);
-      toast.error((error as Error).message || 'Failed to process file');
+      toast({
+        title: "Error",
+        description: "Failed to process the file. Please check the format.",
+        variant: "destructive",
+      });
     } finally {
-      setIsProcessingFile(false);
+      setLoading(false);
     }
   };
-  
-  // New function to update form with detected schema
-  const updateFormWithDetectedSchema = (data: TimeSeriesDataPoint[], schema: Record<string, SchemaFieldType>) => {
-    if (!data.length) return;
-    
+
+  const handleChartOptionsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCustomOptions(event.target.value);
     try {
-      // Detect date range from the data
-      const timestamps = data.map(item => new Date(item.timestamp));
-      const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
-      const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
-      
-      // Set start and end dates based on the data
-      setValue('startDate', minDate);
-      setValue('endDate', maxDate);
-      
-      // Detect interval (daily, hourly, etc.)
-      const detectedInterval = detectTimeInterval(timestamps);
-      if (detectedInterval) {
-        setValue('interval', detectedInterval);
-      }
-      
-      // Update dataset name based on file
-      if (uploadedFile) {
-        const fileName = uploadedFile.name.split('.')[0];
-        setValue('datasetName', fileName);
-      }
-      
-      // Convert schema to additionalFields format
-      const schemaFields = Object.entries(schema)
-        .filter(([key, type]) => {
-          // Exclude timestamp and default value fields
-          return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
-        })
-        .map(([key, type]) => {
-          // Convert schema type to additionalField type
-          let fieldType: 'number' | 'boolean' | 'category' = 'number';
-          
-          if (type === 'boolean') {
-            fieldType = 'boolean';
-          } else if (type === 'string' || type === 'address' || type === 'name') {
-            fieldType = 'category';
-          }
-          
-          return { name: key, type: fieldType };
-        });
-      
-      // Update the additionalFields in the form
-      setAdditionalFields(schemaFields);
-      
-      // Exclude default value if specified
-      setValue('excludeDefaultValue', schema['value'] ? false : true);
-      
-      // Get data points count
-      setValue('dataPoints', data.length);
-      
-      // Default to append mode when data is uploaded
-      setValue('generationMode', 'append');
+      const parsedOptions = JSON.parse(event.target.value);
+      setChartOptions(parsedOptions);
+      toast({
+        title: "Success",
+        description: "Custom chart options applied.",
+      });
     } catch (error) {
-      console.error('Error updating form with detected schema:', error);
+      console.error("Invalid JSON format:", error);
+      toast({
+        title: "Error",
+        description: "Invalid JSON format in custom options.",
+        variant: "destructive",
+      });
     }
   };
-  
-  // Helper function to detect time interval in the data
-  const detectTimeInterval = (timestamps: Date[]): 'hourly' | 'daily' | 'weekly' | 'monthly' | undefined => {
-    if (timestamps.length < 2) return undefined;
-    
-    // Sort dates chronologically
-    timestamps.sort((a, b) => a.getTime() - b.getTime());
-    
-    // Calculate average difference between consecutive timestamps in milliseconds
-    let totalDiff = 0;
-    for (let i = 1; i < Math.min(10, timestamps.length); i++) {
-      totalDiff += timestamps[i].getTime() - timestamps[i-1].getTime();
-    }
-    
-    const avgDiffMs = totalDiff / Math.min(9, timestamps.length - 1);
-    
-    // Convert to appropriate interval
-    const hourMs = 60 * 60 * 1000;
-    const dayMs = 24 * hourMs;
-    const weekMs = 7 * dayMs;
-    const monthMs = 30 * dayMs; // Approximate
-    
-    if (avgDiffMs < 2 * hourMs) return 'hourly';
-    if (avgDiffMs < 2 * dayMs) return 'daily';
-    if (avgDiffMs < 2 * weekMs) return 'weekly';
-    return 'monthly';
-  };
-  
-  const processUploadedTimeSeriesData = (data: any[]): TimeSeriesDataPoint[] => {
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error('Invalid data format. Expected an array of records.');
-    }
-    
-    const timestampField = detectTimestampField(data);
-    if (!timestampField) {
-      throw new Error('Could not identify timestamp field in the data');
-    }
-    
-    const valueFields = detectValueFields(data, timestampField);
-    if (valueFields.length === 0) {
-      throw new Error('Could not identify any numeric value fields in the data');
-    }
-    
-    const processedData: TimeSeriesDataPoint[] = data.map(item => {
-      const timestamp = parseTimestamp(item[timestampField]);
-      const point: TimeSeriesDataPoint = { 
-        timestamp,
-        value: 0 // Initialize with a default value
-      };
-      
-      if (valueFields.length > 0) {
-        point.value = parseFloat(item[valueFields[0]]);
-      }
-      
-      valueFields.forEach(field => {
-        const value = parseFloat(item[field]);
-        if (!isNaN(value)) {
-          point[field] = value;
-        }
+
+  const handleDownload = () => {
+    if (!chartData) {
+      toast({
+        title: "Error",
+        description: "No chart data available to download.",
+        variant: "destructive",
       });
-      
-      Object.keys(item).forEach(field => {
-        if (field !== timestampField && !valueFields.includes(field)) {
-          const value = item[field];
-          if (typeof value === 'string' || typeof value === 'boolean') {
-            point[field] = value;
-          }
-        }
+      return;
+    }
+
+    const chartCanvas = document.querySelector('canvas');
+    if (!chartCanvas) {
+      toast({
+        title: "Error",
+        description: "Chart canvas not found.",
+        variant: "destructive",
       });
-      
-      return point;
+      return;
+    }
+
+    const chartImage = chartCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = chartImage;
+    link.download = 'time_series_chart.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Success",
+      description: "Chart downloaded successfully.",
     });
-    
-    processedData.sort((a, b) => {
-      const dateA = new Date(a.timestamp);
-      const dateB = new Date(b.timestamp);
-      return dateA.getTime() - dateB.getTime();
-    });
-    
-    // Store the detected timestamp field for later use
-    if (timestampField) {
-      setUploadedTimestampField(timestampField);
-    }
-    
-    return processedData;
   };
-  
-  const detectTimestampField = (data: any[]): string | null => {
-    const firstItem = data[0];
-    
-    const possibleTimestampFields = [
-      'timestamp', 'time', 'date', 'datetime', 'dateTime', 
-      'time_stamp', 'time-stamp', 'date_time', 'date-time'
-    ];
-    
-    for (const field of possibleTimestampFields) {
-      if (field in firstItem) {
-        try {
-          const parsed = new Date(firstItem[field]);
-          if (!isNaN(parsed.getTime())) {
-            return field;
-          }
-        } catch (e) { /* Not a valid date */ }
-      }
-    }
-    
-    for (const field of Object.keys(firstItem)) {
-      try {
-        const value = firstItem[field];
-        if (typeof value === 'string' || value instanceof Date) {
-          const parsed = new Date(value);
-          if (!isNaN(parsed.getTime())) {
-            return field;
-          }
+
+  const chartJsOptions: ChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      title: {
+        display: true,
+        text: chartTitle,
+        color: isDarkTheme ? '#fff' : '#000',
+      },
+      legend: {
+        display: true,
+        labels: {
+          color: isDarkTheme ? '#fff' : '#000',
         }
-      } catch (e) { /* Not a valid date */ }
-    }
-    
-    return null;
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: xAxisLabel,
+          color: isDarkTheme ? '#fff' : '#000',
+        },
+        ticks: {
+          color: isDarkTheme ? '#fff' : '#000',
+        },
+        grid: {
+          color: isDarkTheme ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }
+      },
+      y: {
+        title: {
+          display: true,
+          text: yAxisLabel,
+          color: isDarkTheme ? '#fff' : '#000',
+        },
+        ticks: {
+          color: isDarkTheme ? '#fff' : '#000',
+        },
+        grid: {
+          color: isDarkTheme ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }
+      },
+    },
+    backgroundColor: isDarkTheme ? '#333' : '#fff',
+    color: isDarkTheme ? '#fff' : '#000',
+    ...chartOptions,
   };
-  
-  const detectValueFields = (data: any[], timestampField: string): string[] => {
-    const firstItem = data[0];
-    const valueFields: string[] = [];
-    
-    for (const field of Object.keys(firstItem)) {
-      if (field !== timestampField) {
-        const value = firstItem[field];
-        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)))) {
-          valueFields.push(field);
-        }
-      }
-    }
-    
-    return valueFields;
-  };
-  
-  const parseTimestamp = (value: any): string => {
-    if (!value) return new Date().toISOString();
-    
-    try {
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-      
-      if (typeof value === 'string') {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          return date.toISOString();
-        }
-      }
-      
-      if (typeof value === 'number') {
-        const date = value > 10000000000 
-          ? new Date(value) 
-          : new Date(value * 1000);
-          
-        if (!isNaN(date.getTime())) {
-          return date.toISOString();
-        }
-      }
-      
-      return new Date().toISOString();
-    } catch (e) {
-      return new Date().toISOString();
-    }
-  };
-  
-  // Get field names for the chart
-  const additionalFieldNames = useMemo(() => {
-    if (!timeSeriesData.length) return [];
-    
-    return Object.keys(timeSeriesData[0])
-      .filter(key => {
-        // Include only numeric fields that are not the timestamp or default value (if excluded)
-        return (
-          key !== 'timestamp' && 
-          typeof timeSeriesData[0][key] === 'number' && 
-          (!excludeDefaultValue || key !== 'value')
-        );
-      });
-  }, [timeSeriesData, excludeDefaultValue]);
-  
+
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="w-full md:w-1/3">
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Time Series Analysis</h1>
+        <p className="text-muted-foreground mt-2">
+          Visualize time series data with interactive charts and customizable options.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Time Series Generator</CardTitle>
-              <CardDescription>
-                Configure and generate time series data with various patterns
-              </CardDescription>
+              <CardTitle>Data Input</CardTitle>
+              <CardDescription>Upload your time series data in CSV or JSON format</CardDescription>
             </CardHeader>
-            
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="generate">Generate</TabsTrigger>
-                  <TabsTrigger value="upload">Upload</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="generate">
-                  <form id="time-series-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* Schema detection notification */}
-                    {detectedSchema && (
-                      <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md mb-4">
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                          Using schema from uploaded file
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {uploadedFile?.name} · {Object.keys(detectedSchema).length} fields detected
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Display date range info when available */}
-                    {datasetAnalysis && (
-                      <DateRangeInfo 
-                        startDate={datasetAnalysis.dateRange.start}
-                        endDate={datasetAnalysis.dateRange.end}
-                        interval={datasetAnalysis.dateRange.interval}
-                        dataPoints={datasetAnalysis.dataPoints}
-                      />
-                    )}
-                    
-                    {/* Generation mode selector for uploaded data */}
-                    <DataGenerationOptions 
-                      generationMode={generationMode}
-                      onGenerationModeChange={(mode) => setValue('generationMode', mode)}
-                      hasExistingData={timeSeriesData.length > 0}
-                    />
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="datasetName">Dataset Name</Label>
-                      <Input
-                        id="datasetName"
-                        placeholder="Enter dataset name"
-                        {...register('datasetName', { required: 'Dataset name is required' })}
-                      />
-                      {errors.datasetName && (
-                        <p className="text-sm text-destructive">{errors.datasetName.message}</p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="useAi" 
-                        checked={useAi} 
-                        onCheckedChange={(checked) => setValue('useAi', checked)} 
-                      />
-                      <Label htmlFor="useAi" className="font-medium">
-                        Use AI Generation
-                      </Label>
-                    </div>
-                    
-                    {useAi && (
-                      <ApiKeyRequirement>
-                        <div className="space-y-2">
-                          <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
-                          <Textarea
-                            id="aiPrompt"
-                            placeholder={timeSeriesData.length > 0 
-                              ? "Describe how to enhance this existing data (e.g., 'Add seasonal patterns and extend by 30 days')" 
-                              : "Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data')"}
-                            className="h-24"
-                            {...register('aiPrompt')}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            {timeSeriesData.length > 0 
-                              ? "Describe how you want to enhance or extend the uploaded data" 
-                              : "Describe domain, patterns, seasonality, trends, and any specific characteristics"}
-                          </p>
-                        </div>
-                      </ApiKeyRequirement>
-                    )}
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Start Date</Label>
-                        <Controller
-                          control={control}
-                          name="startDate"
-                          render={({ field }) => (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                  }
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>End Date</Label>
-                        <Controller
-                          control={control}
-                          name="endDate"
-                          render={({ field }) => (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                  }
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Conditional heading based on whether data is uploaded or being created */}
-                    <div className="border-t pt-4 mt-4">
-                      <h3 className="font-medium mb-2">
-                        {timeSeriesData.length > 0 ? "Modification Options" : "Generation Options"}
-                      </h3>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="interval">Time Interval</Label>
-                      <Controller
-                        control={control}
-                        name="interval"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select interval" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="hourly">Hourly</SelectItem>
-                              <SelectItem value="daily">Daily</SelectItem>
-                              <SelectItem value="weekly">Weekly</SelectItem>
-                              <SelectItem value="monthly">Monthly</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="dataPoints">
-                        {timeSeriesData.length > 0 ? "Additional Data Points" : "Number of Data Points"}
-                      </Label>
-                      <Input
-                        id="dataPoints"
-                        type="number"
-                        {...register('dataPoints', { 
-                          required: 'Required',
-                          min: { value: 2, message: 'Minimum 2 points' },
-                          max: { value: 10000, message: 'Maximum 10000 points' }
-                        })}
-                      />
-                      {errors.dataPoints && (
-                        <p className="text-sm text-destructive">{errors.dataPoints.message}</p>
-                      )}
-                      {timeSeriesData.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Current dataset: {timeSeriesData.length} points
-                        </p>
-                      )}
-                    </div>
-                    
-                    {!useAi && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="trend">
-                            {timeSeriesData.length > 0 ? "Modification Pattern" : "Trend Pattern"}
-                          </Label>
-                          <Controller
-                            control={control}
-                            name="trend"
-                            render={({ field }) => (
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select trend" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="random">Random</SelectItem>
-                                  <SelectItem value="upward">Upward</SelectItem>
-                                  <SelectItem value="downward">Downward</SelectItem>
-                                  <SelectItem value="seasonal">Seasonal</SelectItem>
-                                  <SelectItem value="cyclical">Cyclical</SelectItem>
-                                  {timeSeriesData.length > 0 && (
-                                    <SelectItem value="extend">Extend Similar Pattern</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <Label htmlFor="noiseLevel">Noise Level</Label>
-                            <span className="text-sm text-muted-foreground">
-                              {Math.round(watch('noiseLevel') * 100)}%
-                            </span>
-                          </div>
-                          <Controller
-                            control={control}
-                            name="noiseLevel"
-                            render={({ field: { value, onChange } }) => (
-                              <Slider
-                                defaultValue={[value]}
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                onValueChange={(vals) => onChange(vals[0])}
-                              />
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="seed">Random Seed</Label>
-                          <Input
-                            id="seed"
-                            type="number"
-                            {...register('seed', { valueAsNumber: true })}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Use the same seed to generate reproducible results
-                          </p>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Add option to exclude default value field */}
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="excludeDefaultValue" 
-                        checked={excludeDefaultValue} 
-                        onCheckedChange={(checked) => setValue('excludeDefaultValue', checked)} 
-                      />
-                      <Label htmlFor="excludeDefaultValue" className="font-medium">
-                        Exclude default "value" field
-                      </Label>
-                    </div>
-                    
-                    {/* Replace the numeric field count input with the schema editor */}
-                    {detectedSchema && (
-                      <SchemaEditor
-                        schema={detectedSchema}
-                        additionalFields={additionalFields}
-                        setAdditionalFields={setAdditionalFields}
-                        excludeDefaultValue={excludeDefaultValue}
-                      />
-                    )}
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="outputFormat">Output Format</Label>
-                      <Controller
-                        control={control}
-                        name="outputFormat"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="json">JSON</SelectItem>
-                              <SelectItem value="csv">CSV</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </form>
-                </TabsContent>
-                
-                <TabsContent value="upload">
-                  <div className="space-y-4">
-                    <FileUploader
-                      onFileUpload={handleFileUpload}
-                      accept=".csv, .json"
-                      title="Upload Time Series Data"
-                      description="Upload a CSV or JSON file with timestamp and values"
-                    />
-                    
-                    {uploadedFile && (
-                      <div className="text-sm text-muted-foreground mt-2">
-                        <p className="font-medium">File: {uploadedFile.name}</p>
-                        <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                      </div>
-                    )}
-                    
-                    {timeSeriesData.length > 0 && (
-                      <ApiKeyRequirement>
-                        <Card className="mt-4">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base">AI Enhancements</CardTitle>
-                            <CardDescription>
-                              Enhance uploaded data with AI-generated patterns
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="aiNoisePrompt">AI Enhancement Instructions</Label>
-                                <Textarea
-                                  id="aiNoisePrompt"
-                                  placeholder="Describe how to modify the data (e.g., 'Add weekly seasonality pattern with 20% higher values on weekends')"
-                                  className="h-24"
-                                  value={aiNoisePrompt}
-                                  onChange={(e) => setAiNoisePrompt(e.target.value)}
-                                />
-                              </div>
-                              
-                              <Button 
-                                onClick={handleApplyAiNoise} 
-                                disabled={isApplyingAiNoise || !apiKey}
-                                className="w-full"
-                              >
-                                {isApplyingAiNoise ? (
-                                  <>
-                                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                    Applying AI Enhancements...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="mr-2 h-4 w-4" />
-                                    Apply AI Enhancements
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </ApiKeyRequirement>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-            
-            <CardFooter className="flex-col space-y-2">
-              {showProgress && (
-                <div className="w-full space-y-1 mb-2">
-                  <Progress value={progressPercentage} />
-                  <p className="text-xs text-right text-muted-foreground">
-                    {Math.round(progressPercentage)}%
-                  </p>
+            <CardContent className="space-y-4">
+              <FileUploader
+                onFileUpload={handleFileUpload}
+                accept=".csv,.json"
+                maxSize={5}
+                title="Upload Time Series Data"
+                description="Upload a CSV or JSON file with time series data"
+              />
+              {loading && (
+                <div className="flex items-center justify-center space-x-2 py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                  <span className="text-sm">Processing file...</span>
                 </div>
               )}
-              
-              <div className="flex gap-2 w-full">
-                <Button 
-                  type="submit" 
-                  form="time-series-form" 
-                  className="flex-1" 
-                  disabled={loading || activeTab !== 'generate'}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : timeSeriesData.length > 0 ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Update
-                    </>
-                  ) : (
-                    <>
-                      <BarChart className="mr-2 h-4 w-4" />
-                      Generate
-                    </>
-                  )}
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={handleDownload}
-                  disabled={!formattedData}
-                >
-                  <DownloadCloud className="h-4 w-4" />
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={handleCopyToClipboard}
-                  disabled={!formattedData}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {timeSeriesData.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Dataset
-                    </>
-                  )}
-                </Button>
+              {data.length > 0 && !loading && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  <p>Rows: {data.length}</p>
+                  <p>Columns: {Object.keys(schema).length}</p>
+                </div>
               )}
-            </CardFooter>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Chart Configuration</CardTitle>
+              <CardDescription>Customize your chart settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="time-column">Time Column</Label>
+                <Select value={timeColumn} onValueChange={setTimeColumn}>
+                  <SelectTrigger id="time-column">
+                    <SelectValue placeholder="Select time column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(schema).filter(key => schema[key] === 'date').map(column => (
+                      <SelectItem key={column} value={column}>{column}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="value-column">Value Column</Label>
+                <Select value={valueColumn} onValueChange={setValueColumn}>
+                  <SelectTrigger id="value-column">
+                    <SelectValue placeholder="Select value column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(schema).filter(key => schema[key] === 'integer' || schema[key] === 'float' || schema[key] === 'number').map(column => (
+                      <SelectItem key={column} value={column}>{column}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="chart-type">Chart Type</Label>
+                <Select value={chartType} onValueChange={setChartType}>
+                  <SelectTrigger id="chart-type">
+                    <SelectValue placeholder="Select chart type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="line">Line</SelectItem>
+                    <SelectItem value="bar">Bar</SelectItem>
+                    <SelectItem value="scatter">Scatter</SelectItem>
+                    <SelectItem value="area">Area</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="chart-title">Chart Title</Label>
+                <Input
+                  type="text"
+                  id="chart-title"
+                  value={chartTitle}
+                  onChange={(e) => setChartTitle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="x-axis-label">X-Axis Label</Label>
+                <Input
+                  type="text"
+                  id="x-axis-label"
+                  value={xAxisLabel}
+                  onChange={(e) => setXAxisLabel(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="y-axis-label">Y-Axis Label</Label>
+                <Input
+                  type="text"
+                  id="y-axis-label"
+                  value={yAxisLabel}
+                  onChange={(e) => setYAxisLabel(e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Options</CardTitle>
+              <CardDescription>Customize chart.js options (JSON format)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show-advanced-options">Show Advanced Options</Label>
+                <Switch
+                  id="show-advanced-options"
+                  checked={showAdvancedOptions}
+                  onCheckedChange={setShowAdvancedOptions}
+                />
+              </div>
+              {showAdvancedOptions && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-options">Custom Options (JSON)</Label>
+                  <Textarea
+                    id="custom-options"
+                    placeholder='e.g., {"scales": {"y": {"beginAtZero": true}}}'
+                    value={customOptions}
+                    onChange={handleChartOptionsChange}
+                    className="min-h-[100px]"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Theme</CardTitle>
+              <CardDescription>Toggle between light and dark themes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="theme-toggle">Dark Theme</Label>
+                <Switch
+                  id="theme-toggle"
+                  checked={isDarkTheme}
+                  onCheckedChange={setIsDarkTheme}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Chart</CardTitle>
+              <CardDescription>Download the chart as a PNG image</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={handleDownload} disabled={!chartData}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Chart
+              </Button>
+            </CardContent>
           </Card>
         </div>
-        
-        <div className="w-full md:w-2/3 space-y-4">
-          {timeSeriesData.length > 0 ? (
-            <TimeSeriesChart 
-              data={timeSeriesData} 
-              title="Time Series Data Preview" 
-              additionalFields={additionalFieldNames}
-              defaultValue={excludeDefaultValue ? undefined : 'value'}
-              className="h-[500px]"
-            />
-          ) : (
-            <Card className="h-[500px]">
-              <CardContent className="flex flex-col items-center justify-center h-full p-6">
-                <div className="text-center space-y-3">
-                  <BarChart className="h-12 w-12 text-muted-foreground mx-auto" />
-                  <h3 className="font-medium text-xl">No Time Series Data</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    Generate a new time series data set using the form or upload an existing CSV/JSON file to visualize and manipulate time series data.
-                  </p>
+
+        <div className="lg:col-span-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Time Series Chart</CardTitle>
+              <CardDescription>Interactive visualization of your time series data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartData ? (
+                <div className="h-[500px] w-full">
+                  {chartType === 'line' && <Line data={chartData} options={chartJsOptions} />}
+                  {chartType === 'bar' && <Bar data={chartData} options={chartJsOptions} />}
+                  {chartType === 'scatter' && <ScatterChart data={chartData} options={chartJsOptions} />}
+                  {chartType === 'area' && <Line data={chartData} options={chartJsOptions} />}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {formattedData && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Generated Data</CardTitle>
-                <CardDescription>Preview of the generated time series data</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <pre className="bg-secondary/20 p-4 rounded-md overflow-auto max-h-96 text-xs">
-                  {formattedData.length > 10000 
-                    ? formattedData.substring(0, 10000) + "... (truncated)"
-                    : formattedData
-                  }
-                </pre>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+                  {loading ? 'Loading chart...' : 'Upload data and configure settings to generate a chart'}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

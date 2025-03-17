@@ -15,8 +15,8 @@ export interface DatasetInfo {
   imbalanceRatio: number;
   minorityClass: string;
   majorityClass: string;
-  totalSamples: number;  // Add the missing totalSamples property
-  isImbalanced: boolean; // Add the missing isImbalanced property
+  totalSamples: number;
+  isImbalanced: boolean;
 }
 
 export interface BalancedDataResult {

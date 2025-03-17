@@ -68,6 +68,9 @@ function SyntheticData() {
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<"json" | "csv" | "database">("json");
+  const [tableName, setTableName] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -192,6 +195,38 @@ function SyntheticData() {
     } catch (error) {
       console.error("Error saving to database:", error);
       toast.error("Error saving to database. Please try again.");
+    }
+  };
+
+  const handleExportClick = async () => {
+    if (!generatedData || generatedData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    
+    try {
+      if (exportFormat === "database" && tableName) {
+        setIsSaving(true);
+        const result = await saveSyntheticDataToDatabase(generatedData, tableName);
+        setIsSaving(false);
+        
+        if (result.success) {
+          toast.success(`Saved ${result.count} records to database table: ${tableName}`);
+        } else {
+          toast.error(result.message || 'Failed to save to database');
+        }
+      } else {
+        // Export to file format
+        downloadSyntheticData(
+          generatedData, 
+          `synthetic_data_${new Date().toISOString().slice(0, 10)}`,
+          exportFormat as 'json' | 'csv'
+        );
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('Failed to export data');
+      setIsSaving(false);
     }
   };
 
@@ -638,6 +673,14 @@ function SyntheticData() {
                       >
                         <Database className="h-4 w-4" />
                         Save to Database
+                      </Button>
+                      <Button 
+                        onClick={handleExportClick}
+                        variant="secondary"
+                        className="gap-2"
+                      >
+                        <FileJson className="h-4 w-4" />
+                        Export to File
                       </Button>
                     </CardFooter>
                   </Card>

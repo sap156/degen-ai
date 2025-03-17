@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -17,13 +18,20 @@ export * from './textExtraction';
 export * from './schemaDetection';
 
 /**
+ * Result type for data type detection
+ */
+export interface DataTypeResult {
+  dataType: 'timeseries' | 'categorical' | 'tabular' | 'unknown';
+}
+
+/**
  * Detects the type of data in a file
  * @param data The parsed data from a file
- * @returns The detected data type
+ * @returns The detected data type result
  */
-export const detectDataType = (data: any[]): 'timeseries' | 'categorical' | 'tabular' | 'unknown' => {
+export const detectDataType = (data: any[]): DataTypeResult => {
   if (!data || data.length === 0) {
-    return 'unknown';
+    return { dataType: 'unknown' };
   }
   
   const sampleRecord = data[0];
@@ -40,7 +48,7 @@ export const detectDataType = (data: any[]): 'timeseries' | 'categorical' | 'tab
   });
   
   if (dateFields.length > 0) {
-    return 'timeseries';
+    return { dataType: 'timeseries' };
   }
   
   // Check for categorical data (mostly string values)
@@ -57,11 +65,11 @@ export const detectDataType = (data: any[]): 'timeseries' | 'categorical' | 'tab
   });
   
   if (stringCount > numericCount) {
-    return 'categorical';
+    return { dataType: 'categorical' };
   }
   
   // Default to tabular
-  return 'tabular';
+  return { dataType: 'tabular' };
 };
 
 /**

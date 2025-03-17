@@ -1,254 +1,251 @@
-/**
- * Service for generating synthetic data
- */
+import { supabaseClient } from './supabaseService';
+import { callOpenAI } from './openAiService';
+import { prepareSchemaForAI, validateSchema } from '@/utils/schemaDetection';
 
+// Export these interfaces for use in other components
 export interface DataField {
   name: string;
   type: string;
-  included: boolean;
+  attributes?: Record<string, any>;
 }
 
 export interface SyntheticDataOptions {
-  dataType: string;
-  rowCount: number;
-  distributionType: string;
-  includeNulls: boolean;
-  nullPercentage: number;
-  outputFormat: string;
-  customSchema: string;
-  aiPrompt: string;
-  fields: DataField[];
-  uploadedData?: any[];
-  onProgress?: (progress: number) => void;
+  recordCount: number;
+  dataSchema: Record<string, any>;
+  distribution?: string;
+  locale?: string;
+  seed?: number;
+  tableName?: string;
 }
 
-export const defaultSchemas: Record<string, DataField[]> = {
-  user: [
-    { name: "id", type: "id", included: true },
-    { name: "firstName", type: "name", included: true },
-    { name: "lastName", type: "name", included: true },
-    { name: "email", type: "email", included: true },
-    { name: "phone", type: "phone", included: true },
-    { name: "address", type: "address", included: true },
-    { name: "age", type: "integer", included: true },
-    { name: "isActive", type: "boolean", included: true },
-  ],
-  transaction: [
-    { name: "id", type: "id", included: true },
-    { name: "date", type: "date", included: true },
-    { name: "amount", type: "float", included: true },
-    { name: "description", type: "string", included: true },
-    { name: "category", type: "string", included: true },
-  ],
-  product: [
-    { name: "id", type: "id", included: true },
-    { name: "name", type: "string", included: true },
-    { name: "description", type: "string", included: true },
-    { name: "price", type: "float", included: true },
-    { name: "quantity", type: "integer", included: true },
-  ],
-  health: [
-    { name: "id", type: "id", included: true },
-    { name: "date", type: "date", included: true },
-    { name: "patientId", type: "id", included: true },
-    { name: "systolic", type: "integer", included: true },
-    { name: "diastolic", type: "integer", included: true },
-    { name: "heartRate", type: "integer", included: true },
-  ],
+/**
+ * Save synthetic data to the database
+ * @param data The synthetic data to save
+ * @param tableName The name of the table to save to
+ * @returns Success status and count
+ */
+export const saveSyntheticDataToDatabase = async (
+  data: any[],
+  tableName: string
+): Promise<{ success: boolean; count: number; message?: string }> => {
+  if (!data || data.length === 0) {
+    return { success: false, count: 0, message: 'No data to save' };
+  }
+
+  try {
+    const { error, count } = await supabaseClient
+      .from(tableName)
+      .insert(data);
+
+    if (error) {
+      console.error('Error saving data to database:', error);
+      return {
+        success: false,
+        count: 0,
+        message: `Failed to save data: ${error.message}`
+      };
+    }
+
+    return {
+      success: true,
+      count: count || data.length,
+      message: `Successfully saved ${count || data.length} records to ${tableName}`
+    };
+  } catch (error) {
+    console.error('Error in saveSyntheticDataToDatabase:', error);
+    return {
+      success: false,
+      count: 0,
+      message: `Error: ${(error as Error).message}`
+    };
+  }
 };
 
 /**
- * Generates synthetic data based on provided options
- * @param options Generation options
+ * Generates synthetic data based on a data schema using AI
+ * @param options Options for generating synthetic data
  * @param apiKey OpenAI API key
- * @returns Generated data as a string
+ * @returns An array of generated data records
  */
 export const generateSyntheticData = async (
   options: SyntheticDataOptions,
   apiKey: string
-): Promise<string> => {
+): Promise<any[]> => {
   try {
-    // Validate API key
-    if (!apiKey) {
-      throw new Error("OpenAI API key is required");
-    }
-    
-    // Validate options
-    if (!options) {
-      throw new Error("Options are required");
-    }
-    
-    // Validate row count
-    if (options.rowCount < 1 || options.rowCount > 10000) {
-      throw new Error("Row count must be between 1 and 10,000");
-    }
-    
-    // Validate fields
-    if (!options.fields || options.fields.length === 0) {
-      throw new Error("At least one field must be included");
-    }
-    
-    // Filter included fields
-    const includedFields = options.fields.filter((field) => field.included);
-    if (includedFields.length === 0) {
-      throw new Error("At least one field must be included");
-    }
-    
-    // Construct the prompt
-    let prompt = options.aiPrompt;
-    
-    // Add schema information to the prompt
-    prompt += "\n\nSchema:\n";
-    includedFields.forEach((field) => {
-      prompt += `- ${field.name} (${field.type})\n`;
-    });
-    
-    // Add output format to the prompt
-    prompt += `\nOutput format: ${options.outputFormat.toUpperCase()}`;
-    
-    // Add row count to the prompt
-    prompt += `\nNumber of rows: ${options.rowCount}`;
-    
-    // Add uploaded data to the prompt
-    if (options.uploadedData && options.uploadedData.length > 0) {
-      prompt += `\n\nExample Data:\n${JSON.stringify(options.uploadedData, null, 2)}`;
-    }
-    
-    // Add null value instructions
-    if (options.includeNulls) {
-      prompt += `\nInclude null values in ${options.nullPercentage}% of the fields`;
-    }
-    
-    // Add a final instruction
-    prompt += "\n\nGenerate synthetic data based on the above schema and format";
-    
+    // Validate the schema
+    validateSchema(options.dataSchema);
+
+    // Prepare the schema for AI consumption
+    const aiSchema = prepareSchemaForAI(options.dataSchema);
+
+    // Construct the prompt for the AI
+    const prompt = `Generate ${options.recordCount} records of synthetic data based on the following schema: ${JSON.stringify(
+      aiSchema
+    )}. Return the data as a JSON array.`;
+
     // Call the OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 2048,
-        temperature: 0.7,
-        stream: false,
-      }),
+    const aiResponse = await callOpenAI({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an expert data generator. Your task is to generate synthetic data based on a provided schema. Return the data as a JSON array.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      model: 'gpt-4o',
+      temperature: 0.7,
+      apiKey: apiKey
     });
-    
-    // Check for errors
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("OpenAI API error:", errorData);
-      throw new Error(
-        `OpenAI API error: ${response.status} - ${
-          errorData.error?.message || errorData.message || "Unknown error"
-        }`
-      );
+
+    // Parse the AI response
+    let generatedData: any[];
+    try {
+      generatedData = JSON.parse(aiResponse.content);
+    } catch (error) {
+      console.error('Error parsing AI response:', error);
+      throw new Error('Failed to parse the generated data from AI response');
     }
-    
-    // Parse the response
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    // Return the generated data
-    return content;
-  } catch (error: any) {
-    console.error("Error generating synthetic data:", error);
-    throw new Error(`Failed to generate synthetic data: ${error.message}`);
-  }
-};
 
-/**
- * Downloads synthetic data as a file
- * @param data The data to download
- * @param format The format of the data
- */
-export const downloadSyntheticData = (data: string, format: string) => {
-  // Create a blob from the data
-  const blob = new Blob([data], { type: "text/plain" });
-  
-  // Create a link element
-  const link = document.createElement("a");
-  
-  // Set the link's href to the blob URL
-  link.href = URL.createObjectURL(blob);
-  
-  // Set the link's download attribute
-  link.download = `synthetic_data.${format}`;
-  
-  // Append the link to the document
-  document.body.appendChild(link);
-  
-  // Click the link
-  link.click();
-  
-  // Remove the link from the document
-  document.body.removeChild(link);
-};
-
-/**
- * Saves synthetic data to a database
- * @param data The data to save
- * @returns Promise resolving to success status
- */
-export const saveSyntheticDataToDatabase = async (data: string): Promise<void> => {
-  try {
-    // Parse the data
-    const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-    
-    // In a real implementation, this would connect to a database
-    // For now we're simulating the save operation
-    console.log('Saving data to database...', parsedData.length || parsedData.size || 'unknown size');
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Log success
-    console.log('Data successfully saved to database');
-    
-    return Promise.resolve();
+    return generatedData;
   } catch (error) {
-    console.error('Error saving data to database:', error);
-    return Promise.reject(new Error('Failed to save data to database'));
+    console.error('Error in generateSyntheticData:', error);
+    throw error;
   }
 };
 
 /**
- * Detects schema from data
- * @param data The data to detect schema from
- * @returns The detected schema
+ * Export the generated data as JSON or CSV and download it
+ * @param data The data to export
+ * @param filename The filename to use
+ * @param format The format to export (json or csv)
  */
-export const detectSchemaFromData = (data: any[]): DataField[] => {
-  if (!data || data.length === 0) {
-    return [];
-  }
+export const downloadSyntheticData = (
+  data: any[],
+  filename: string,
+  format: 'json' | 'csv'
+) => {
+  let content: string;
+  let mimeType: string;
   
-  const firstRow = data[0];
-  const fields: DataField[] = [];
-  
-  for (const key in firstRow) {
-    if (firstRow.hasOwnProperty(key)) {
-      let type = 'string'; // Default type
-      const value = firstRow[key];
-      
-      if (typeof value === 'number') {
-        type = Number.isInteger(value) ? 'integer' : 'float';
-      } else if (typeof value === 'boolean') {
-        type = 'boolean';
-      } else if (value instanceof Date) {
-        type = 'date';
-      }
-      
-      fields.push({
-        name: key,
-        type: type,
-        included: true, // Default to included
-      });
+  if (format === 'json') {
+    content = JSON.stringify(data, null, 2);
+    mimeType = 'application/json';
+  } else {
+    // CSV format
+    if (!data || data.length === 0) {
+      content = '';
+    } else {
+      const headers = Object.keys(data[0]);
+      const csvRows = [
+        headers.join(','),
+        ...data.map(row => 
+          headers.map(field => {
+            const value = row[field];
+            // Handle values that need quoting
+            return typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))
+              ? `"${value.replace(/"/g, '""')}"`
+              : value === null || value === undefined ? '' : value;
+          }).join(',')
+        )
+      ];
+      content = csvRows.join('\n');
     }
+    mimeType = 'text/csv';
   }
   
-  return fields;
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Sample schema definitions
+export const defaultSchemas = {
+  customer: {
+    id: 'string',
+    firstName: 'string',
+    lastName: 'string',
+    email: 'email',
+    age: 'integer',
+    registrationDate: 'date',
+    loyaltyPoints: 'integer',
+    isActive: 'boolean'
+  },
+  transaction: {
+    id: 'string',
+    customerId: 'string',
+    amount: 'float',
+    date: 'date',
+    category: 'string',
+    status: 'string',
+    isRefunded: 'boolean'
+  },
+  product: {
+    id: 'string',
+    name: 'string',
+    description: 'string',
+    price: 'float',
+    category: 'string',
+    inStock: 'boolean',
+    quantity: 'integer',
+    lastUpdated: 'date'
+  }
+};
+
+/**
+ * Detect a schema from sample data
+ * @param data Sample data to analyze
+ * @returns A schema definition
+ */
+export const detectSchemaFromData = (data: any[]): Record<string, string> => {
+  if (!data || !data.length) {
+    return {};
+  }
+  
+  const sample = data[0];
+  const schema: Record<string, string> = {};
+  
+  Object.entries(sample).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      schema[key] = 'string'; // Default for null values
+      return;
+    }
+    
+    const type = typeof value;
+    
+    if (type === 'string') {
+      // Check for date format
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(.\d{3}Z)?)?$/.test(value as string)) {
+        schema[key] = 'date';
+      } 
+      // Check for email format
+      else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value as string)) {
+        schema[key] = 'email';
+      } else {
+        schema[key] = 'string';
+      }
+    } else if (type === 'number') {
+      // Check if it's an integer
+      schema[key] = Number.isInteger(value) ? 'integer' : 'float';
+    } else if (type === 'boolean') {
+      schema[key] = 'boolean';
+    } else if (Array.isArray(value)) {
+      schema[key] = 'array';
+    } else if (type === 'object') {
+      schema[key] = 'object';
+    } else {
+      schema[key] = 'string'; // Default fallback
+    }
+  });
+  
+  return schema;
 };
