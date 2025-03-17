@@ -1,7 +1,6 @@
 
 import { toast } from "sonner";
 import { PiiData, PiiDataMasked } from "./piiHandlingService";
-import { getCurrentSession, getUserProfile } from "./supabaseService";
 
 export interface OpenAiOptions {
   model?: string;
@@ -30,79 +29,36 @@ const defaultOptions: OpenAiOptions = {
   max_tokens: 1000
 };
 
-// Helper function to get API key from Supabase or localStorage
-const getApiKey = async (): Promise<string | null> => {
-  try {
-    // Check if user is authenticated with Supabase
-    const session = await getCurrentSession();
-    
-    if (session) {
-      // Get API key from user profile
-      const profile = await getUserProfile();
-      if (profile?.openai_api_key) {
-        return profile.openai_api_key;
-      }
-    }
-    
-    // Fallback to localStorage
-    return localStorage.getItem('openai-api-key');
-  } catch (error) {
-    console.error("Error getting API key:", error);
-    return localStorage.getItem('openai-api-key');
-  }
-};
-
 // Function to get the completion from OpenAI API
 export const getCompletion = async (
-  apiKey: string | null,
+  apiKey: string | null, 
   messages: OpenAiMessage[], 
   options: OpenAiOptions = {}
 ): Promise<string> => {
-  // If apiKey is not provided, get it from supabase or localStorage
-  const finalApiKey = apiKey || await getApiKey();
-  
-  if (!finalApiKey) {
+  if (!apiKey) {
     throw new Error("API key is not set");
   }
 
-  // Get the model
-  let model = options.model;
-  if (!model) {
-    try {
-      // Check for user preferred model in Supabase profile
-      const session = await getCurrentSession();
-      
-      if (session) {
-        const profile = await getUserProfile();
-        if (profile?.preferred_model) {
-          model = profile.preferred_model;
-        }
-      }
-      
-      // Fallback to localStorage
-      if (!model) {
-        model = localStorage.getItem('openai-model') || defaultOptions.model;
-      }
-    } catch (error) {
-      console.error("Error getting preferred model:", error);
-      model = localStorage.getItem('openai-model') || defaultOptions.model;
-    }
+  // Get the model from localStorage if not provided in options
+  if (!options.model) {
+    const storedModel = localStorage.getItem('openai-model');
+    options.model = storedModel || defaultOptions.model;
   }
 
-  const finalOptions = { ...defaultOptions, ...options, model };
+  const mergedOptions = { ...defaultOptions, ...options };
   
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${finalApiKey}`
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: finalOptions.model,
-        temperature: finalOptions.temperature,
-        max_tokens: finalOptions.max_tokens,
-        messages: messages
+        model: mergedOptions.model,
+        temperature: mergedOptions.temperature,
+        max_tokens: mergedOptions.max_tokens,
+        messages
       })
     });
 
@@ -134,14 +90,6 @@ export const getCompletion = async (
     
     throw error;
   }
-};
-
-// Helper function to create messages for OpenAI API
-export const createMessages = (systemMessage: string, userMessage: string): OpenAiMessage[] => {
-  return [
-    { role: 'system', content: systemMessage },
-    { role: 'user', content: userMessage }
-  ];
 };
 
 // Utility function for synthetic data generation with OpenAI
@@ -186,7 +134,10 @@ export const generateSyntheticDataWithAI = async (
   
   formattedPrompt += `\n\nYou MUST return ONLY the raw ${format === 'json' ? 'JSON array' : 'CSV data'} with NO additional text.`;
   
-  const messages = createMessages(systemMessage, formattedPrompt);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemMessage },
+    { role: 'user', content: formattedPrompt }
+  ];
   
   // Get the model from localStorage
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
@@ -251,7 +202,10 @@ IMPORTANT REQUIREMENTS:
 
 Return ONLY valid JSON as your response, with no additional text or explanations.`;
 
-  const messages = createMessages(systemPrompt, userPrompt);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
   
   // Get the model from localStorage, preferring stronger models for better pattern consistency
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
@@ -331,12 +285,13 @@ export const analyzePiiWithAI = async (
 ): Promise<{identifiedPii: string[], suggestions: string}> => {
   const systemMessage = `You are a PII detection expert. Identify PII (Personally Identifiable Information) in the provided data sample and suggest appropriate handling methods.`;
   
-  const userMessage = `Analyze this data and identify any PII elements: ${data.substring(0, 2000)}... 
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemMessage },
+    { role: 'user', content: `Analyze this data and identify any PII elements: ${data.substring(0, 2000)}... 
     Return your response as a JSON object with two properties: 
     1. "identifiedPii": an array of strings naming each type of PII found
-    2. "suggestions": a string with recommendations for handling this data safely`;
-  
-  const messages = createMessages(systemMessage, userMessage);
+    2. "suggestions": a string with recommendations for handling this data safely` }
+  ];
   
   // Get the model from localStorage
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
@@ -439,7 +394,10 @@ Return your response as a valid JSON object with the following fields:
 - featureImportance: object mapping feature names to estimated importance scores (0-1)
 - modelRecommendations: array of recommended model types in order of preference`;
 
-  const messages = createMessages(systemPrompt, userPrompt);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
   
   // Get the model from localStorage
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
@@ -511,7 +469,10 @@ ${JSON.stringify(examples, null, 2)}
 
 Return ONLY a JSON array containing ${count} synthetic data points with the same structure as the examples.`;
 
-  const messages = createMessages(systemPrompt, userPrompt);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
 
   // Get the model from localStorage
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
@@ -582,7 +543,10 @@ Return your response as a valid JSON object with these fields:
 - suggestedFeatures: array of objects with {name, description, formula}
 - expectedImpact: string describing the expected improvement`;
 
-  const messages = createMessages(systemPrompt, userPrompt);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
 
   // Get the model from localStorage
   const model = localStorage.getItem('openai-model') || defaultOptions.model;

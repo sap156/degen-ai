@@ -1,10 +1,8 @@
-
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import UserProfileDropdown from './UserProfileDropdown';
 
 const NavBar = () => {
   const location = useLocation();
@@ -98,11 +96,6 @@ const NavBar = () => {
               })}
             </ul>
           </nav>
-          
-          {/* Add UserProfileDropdown component */}
-          <div className="ml-auto md:ml-0">
-            <UserProfileDropdown />
-          </div>
         </div>
       </div>
       

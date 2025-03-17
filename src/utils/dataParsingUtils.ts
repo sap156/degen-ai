@@ -675,14 +675,3 @@ export const generateTags = async (
     throw error;
   }
 };
-
-export const processJsonString = async (jsonString: string): Promise<any[]> => {
-  try {
-    const data = JSON.parse(jsonString);
-    return data;
-  } catch (error) {
-    console.error("Error processing JSON string:", error);
-    toast.error("Failed to process JSON string");
-    return [];
-  }
-};

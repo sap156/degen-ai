@@ -3,11 +3,10 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug, User } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
-import AuthDialog from '@/components/AuthDialog';
 
 const container = {
   hidden: {
@@ -110,9 +109,10 @@ const FeatureCard = ({
   </motion.div>;
 
 const Index: React.FC = () => {
-  const { isKeySet, isAuthenticated, userEmail } = useApiKey();
+  const {
+    isKeySet
+  } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   return <div className="container px-4 mx-auto py-8 max-w-7xl">
       <div className="flex flex-col items-center text-center mb-16 space-y-3">
@@ -183,26 +183,20 @@ const Index: React.FC = () => {
                 AI Integration
               </CardTitle>
               <CardDescription>
-                {isAuthenticated 
-                  ? `Welcome, ${userEmail}! ${isKeySet ? 'Your OpenAI API key is set.' : 'Please set up your OpenAI API key.'}`
-                  : "Sign in to securely store your OpenAI API key and preferences."}
+                {isKeySet 
+                  ? "Your OpenAI API key is set. Configure your preferred AI model below."
+                  : "Set up your OpenAI API key to unlock AI-powered features across all tools."
+                }
               </CardDescription>
             </CardHeader>
             <CardContent className="pb-0">
               {isKeySet && <ModelSelector />}
             </CardContent>
-            <CardFooter className="pt-4 flex flex-wrap gap-2">
-              <Button onClick={() => setApiKeyDialogOpen(true)} variant={isKeySet ? "outline" : "default"} className="flex-1 gap-2">
+            <CardFooter className="pt-4">
+              <Button onClick={() => setApiKeyDialogOpen(true)} variant={isKeySet ? "outline" : "default"} className="w-full gap-2">
                 <KeyRound className="h-4 w-4" />
                 {isKeySet ? "Manage API Key" : "Set Up API Key"}
               </Button>
-              
-              {!isAuthenticated && (
-                <Button onClick={() => setAuthDialogOpen(true)} variant="outline" className="flex-1 gap-2">
-                  <User className="h-4 w-4" />
-                  Sign In
-                </Button>
-              )}
             </CardFooter>
           </Card>
         </motion.div>
@@ -213,7 +207,6 @@ const Index: React.FC = () => {
       </motion.div>
       
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
-      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </div>;
 };
 

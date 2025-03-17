@@ -1,5 +1,6 @@
+
 import { toast } from 'sonner';
-import { getCompletion, createMessages, OpenAiMessage } from './openAiService';
+import { getCompletion } from './openAiService';
 
 export interface EdgeCaseDetectionOptions {
   dataset: any[];
@@ -57,14 +58,18 @@ export const edgeCaseService = {
       `;
       
       const apiKey = localStorage.getItem('openai-api-key');
-      const messages = createMessages(
-        "You are an AI assistant specialized in data analysis and edge case detection.",
-        prompt
-      );
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in data analysis and edge case detection."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
-      const responseText = await getCompletion(apiKey, messages, {
-        model: "gpt-3.5-turbo"
-      });
+      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       
       if (!responseText) {
         throw new Error("Invalid response from OpenAI");
@@ -124,10 +129,16 @@ export const edgeCaseService = {
       `;
       
       const apiKey = localStorage.getItem('openai-api-key');
-      const messages = createMessages(
-        "You are an AI assistant specialized in synthetic data generation and edge case creation.",
-        prompt
-      );
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in synthetic data generation and edge case creation."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
       const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       
@@ -203,10 +214,16 @@ export const edgeCaseService = {
       `;
       
       const apiKey = localStorage.getItem('openai-api-key');
-      const messages = createMessages(
-        "You are an AI assistant specialized in ML model evaluation and testing.",
-        prompt
-      );
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in ML model evaluation and testing."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
       console.log("Sending test model request to OpenAI...");
       const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
@@ -273,10 +290,16 @@ export const edgeCaseService = {
       `;
       
       const apiKey = localStorage.getItem('openai-api-key');
-      const messages = createMessages(
-        "You are an AI assistant specialized in creating detailed data science reports.",
-        prompt
-      );
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in creating detailed data science reports."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
       return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
     } catch (error) {
@@ -306,10 +329,16 @@ export const edgeCaseService = {
       `;
       
       const apiKey = localStorage.getItem('openai-api-key');
-      const messages = createMessages(
-        "You are an AI assistant specialized in ML engineering and implementation.",
-        prompt
-      );
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are an AI assistant specialized in ML engineering and implementation."
+        },
+        {
+          role: "user" as const,
+          content: prompt
+        }
+      ];
       
       return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
     } catch (error) {

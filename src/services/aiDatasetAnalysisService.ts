@@ -1,4 +1,4 @@
-import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
+import { getCompletion, OpenAiMessage } from "./openAiService";
 
 // Dataset analysis data types
 export interface DatasetAnalysis {
@@ -210,17 +210,23 @@ const detectIssues = async (
       }
     });
     
-    const messages = createMessages(
-      "You are a data science expert who specializes in identifying data quality issues and dataset problems.",
-      `Analyze this dataset and identify potential data quality issues or problems for machine learning. 
-      
-      Dataset Schema: ${JSON.stringify(schema)}
-      Sample Data: ${JSON.stringify(sampleData)}
-      Column Statistics: ${JSON.stringify(columnStats)}
-      
-      Return only a JSON array of strings, each describing a specific issue, with no additional text or explanation. 
-      Focus on imbalanced data problems, missing values, outliers, potential encoding issues, and other critical issues.`
-    );
+    const messages: OpenAiMessage[] = [
+      {
+        role: "system",
+        content: "You are a data science expert who specializes in identifying data quality issues and dataset problems."
+      },
+      {
+        role: "user",
+        content: `Analyze this dataset and identify potential data quality issues or problems for machine learning. 
+        
+        Dataset Schema: ${JSON.stringify(schema)}
+        Sample Data: ${JSON.stringify(sampleData)}
+        Column Statistics: ${JSON.stringify(columnStats)}
+        
+        Return only a JSON array of strings, each describing a specific issue, with no additional text or explanation. 
+        Focus on imbalanced data problems, missing values, outliers, potential encoding issues, and other critical issues.`
+      }
+    ];
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
@@ -409,24 +415,30 @@ export const getFeatureEngineeringSuggestions = async (
     const sampleData = data.slice(0, 5);
     const schema = generateSchema(data);
     
-    const messages = createMessages(
-      "You are a data science expert specializing in feature engineering for imbalanced datasets.",
-      `Suggest new features to engineer for this imbalanced dataset to improve model performance.
-      
-      Dataset Schema: ${JSON.stringify(schema)}
-      Sample Data: ${JSON.stringify(sampleData)}
-      Target Column: ${preferences.targetColumn}
-      Class Labels: ${JSON.stringify(preferences.classLabels)}
-      Majority Class: ${preferences.majorityClass}
-      Minority Class: ${preferences.minorityClass}
-      Dataset Context: ${preferences.datasetContext || "Not provided"}
-      
-      Return a JSON object with these properties:
-      - suggestedFeatures: Array of objects, each with {name, description, formula}
-      - expectedImpact: A short explanation of the expected impact on model performance
-      
-      Focus on features that will help with the class imbalance problem.`
-    );
+    const messages: OpenAiMessage[] = [
+      {
+        role: "system",
+        content: "You are a data science expert specializing in feature engineering for imbalanced datasets."
+      },
+      {
+        role: "user",
+        content: `Suggest new features to engineer for this imbalanced dataset to improve model performance.
+        
+        Dataset Schema: ${JSON.stringify(schema)}
+        Sample Data: ${JSON.stringify(sampleData)}
+        Target Column: ${preferences.targetColumn}
+        Class Labels: ${JSON.stringify(preferences.classLabels)}
+        Majority Class: ${preferences.majorityClass}
+        Minority Class: ${preferences.minorityClass}
+        Dataset Context: ${preferences.datasetContext || "Not provided"}
+        
+        Return a JSON object with these properties:
+        - suggestedFeatures: Array of objects, each with {name, description, formula}
+        - expectedImpact: A short explanation of the expected impact on model performance
+        
+        Focus on features that will help with the class imbalance problem.`
+      }
+    ];
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.7,

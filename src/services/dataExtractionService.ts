@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
+import { getCompletion, OpenAiMessage } from "./openAiService";
 
 /**
  * Types of data that can be extracted
@@ -72,7 +72,10 @@ export const extractDataFromUrl = async (
     ? `Extract data from ${url}. Specifically, I need information about: ${userQuery}`
     : `Extract ${extractionType} from ${url}`;
 
-  const messages = createMessages(systemMessage, userMessage);
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: systemMessage },
+    { role: 'user', content: userMessage }
+  ];
 
   try {
     const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';

@@ -4,10 +4,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { KeyRound, X, Check, Info } from 'lucide-react';
+import { KeyRound, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import ModelSelector from '@/components/ModelSelector';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ApiKeyDialogProps {
   open: boolean;
@@ -15,12 +14,13 @@ interface ApiKeyDialogProps {
 }
 
 const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
-  const { apiKey, setApiKey, clearApiKey, isKeySet, isAuthenticated } = useApiKey();
+  const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
   const [inputKey, setInputKey] = useState('');
 
   const handleSave = () => {
     if (inputKey.trim()) {
       setApiKey(inputKey.trim());
+      toast.success('API key saved successfully');
       setInputKey('');
       onOpenChange(false);
     } else {
@@ -30,6 +30,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
 
   const handleRemove = () => {
     clearApiKey();
+    toast.success('API key removed');
     onOpenChange(false);
   };
 
@@ -49,15 +50,6 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
         </DialogHeader>
         
         <div className="space-y-6 py-2">
-          {isAuthenticated && (
-            <Alert className="bg-primary/5 text-primary border-primary/20">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Your API key is securely stored in your user profile, not in browser storage.
-              </AlertDescription>
-            </Alert>
-          )}
-
           {isKeySet ? (
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2 text-sm">
@@ -88,7 +80,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
           <ModelSelector />
           
           <div className="text-xs text-muted-foreground">
-            <p>Your API key is {isAuthenticated ? 'stored securely in your account' : 'stored locally in your browser'} and never sent to our servers.</p>
+            <p>Your API key is stored locally in your browser and never sent to our servers.</p>
             <p className="mt-1">
               Don't have an API key?{' '}
               <a 
