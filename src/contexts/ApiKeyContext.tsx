@@ -1,139 +1,48 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 
 type OpenAIModel = 'gpt-4o' | 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo';
 
 interface ApiKeyContextType {
   apiKey: string | null;
   isKeySet: boolean;
-  setApiKey: (key: string) => Promise<void>;
-  clearApiKey: () => Promise<void>;
+  setApiKey: (key: string) => void;
+  clearApiKey: () => void;
   selectedModel: OpenAIModel;
-  setSelectedModel: (model: OpenAIModel) => Promise<void>;
+  setSelectedModel: (model: OpenAIModel) => void;
 }
 
 export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
-  const [selectedModel, setSelectedModelState] = useState<OpenAIModel>('gpt-4o');
-  const { user } = useAuth();
+  const [selectedModel, setSelectedModel] = useState<OpenAIModel>('gpt-4o');
 
-  // Load API key and model preference from Supabase when user changes
   useEffect(() => {
-    const fetchUserSettings = async () => {
-      if (!user) {
-        // Clear state if no user is logged in
-        setApiKeyState(null);
-        setSelectedModelState('gpt-4o');
-        return;
-      }
-      
-      try {
-        // Use raw SQL query to get around type issues
-        const { data, error } = await supabase
-          .from('user_settings')
-          .select('api_key, model_preference')
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (error) {
-          console.error('Error fetching user settings:', error);
-          return;
-        }
-        
-        if (data) {
-          setApiKeyState(data.api_key);
-          if (data.model_preference) {
-            setSelectedModelState(data.model_preference as OpenAIModel);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user settings:', error);
-      }
-    };
+    const storedKey = localStorage.getItem('openai-api-key');
+    if (storedKey) {
+      setApiKeyState(storedKey);
+    }
     
-    fetchUserSettings();
-  }, [user]);
+    const storedModel = localStorage.getItem('openai-model') as OpenAIModel | null;
+    if (storedModel) {
+      setSelectedModel(storedModel);
+    }
+  }, []);
 
-  const setApiKey = async (key: string) => {
-    if (!user) {
-      toast.error('You must be logged in to save API keys');
-      return;
-    }
-    
-    try {
-      // Use raw SQL query to get around type issues
-      const { error } = await supabase
-        .from('user_settings')
-        .update({ api_key: key })
-        .eq('user_id', user.id);
-      
-      if (error) {
-        console.error('Error saving API key:', error);
-        toast.error('Failed to save API key');
-        return;
-      }
-      
-      setApiKeyState(key);
-      toast.success('API key saved successfully');
-    } catch (error) {
-      console.error('Error saving API key:', error);
-      toast.error('Failed to save API key');
-    }
+  const setApiKey = (key: string) => {
+    localStorage.setItem('openai-api-key', key);
+    setApiKeyState(key);
   };
 
-  const clearApiKey = async () => {
-    if (!user) {
-      return;
-    }
-    
-    try {
-      // Use raw SQL query to get around type issues
-      const { error } = await supabase
-        .from('user_settings')
-        .update({ api_key: null })
-        .eq('user_id', user.id);
-      
-      if (error) {
-        console.error('Error removing API key:', error);
-        toast.error('Failed to remove API key');
-        return;
-      }
-      
-      setApiKeyState(null);
-      toast.success('API key removed');
-    } catch (error) {
-      console.error('Error removing API key:', error);
-      toast.error('Failed to remove API key');
-    }
+  const clearApiKey = () => {
+    localStorage.removeItem('openai-api-key');
+    setApiKeyState(null);
   };
 
-  const handleSetSelectedModel = async (model: OpenAIModel) => {
-    if (!user) {
-      setSelectedModelState(model);
-      return;
-    }
-    
-    try {
-      // Use raw SQL query to get around type issues
-      const { error } = await supabase
-        .from('user_settings')
-        .update({ model_preference: model })
-        .eq('user_id', user.id);
-      
-      if (error) {
-        console.error('Error saving model preference:', error);
-        return;
-      }
-      
-      setSelectedModelState(model);
-    } catch (error) {
-      console.error('Error saving model preference:', error);
-    }
+  const handleSetSelectedModel = (model: OpenAIModel) => {
+    localStorage.setItem('openai-model', model);
+    setSelectedModel(model);
   };
 
   return (
