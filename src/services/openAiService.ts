@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { PiiData, PiiDataMasked } from "./piiHandlingService";
 
@@ -92,8 +91,63 @@ export const getCompletion = async (
   }
 };
 
+// Create a function to use Supabase Edge Function for OpenAI calls
+export const getCompletionWithSupabase = async (
+  supabase: any,
+  apiKey: string | null,
+  messages: OpenAiMessage[],
+  options: OpenAiOptions = {}
+): Promise<string> => {
+  if (!apiKey) {
+    throw new Error("API key is not set");
+  }
+
+  // Get the model from localStorage if not provided in options
+  if (!options.model) {
+    const storedModel = localStorage.getItem('openai-model');
+    options.model = storedModel || defaultOptions.model;
+  }
+
+  const mergedOptions = { ...defaultOptions, ...options };
+
+  try {
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('openai-proxy', {
+      body: {
+        endpoint: 'chat/completions',
+        payload: {
+          model: mergedOptions.model,
+          temperature: mergedOptions.temperature,
+          max_tokens: mergedOptions.max_tokens,
+          messages
+        },
+        apiKey
+      }
+    });
+
+    if (error) {
+      console.error("Supabase Edge Function error:", error);
+      toast.error(`Error: ${error.message || "Unknown error"}`);
+      throw new Error(error.message || "Unknown error");
+    }
+
+    if (data.error) {
+      console.error("OpenAI API error:", data.error);
+      toast.error(`OpenAI API error: ${data.error.message || "Unknown error"}`);
+      throw new Error(data.error.message || "Unknown OpenAI API error");
+    }
+
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error calling Supabase Edge Function:", error);
+    toast.error("Failed to process request through Supabase.");
+    throw error;
+  }
+};
+
 // Utility function for synthetic data generation with OpenAI
 export const generateSyntheticDataWithAI = async (
+  supabase: any,
   apiKey: string | null,
   prompt: string,
   format: string = 'json',
@@ -143,11 +197,16 @@ export const generateSyntheticDataWithAI = async (
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
-    return await getCompletion(apiKey, messages, {
-      model,
-      temperature: 0.5, // Lower temperature for more consistent output
-      max_tokens: Math.min(4000, count * 50) // Adjust token count based on requested row count
-    });
+    return await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: 0.5, // Lower temperature for more consistent output
+        max_tokens: Math.min(4000, count * 50) // Adjust token count based on requested row count
+      }
+    );
   } catch (error) {
     console.error("Error generating synthetic data with AI:", error);
     throw error;
@@ -156,6 +215,7 @@ export const generateSyntheticDataWithAI = async (
 
 // Enhanced function to generate AI-masked PII data with improved consistency
 export const generateMaskedDataWithAI = async (
+  supabase: any,
   apiKey: string | null,
   sampleData: PiiData[],
   fieldsToMask: Array<keyof Omit<PiiData, 'id'>>,
@@ -212,11 +272,16 @@ Return ONLY valid JSON as your response, with no additional text or explanations
   
   try {
     // Use lower temperature for more consistent outputs
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      temperature: 0.3, // Lower temperature for consistency
-      max_tokens: 3000
-    });
+    const response = await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: 0.3, // Lower temperature for consistency
+        max_tokens: 3000
+      }
+    );
     
     try {
       // Parse and validate the response
@@ -279,7 +344,9 @@ Return ONLY valid JSON as your response, with no additional text or explanations
   }
 };
 
+// Fix the function name typo
 export const analyzePiiWithAI = async (
+  supabase: any,
   apiKey: string | null,
   data: string
 ): Promise<{identifiedPii: string[], suggestions: string}> => {
@@ -297,11 +364,16 @@ export const analyzePiiWithAI = async (
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      temperature: 0.3,
-      max_tokens: 1000
-    });
+    const response = await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: 0.3,
+        max_tokens: 1000
+      }
+    );
     
     try {
       return JSON.parse(response);
@@ -320,6 +392,7 @@ export const analyzePiiWithAI = async (
 
 // New function to analyze imbalanced dataset and provide recommendations
 export const analyzeImbalancedDataset = async (
+  supabase: any,
   apiKey: string | null,
   dataset: any[],
   targetColumn: string,
@@ -403,11 +476,16 @@ Return your response as a valid JSON object with the following fields:
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      temperature: 0.4, // Lower temperature for more focused analysis
-      max_tokens: 2000  // Allow for detailed response
-    });
+    const response = await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: 0.4, // Lower temperature for more focused analysis
+        max_tokens: 2000  // Allow for detailed response
+      }
+    );
     
     try {
       return JSON.parse(response);
@@ -428,6 +506,7 @@ Return your response as a valid JSON object with the following fields:
 
 // New function to generate synthetic data for imbalanced dataset
 export const generateSyntheticSamplesForImbalance = async (
+  supabase: any,
   apiKey: string | null,
   minorityClassSamples: any[],
   targetColumn: string,
@@ -478,11 +557,16 @@ Return ONLY a JSON array containing ${count} synthetic data points with the same
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      temperature: temperatureMap[diversityLevel],
-      max_tokens: 2000
-    });
+    const response = await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: temperatureMap[diversityLevel],
+        max_tokens: 2000
+      }
+    );
     
     try {
       const syntheticSamples = JSON.parse(response);
@@ -506,6 +590,7 @@ Return ONLY a JSON array containing ${count} synthetic data points with the same
 
 // New function to get AI-powered feature engineering suggestions
 export const getFeatureEngineeringSuggestions = async (
+  supabase: any,
   apiKey: string | null,
   dataset: any[],
   targetColumn: string,
@@ -552,11 +637,16 @@ Return your response as a valid JSON object with these fields:
   const model = localStorage.getItem('openai-model') || defaultOptions.model;
   
   try {
-    const response = await getCompletion(apiKey, messages, {
-      model,
-      temperature: 0.5,
-      max_tokens: 1500
-    });
+    const response = await getCompletionWithSupabase(
+      supabase,
+      apiKey, 
+      messages, 
+      {
+        model,
+        temperature: 0.5,
+        max_tokens: 1500
+      }
+    );
     
     try {
       return JSON.parse(response);

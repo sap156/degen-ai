@@ -17,14 +17,13 @@ import EdgeCases from "./pages/EdgeCases";
 import DataQuery from "./pages/DataQuery";
 import NotFound from "./pages/NotFound";
 import { ApiKeyProvider } from "./contexts/ApiKeyContext";
-import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import supabaseService from './services/supabaseService';
+import { SupabaseProvider } from "./hooks/useSupabase";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <SessionContextProvider supabaseClient={supabaseService.getClient()}>
+    <SupabaseProvider>
       <ApiKeyProvider>
         <TooltipProvider>
           <Toaster />
@@ -48,7 +47,7 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </ApiKeyProvider>
-    </SessionContextProvider>
+    </SupabaseProvider>
   </QueryClientProvider>
 );
 

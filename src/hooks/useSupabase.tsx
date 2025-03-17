@@ -1,10 +1,16 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, createContext, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import supabaseService from '@/services/supabaseService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 
-export function useSupabase() {
+// Create a context for Supabase
+type SupabaseContextType = ReturnType<typeof useSupabaseValue>;
+
+const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
+
+// Hook to use inside the provider
+function useSupabaseValue() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,4 +74,29 @@ export function useSupabase() {
     processWithOpenAI,
     supabase: supabaseService.getClient()
   };
+}
+
+// Provider component
+export function SupabaseProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useSupabaseValue();
+  
+  return (
+    <SupabaseContext.Provider value={supabase}>
+      {children}
+    </SupabaseContext.Provider>
+  );
+}
+
+// Hook to use the context
+export function useSupabase() {
+  const context = useContext(SupabaseContext);
+  if (context === undefined) {
+    throw new Error('useSupabase must be used within a SupabaseProvider');
+  }
+  return context;
+}
+
+// Export a wrapper that doesn't require the provider for simpler cases
+export function useSupabaseClient() {
+  return supabaseService.getClient();
 }
