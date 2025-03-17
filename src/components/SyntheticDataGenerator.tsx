@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4 } from 'lucide-react';
@@ -63,16 +62,17 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         setGeneratedCount(i);
         
         // In a real implementation, this would call the backend service
-        // For now, we'll create some dummy data based on the original minority class samples
+        // For now, we'll create some unique synthetic data based on the original minority class samples
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
         
         const batchCount = Math.min(batchSize, totalToGenerate - i);
-        const currentBatch = createDummySyntheticSamples(
+        const currentBatch = createUniqueSyntheticSamples(
           originalData, 
           preferences.targetColumn,
           preferences.minorityClass,
           batchCount,
-          modelOptions.syntheticDataPreferences.diversity
+          modelOptions.syntheticDataPreferences.diversity,
+          generatedSamples // Pass existing samples to ensure uniqueness
         );
         
         generatedSamples = [...generatedSamples, ...currentBatch];
@@ -84,7 +84,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       // Wait a bit to show 100% completion, then notify parent
       setTimeout(() => {
         onSyntheticDataGenerated(generatedSamples);
-        toast.success(`Generated ${generatedSamples.length} synthetic samples`);
+        toast.success(`Generated ${generatedSamples.length} unique synthetic samples`);
         setLoading(false);
       }, 500);
       
@@ -97,12 +97,13 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   
   // This is a placeholder function - in reality, we would call the OpenAI service
   // This is just for UI demonstration without actual API calls
-  const createDummySyntheticSamples = (
+  const createUniqueSyntheticSamples = (
     data: any[], 
     targetColumn: string,
     minorityClass: string,
     count: number,
-    diversity: 'low' | 'medium' | 'high' = 'medium'
+    diversity: 'low' | 'medium' | 'high' = 'medium',
+    existingSamples: any[] = []
   ): any[] => {
     // Find minority class samples
     const minoritySamples = data.filter(item => 
@@ -115,27 +116,70 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
     const syntheticSamples = [];
     const diversityFactor = diversity === 'low' ? 0.05 : diversity === 'medium' ? 0.15 : 0.25;
     
-    for (let i = 0; i < count; i++) {
+    // Create a set of fingerprints for existing samples to check uniqueness
+    const existingFingerprints = new Set();
+    
+    // Add fingerprints of existing synthetic samples
+    existingSamples.forEach(sample => {
+      const fingerprint = generateSampleFingerprint(sample, targetColumn);
+      existingFingerprints.add(fingerprint);
+    });
+    
+    // Generate unique samples
+    let attemptsLeft = count * 3; // Allow up to 3 attempts per required sample
+    while (syntheticSamples.length < count && attemptsLeft > 0) {
       // Pick a random sample to use as base
       const baseSample = minoritySamples[Math.floor(Math.random() * minoritySamples.length)];
       const syntheticSample = { ...baseSample };
       
       // Add synthetic_id
-      syntheticSample.synthetic_id = `syn_${i + 1}`;
+      syntheticSample.synthetic_id = `syn_${existingSamples.length + syntheticSamples.length + 1}`;
       
-      // Vary numeric features slightly based on diversity setting
+      // Vary numeric features with more randomness to ensure uniqueness
       for (const key in syntheticSample) {
         if (key !== targetColumn && typeof syntheticSample[key] === 'number') {
           const originalValue = syntheticSample[key];
-          const variation = originalValue * diversityFactor * (Math.random() * 2 - 1);
-          syntheticSample[key] = originalValue + variation;
+          // Add more randomness based on diversity level
+          const randomVariation = Math.random() * diversityFactor * 2 - diversityFactor;
+          const additionalRandomness = Math.random() * 0.02 * (1 + syntheticSamples.length % 10);
+          
+          syntheticSample[key] = originalValue + (originalValue * (randomVariation + additionalRandomness));
+          
+          // Round to reasonable decimal places if the original was an integer
+          if (Number.isInteger(baseSample[key])) {
+            syntheticSample[key] = Math.round(syntheticSample[key]);
+          } else {
+            // Keep a few decimal places for non-integer values
+            syntheticSample[key] = parseFloat(syntheticSample[key].toFixed(4));
+          }
         }
       }
       
-      syntheticSamples.push(syntheticSample);
+      // Check if this sample is unique
+      const fingerprint = generateSampleFingerprint(syntheticSample, targetColumn);
+      if (!existingFingerprints.has(fingerprint)) {
+        existingFingerprints.add(fingerprint);
+        syntheticSamples.push(syntheticSample);
+      }
+      
+      attemptsLeft--;
     }
     
     return syntheticSamples;
+  };
+  
+  // Helper to generate a fingerprint for sample uniqueness checking
+  const generateSampleFingerprint = (sample: any, excludeKey: string): string => {
+    const relevantData: Record<string, any> = {};
+    
+    // Only include numeric fields in the fingerprint to focus on the meaningful variations
+    Object.keys(sample).forEach(key => {
+      if (key !== excludeKey && key !== 'synthetic_id' && typeof sample[key] === 'number') {
+        relevantData[key] = sample[key];
+      }
+    });
+    
+    return JSON.stringify(relevantData);
   };
   
   // Find the minority class in the original dataset

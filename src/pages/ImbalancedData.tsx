@@ -156,9 +156,9 @@ const ImbalancedData = () => {
     
     classes.sort((a, b) => b.count - a.count);
     
-    const maxClassSize = classes.length > 0 ? classes[0].count : 0;
-    const minClassSize = classes.length > 0 ? classes[classes.length - 1].count : 0;
-    const imbalanceRatio = minClassSize > 0 ? parseFloat((maxClassSize / minClassSize).toFixed(2)) : 1;
+    const maxClassSize = classes[0].count;
+    const minClassSize = classes[classes.length - 1].count;
+    const imbalanceRatio = parseFloat((maxClassSize / minClassSize).toFixed(2));
     
     return {
       totalSamples,
@@ -299,35 +299,45 @@ const ImbalancedData = () => {
         const recordsToAdd = targetCount - originalCount;
         
         if (options.method === 'smote' && records.length >= 2) {
+          const syntheticRecords = generateSyntheticRecords(
+            records,
+            targetColumn,
+            recordsToAdd,
+            'high'
+          );
+          
+          balancedRecords.push(...syntheticRecords);
+        } else if (options.method === 'oversample') {
+          const existingFingerprints = new Set<string>();
+          
+          records.forEach(record => {
+            const fingerprint = JSON.stringify(
+              Object.entries(record)
+                .filter(([k, v]) => k !== targetColumn && typeof v === 'number')
+                .map(([k, v]) => [k, v])
+            );
+            existingFingerprints.add(fingerprint);
+          });
+          
           for (let i = 0; i < recordsToAdd; i++) {
-            const randomIdx1 = Math.floor(Math.random() * records.length);
-            let randomIdx2 = Math.floor(Math.random() * records.length);
-            while (randomIdx2 === randomIdx1 && records.length > 1) {
-              randomIdx2 = Math.floor(Math.random() * records.length);
-            }
+            const baseRecord = records[i % records.length];
+            const syntheticRecord = { ...baseRecord };
             
-            const record1 = records[randomIdx1];
-            const record2 = records[randomIdx2] || records[randomIdx1];
-            
-            const syntheticRecord: any = {...record1};
-            
-            Object.keys(record1).forEach(key => {
-              if (key !== targetColumn && typeof record1[key] === 'number' && typeof record2[key] === 'number') {
-                const alpha = Math.random();
-                syntheticRecord[key] = record1[key] * alpha + record2[key] * (1 - alpha);
+            Object.keys(syntheticRecord).forEach(key => {
+              if (key !== targetColumn && typeof syntheticRecord[key] === 'number') {
+                const value = syntheticRecord[key];
+                const noise = value * 0.01 * (Math.random() * 2 - 1) * (i + 1);
                 
-                if (Number.isInteger(record1[key]) && Number.isInteger(record2[key])) {
-                  syntheticRecord[key] = Math.round(syntheticRecord[key]);
+                if (Number.isInteger(value)) {
+                  syntheticRecord[key] = Math.round(value + noise);
+                } else {
+                  syntheticRecord[key] = parseFloat((value + noise).toFixed(4));
                 }
               }
             });
             
+            syntheticRecord.synthetic_id = `syn_oversample_${i + 1}`;
             balancedRecords.push(syntheticRecord);
-          }
-        } else {
-          for (let i = 0; i < recordsToAdd; i++) {
-            const randomIdx = Math.floor(Math.random() * records.length);
-            balancedRecords.push({...records[randomIdx]});
           }
         }
       }

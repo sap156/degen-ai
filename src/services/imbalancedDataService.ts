@@ -1,4 +1,3 @@
-
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
 // Interfaces for imbalanced data operations
@@ -183,6 +182,109 @@ export const balanceDataset = (
     isImbalanced: newImbalanceRatio > 1.5,
     imbalanceRatio: newImbalanceRatio,
   };
+};
+
+// Generate synthetic samples using improved SMOTE-like algorithm
+export const generateSyntheticRecords = (
+  records: any[],
+  targetColumn: string,
+  count: number,
+  diversityLevel: 'low' | 'medium' | 'high' = 'medium'
+): any[] => {
+  if (records.length < 2) {
+    console.warn("Need at least 2 records to generate synthetic samples");
+    return [];
+  }
+  
+  const syntheticRecords: any[] = [];
+  const existingFingerprints = new Set<string>();
+  
+  // Add fingerprints of original records to avoid duplicates
+  records.forEach(record => {
+    const fingerprint = createRecordFingerprint(record, targetColumn);
+    existingFingerprints.add(fingerprint);
+  });
+  
+  // Set diversity factor based on level
+  const baseDiversityFactor = diversityLevel === 'low' ? 0.1 : 
+                             diversityLevel === 'medium' ? 0.25 : 0.4;
+  
+  // Attempt to generate the requested number of unique samples
+  let attempts = 0;
+  const maxAttempts = count * 5; // Allow multiple attempts to find unique samples
+  
+  while (syntheticRecords.length < count && attempts < maxAttempts) {
+    // Select two random records to interpolate between
+    const idx1 = Math.floor(Math.random() * records.length);
+    let idx2 = Math.floor(Math.random() * records.length);
+    
+    // Make sure we select different records if possible
+    while (idx2 === idx1 && records.length > 1) {
+      idx2 = Math.floor(Math.random() * records.length);
+    }
+    
+    const record1 = records[idx1];
+    const record2 = records[idx2];
+    
+    // Create a new record with properties from both source records
+    const syntheticRecord: any = { ...record1 };
+    
+    // Add synthetic marker
+    syntheticRecord.synthetic_id = `syn_${syntheticRecords.length + 1}`;
+    
+    // Increase diversity with each generation to avoid duplicates
+    const dynamicDiversityFactor = baseDiversityFactor * (1 + (attempts / maxAttempts));
+    
+    // Interpolate numeric features, add random noise to ensure uniqueness
+    Object.keys(record1).forEach(key => {
+      if (key !== targetColumn && typeof record1[key] === 'number' && typeof record2[key] === 'number') {
+        // Basic SMOTE interpolation with random alpha
+        const alpha = Math.random();
+        let interpolatedValue = record1[key] * alpha + record2[key] * (1 - alpha);
+        
+        // Add some random noise based on diversity factor
+        const noiseRange = Math.abs(record1[key] - record2[key]) * dynamicDiversityFactor;
+        const noise = (Math.random() * 2 - 1) * noiseRange; // Random value between -noiseRange and +noiseRange
+        interpolatedValue += noise;
+        
+        // Round to integer if original values were integers
+        if (Number.isInteger(record1[key]) && Number.isInteger(record2[key])) {
+          syntheticRecord[key] = Math.round(interpolatedValue);
+        } else {
+          // Keep reasonable precision for floating point values
+          syntheticRecord[key] = parseFloat(interpolatedValue.toFixed(4));
+        }
+      }
+    });
+    
+    // Check if this synthetic record is unique
+    const fingerprint = createRecordFingerprint(syntheticRecord, targetColumn);
+    if (!existingFingerprints.has(fingerprint)) {
+      existingFingerprints.add(fingerprint);
+      syntheticRecords.push(syntheticRecord);
+    }
+    
+    attempts++;
+  }
+  
+  if (syntheticRecords.length < count) {
+    console.warn(`Could only generate ${syntheticRecords.length} unique records out of ${count} requested`);
+  }
+  
+  return syntheticRecords;
+};
+
+// Helper function to create a unique fingerprint for a record
+const createRecordFingerprint = (record: any, excludeKey: string): string => {
+  const relevantData: Record<string, any> = {};
+  
+  Object.keys(record).forEach(key => {
+    if (key !== excludeKey && key !== 'synthetic_id' && typeof record[key] === 'number') {
+      relevantData[key] = record[key];
+    }
+  });
+  
+  return JSON.stringify(relevantData);
 };
 
 // Get AI recommendations for handling imbalanced data

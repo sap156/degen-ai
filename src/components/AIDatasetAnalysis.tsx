@@ -12,6 +12,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DatasetAnalysis, DatasetPreferences } from '@/services/aiDatasetAnalysisService';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface AIDatasetAnalysisProps {
   datasetAnalysis: DatasetAnalysis | null;
@@ -50,6 +52,20 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
         modelPreference 
       });
       setParametersChanged(false);
+    }
+  };
+  
+  // Render markdown content safely
+  const renderMarkdown = (content: string) => {
+    if (!content) return '';
+    
+    try {
+      const html = marked(content);
+      const sanitizedHtml = DOMPurify.sanitize(html);
+      return sanitizedHtml;
+    } catch (error) {
+      console.error('Error rendering markdown:', error);
+      return content;
     }
   };
   
@@ -152,9 +168,10 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                     <Sparkles className="h-4 w-4 text-amber-500" />
                     <h3 className="font-medium">AI Recommendations</h3>
                   </div>
-                  <div className="bg-muted/50 p-4 rounded-md text-sm whitespace-pre-line">
-                    {aiRecommendations}
-                  </div>
+                  <div 
+                    className="bg-muted/50 p-4 rounded-md text-sm prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(aiRecommendations) }}
+                  />
                 </div>
               </TabsContent>
               
