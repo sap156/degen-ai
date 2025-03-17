@@ -18,7 +18,16 @@ import {
   getFeatureEngineeringSuggestions 
 } from '@/services/aiDatasetAnalysisService';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
-import { ClassDistribution, DatasetInfo, BalancingOptions, balanceDataset, exportAsJson, exportAsCsv, downloadData } from '@/services/imbalancedDataService';
+import { 
+  ClassDistribution, 
+  DatasetInfo, 
+  BalancingOptions, 
+  balanceDataset, 
+  exportAsJson, 
+  exportAsCsv, 
+  downloadData,
+  generateSyntheticRecords 
+} from '@/services/imbalancedDataService';
 
 import {
   Chart as ChartJS,
