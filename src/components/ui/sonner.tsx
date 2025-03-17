@@ -24,9 +24,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "group toast group-[.toaster]:bg-destructive group-[.toaster]:text-destructive-foreground group-[.toaster]:border-destructive",
         },
         duration: 5000,  // Increased duration for all toasts
-        error: {
-          duration: 8000,  // Even longer duration for error messages
-        }
       }}
       position="top-center"
       expand={true}
