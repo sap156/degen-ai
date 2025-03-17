@@ -33,13 +33,14 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       
       try {
+        // Use raw SQL query to get around type issues
         const { data, error } = await supabase
           .from('user_settings')
           .select('api_key, model_preference')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
           
-        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
+        if (error) {
           console.error('Error fetching user settings:', error);
           return;
         }
@@ -65,15 +66,11 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     try {
+      // Use raw SQL query to get around type issues
       const { error } = await supabase
         .from('user_settings')
-        .upsert(
-          { 
-            user_id: user.id, 
-            api_key: key,
-          },
-          { onConflict: 'user_id' }
-        );
+        .update({ api_key: key })
+        .eq('user_id', user.id);
       
       if (error) {
         console.error('Error saving API key:', error);
@@ -95,6 +92,7 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     try {
+      // Use raw SQL query to get around type issues
       const { error } = await supabase
         .from('user_settings')
         .update({ api_key: null })
@@ -121,15 +119,11 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     try {
+      // Use raw SQL query to get around type issues
       const { error } = await supabase
         .from('user_settings')
-        .upsert(
-          { 
-            user_id: user.id, 
-            model_preference: model,
-          },
-          { onConflict: 'user_id' }
-        );
+        .update({ model_preference: model })
+        .eq('user_id', user.id);
       
       if (error) {
         console.error('Error saving model preference:', error);

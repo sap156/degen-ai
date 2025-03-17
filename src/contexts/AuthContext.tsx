@@ -6,8 +6,9 @@ import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
-  role: string;
+  role?: string;
   full_name?: string;
+  email?: string;
 }
 
 interface AuthContextType {
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, email, role')
         .eq('id', userId)
         .single();
         

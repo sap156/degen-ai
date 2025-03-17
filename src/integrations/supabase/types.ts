@@ -11,27 +11,27 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
-          avatar_url: string | null
           created_at: string
-          email: string
+          email: string | null
           full_name: string | null
           id: string
+          role: string | null
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
           created_at?: string
-          email: string
+          email?: string | null
           full_name?: string | null
           id: string
+          role?: string | null
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           full_name?: string | null
           id?: string
+          role?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -48,6 +48,33 @@ export type Database = {
         Update: {
           id?: string
           role?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          id: string
+          model_preference: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          id?: string
+          model_preference?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          id?: string
+          model_preference?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
