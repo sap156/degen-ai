@@ -1,4 +1,3 @@
-
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
@@ -64,12 +63,10 @@ const NavBar = () => {
             <span className="hidden md:inline-block text-lg font-semibold tracking-tight">DeGen.AI</span>
           </div>
           
-          {/* Mobile menu button */}
           <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={toggleMobileMenu}>
             {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           
-          {/* Desktop navigation */}
           <nav className="ml-auto mr-4 hidden md:flex">
             <ul className="flex space-x-1">
               {navItems.map(item => {
@@ -102,7 +99,6 @@ const NavBar = () => {
         </div>
       </div>
       
-      {/* Mobile navigation menu */}
       {isMobileMenuOpen && (
         <motion.div
           className="md:hidden glassmorph border-b border-slate-200/20 dark:border-slate-800/20"

@@ -13,7 +13,6 @@ import PiiHandling from "./pages/PiiHandling";
 import ImbalancedData from "./pages/ImbalancedData";
 import DataParsing from "./pages/DataParsing";
 import DataExtraction from "./pages/DataExtraction";
-import EntityRecognition from "./pages/EntityRecognition";
 import EdgeCases from "./pages/EdgeCases";
 import NotFound from "./pages/NotFound";
 import { ApiKeyProvider } from "./contexts/ApiKeyContext";
@@ -37,7 +36,6 @@ const App = () => (
               <Route path="/imbalanced-data" element={<ImbalancedData />} />
               <Route path="/data-parsing" element={<DataParsing />} />
               <Route path="/extraction" element={<DataExtraction />} />
-              <Route path="/entity-recognition" element={<EntityRecognition />} />
               <Route path="/edge-cases" element={<EdgeCases />} />
               <Route path="/data-query" element={<NotFound />} />
             </Route>
