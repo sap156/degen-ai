@@ -1,6 +1,6 @@
-
 import { toast } from "sonner";
 import { PiiData, PiiDataMasked } from "./piiHandlingService";
+import { getCurrentSession, getUserProfile } from "./supabaseService";
 
 export interface OpenAiOptions {
   model?: string;
@@ -29,23 +29,66 @@ const defaultOptions: OpenAiOptions = {
   max_tokens: 1000
 };
 
+// Helper function to get API key from Supabase or localStorage
+const getApiKey = async (): Promise<string | null> => {
+  try {
+    // Check if user is authenticated with Supabase
+    const session = await getCurrentSession();
+    
+    if (session) {
+      // Get API key from user profile
+      const profile = await getUserProfile();
+      if (profile?.openai_api_key) {
+        return profile.openai_api_key;
+      }
+    }
+    
+    // Fallback to localStorage
+    return localStorage.getItem('openai-api-key');
+  } catch (error) {
+    console.error("Error getting API key:", error);
+    return localStorage.getItem('openai-api-key');
+  }
+};
+
 // Function to get the completion from OpenAI API
 export const getCompletion = async (
-  apiKey: string | null, 
   messages: OpenAiMessage[], 
-  options: OpenAiOptions = {}
+  modelOverride?: string,
+  providedApiKey?: string | null
 ): Promise<string> => {
+  // Get API key from supabase or localStorage if not provided
+  const apiKey = providedApiKey || await getApiKey();
+  
   if (!apiKey) {
     throw new Error("API key is not set");
   }
 
-  // Get the model from localStorage if not provided in options
-  if (!options.model) {
-    const storedModel = localStorage.getItem('openai-model');
-    options.model = storedModel || defaultOptions.model;
+  // Get the model
+  let model = modelOverride;
+  if (!model) {
+    try {
+      // Check for user preferred model in Supabase profile
+      const session = await getCurrentSession();
+      
+      if (session) {
+        const profile = await getUserProfile();
+        if (profile?.preferred_model) {
+          model = profile.preferred_model;
+        }
+      }
+      
+      // Fallback to localStorage
+      if (!model) {
+        model = localStorage.getItem('openai-model') || defaultOptions.model;
+      }
+    } catch (error) {
+      console.error("Error getting preferred model:", error);
+      model = localStorage.getItem('openai-model') || defaultOptions.model;
+    }
   }
 
-  const mergedOptions = { ...defaultOptions, ...options };
+  const options = { ...defaultOptions, model };
   
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -55,10 +98,10 @@ export const getCompletion = async (
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: mergedOptions.model,
-        temperature: mergedOptions.temperature,
-        max_tokens: mergedOptions.max_tokens,
-        messages
+        model: options.model,
+        temperature: options.temperature,
+        max_tokens: options.max_tokens,
+        messages: messages
       })
     });
 
@@ -90,6 +133,14 @@ export const getCompletion = async (
     
     throw error;
   }
+};
+
+// Helper function to create messages for OpenAI API
+export const createMessages = (systemMessage: string, userMessage: string): OpenAiMessage[] => {
+  return [
+    { role: 'system', content: systemMessage },
+    { role: 'user', content: userMessage }
+  ];
 };
 
 // Utility function for synthetic data generation with OpenAI
@@ -572,3 +623,4 @@ Return your response as a valid JSON object with these fields:
     throw error;
   }
 };
+
