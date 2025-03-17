@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { AtSign, Key, User as UserIcon } from 'lucide-react';
+import { AtSign, Key, User as UserIcon, Github } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 const Auth = () => {
-  const { user, signIn, signUp, isLoading } = useAuth();
+  const { user, signIn, signUp, signInWithGithub, isLoading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('login');
   
@@ -28,6 +28,25 @@ const Auth = () => {
   // Loading states
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
+
+  // Effect to check URL for auth redirect result
+  useEffect(() => {
+    const handleHashRedirect = async () => {
+      // This was used in older versions of Supabase
+      // Keeping it for backward compatibility
+      if (window.location.hash.includes('access_token')) {
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          toast.success('Signed in successfully');
+          navigate('/');
+        }
+      }
+    };
+
+    handleHashRedirect();
+  }, [navigate]);
 
   // If user is already authenticated, redirect to home page
   if (user && !isLoading) {
@@ -95,6 +114,28 @@ const Auth = () => {
     }
   };
 
+  const handleGithubLogin = async () => {
+    setIsGithubLoading(true);
+    try {
+      await signInWithGithub();
+    } catch (error) {
+      console.error('GitHub login error:', error);
+    } finally {
+      setIsGithubLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto flex items-center justify-center min-h-[80vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading authentication status...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto flex items-center justify-center min-h-[80vh]">
       <Card className="w-full max-w-md">
@@ -144,6 +185,26 @@ const Auth = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoginLoading}>
                   {isLoginLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleGithubLogin}
+                  disabled={isGithubLoading}
+                >
+                  <Github className="mr-2 h-4 w-4" />
+                  {isGithubLoading ? 'Connecting...' : 'GitHub'}
                 </Button>
               </form>
             </TabsContent>
@@ -205,6 +266,26 @@ const Auth = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={isSignupLoading}>
                   {isSignupLoading ? 'Creating Account...' : 'Create Account'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleGithubLogin}
+                  disabled={isGithubLoading}
+                >
+                  <Github className="mr-2 h-4 w-4" />
+                  {isGithubLoading ? 'Connecting...' : 'GitHub'}
                 </Button>
               </form>
             </TabsContent>

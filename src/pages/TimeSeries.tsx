@@ -1,4 +1,5 @@
-
+import React from 'react';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { 
@@ -28,12 +29,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import TimeSeriesChart from '@/components/TimeSeriesChart';
-import FileUploader from '@/components/FileUploader';
-import SchemaEditor from '@/components/SchemaEditor';
-import DataGenerationOptions from '@/components/DataGenerationOptions';
-import DateRangeInfo from '@/components/DateRangeInfo';
+import { FileUploader } from '@/components/FileUploader';
+import { SchemaEditor } from '@/components/SchemaEditor';
+import { DataGenerationOptions } from '@/components/DataGenerationOptions';
+import { DateRangeInfo } from '@/components/DateRangeInfo';
 import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema, SchemaFieldType } from '@/utils/fileUploadUtils';
 import { detectTimeSeriesFields, analyzeDataset } from '@/utils/schemaDetectionUtils';
 
@@ -108,7 +107,6 @@ const TimeSeries = () => {
   const interval = watch('interval');
   const dataPoints = watch('dataPoints');
   
-  // Handle additionalFields changes directly instead of through additionalFieldCount
   const setAdditionalFields = (fields: any[]) => {
     setValue('additionalFields', fields);
     setValue('additionalFieldCount', fields.length);
@@ -138,11 +136,6 @@ const TimeSeries = () => {
           onProgressUpdate: setProgressPercentage
         });
       } else {
-        // For manual generation, simulate progress
-        setProgressPercentage(25);
-        setTimeout(() => setProgressPercentage(50), 300);
-        setTimeout(() => setProgressPercentage(75), 500);
-        
         generatedData = generateTimeSeriesData({
           ...data,
           excludeDefaultValue: data.excludeDefaultValue,
@@ -151,25 +144,24 @@ const TimeSeries = () => {
             : undefined
         });
         
+        setProgressPercentage(25);
+        setTimeout(() => setProgressPercentage(50), 300);
+        setTimeout(() => setProgressPercentage(75), 500);
+        
         setTimeout(() => setProgressPercentage(100), 700);
       }
       
-      // If appending, combine with existing data
       if (data.generationMode === 'append' && timeSeriesData.length > 0) {
-        // Ensure no duplicate timestamps by creating a Map
         const uniqueData = new Map<string, TimeSeriesDataPoint>();
         
-        // Add existing data to map
         timeSeriesData.forEach(item => {
           uniqueData.set(item.timestamp, item);
         });
         
-        // Add or replace with new data
         generatedData.forEach(item => {
           uniqueData.set(item.timestamp, item);
         });
         
-        // Convert map back to array and sort by timestamp
         generatedData = Array.from(uniqueData.values()).sort((a, b) => {
           return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         });
@@ -183,7 +175,6 @@ const TimeSeries = () => {
         
       setFormattedData(formatted);
       
-      // Update date range info when new data is generated
       if (generatedData.length > 0) {
         updateDatasetAnalysis(generatedData);
       }
@@ -194,21 +185,17 @@ const TimeSeries = () => {
       toast.error('Failed to generate time series data');
     } finally {
       setLoading(false);
-      // Hide progress after a delay
       setTimeout(() => setShowProgress(false), 1000);
     }
   };
   
-  // Update additional fields when schema changes
   useEffect(() => {
     if (detectedSchema && Object.keys(detectedSchema).length > 0) {
       const schemaFields = Object.entries(detectedSchema)
         .filter(([key, type]) => {
-          // Exclude timestamp and optionally value fields
           return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
         })
         .map(([key, type]) => {
-          // Convert schema type to additionalField type
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
           if (type === 'boolean') {
@@ -303,7 +290,6 @@ const TimeSeries = () => {
       toast.error('Failed to apply AI noise');
     } finally {
       setIsApplyingAiNoise(false);
-      // Hide progress after a delay
       setTimeout(() => setShowProgress(false), 1000);
     }
   };
@@ -312,14 +298,11 @@ const TimeSeries = () => {
     if (!data.length) return;
     
     try {
-      // Get timestamps from data
       const timestamps = data.map(item => new Date(item.timestamp));
       
-      // Find min and max dates
       const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
       
-      // Get time interval if available
       const timeInterval = detectTimeInterval(timestamps);
       
       const analysis = {
@@ -355,28 +338,22 @@ const TimeSeries = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      // Process the data and detect schema
       const timeSeriesData = processUploadedTimeSeriesData(parsedData);
       setTimeSeriesData(timeSeriesData);
       
-      // Generate formatted data for display
       const formatted = outputFormat === 'csv'
         ? formatAsCSV(timeSeriesData)
         : formatAsJSON(timeSeriesData);
       
       setFormattedData(formatted);
       
-      // Extract schema from the data
       const schema = generateSchema(timeSeriesData);
       setDetectedSchema(schema);
       
-      // Analyze the dataset and extract properties
       updateDatasetAnalysis(timeSeriesData);
       
-      // Set detected dataset properties to the form
       updateFormWithDetectedSchema(timeSeriesData, schema);
       
-      // Automatically switch to generate tab
       setActiveTab('generate');
       
       toast.success(`Processed ${timeSeriesData.length} time series data points and detected schema`);
@@ -388,40 +365,32 @@ const TimeSeries = () => {
     }
   };
   
-  // New function to update form with detected schema
   const updateFormWithDetectedSchema = (data: TimeSeriesDataPoint[], schema: Record<string, SchemaFieldType>) => {
     if (!data.length) return;
     
     try {
-      // Detect date range from the data
       const timestamps = data.map(item => new Date(item.timestamp));
       const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
       
-      // Set start and end dates based on the data
       setValue('startDate', minDate);
       setValue('endDate', maxDate);
       
-      // Detect interval (daily, hourly, etc.)
       const detectedInterval = detectTimeInterval(timestamps);
       if (detectedInterval) {
         setValue('interval', detectedInterval);
       }
       
-      // Update dataset name based on file
       if (uploadedFile) {
         const fileName = uploadedFile.name.split('.')[0];
         setValue('datasetName', fileName);
       }
       
-      // Convert schema to additionalFields format
       const schemaFields = Object.entries(schema)
         .filter(([key, type]) => {
-          // Exclude timestamp and default value fields
           return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
         })
         .map(([key, type]) => {
-          // Convert schema type to additionalField type
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
           if (type === 'boolean') {
@@ -433,30 +402,23 @@ const TimeSeries = () => {
           return { name: key, type: fieldType };
         });
       
-      // Update the additionalFields in the form
       setAdditionalFields(schemaFields);
       
-      // Exclude default value if specified
       setValue('excludeDefaultValue', schema['value'] ? false : true);
       
-      // Get data points count
       setValue('dataPoints', data.length);
       
-      // Default to append mode when data is uploaded
       setValue('generationMode', 'append');
     } catch (error) {
       console.error('Error updating form with detected schema:', error);
     }
   };
   
-  // Helper function to detect time interval in the data
   const detectTimeInterval = (timestamps: Date[]): 'hourly' | 'daily' | 'weekly' | 'monthly' | undefined => {
     if (timestamps.length < 2) return undefined;
     
-    // Sort dates chronologically
     timestamps.sort((a, b) => a.getTime() - b.getTime());
     
-    // Calculate average difference between consecutive timestamps in milliseconds
     let totalDiff = 0;
     for (let i = 1; i < Math.min(10, timestamps.length); i++) {
       totalDiff += timestamps[i].getTime() - timestamps[i-1].getTime();
@@ -464,11 +426,10 @@ const TimeSeries = () => {
     
     const avgDiffMs = totalDiff / Math.min(9, timestamps.length - 1);
     
-    // Convert to appropriate interval
     const hourMs = 60 * 60 * 1000;
     const dayMs = 24 * hourMs;
     const weekMs = 7 * dayMs;
-    const monthMs = 30 * dayMs; // Approximate
+    const monthMs = 30 * dayMs;
     
     if (avgDiffMs < 2 * hourMs) return 'hourly';
     if (avgDiffMs < 2 * dayMs) return 'daily';
@@ -495,7 +456,7 @@ const TimeSeries = () => {
       const timestamp = parseTimestamp(item[timestampField]);
       const point: TimeSeriesDataPoint = { 
         timestamp,
-        value: 0 // Initialize with a default value
+        value: 0
       };
       
       if (valueFields.length > 0) {
@@ -527,7 +488,6 @@ const TimeSeries = () => {
       return dateA.getTime() - dateB.getTime();
     });
     
-    // Store the detected timestamp field for later use
     if (timestampField) {
       setUploadedTimestampField(timestampField);
     }
@@ -616,13 +576,11 @@ const TimeSeries = () => {
     }
   };
   
-  // Get field names for the chart
   const additionalFieldNames = useMemo(() => {
     if (!timeSeriesData.length) return [];
     
     return Object.keys(timeSeriesData[0])
       .filter(key => {
-        // Include only numeric fields that are not the timestamp or default value (if excluded)
         return (
           key !== 'timestamp' && 
           typeof timeSeriesData[0][key] === 'number' && 
@@ -632,514 +590,18 @@ const TimeSeries = () => {
   }, [timeSeriesData, excludeDefaultValue]);
   
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="w-full md:w-1/3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Time Series Generator</CardTitle>
-              <CardDescription>
-                Configure and generate time series data with various patterns
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="generate">Generate</TabsTrigger>
-                  <TabsTrigger value="upload">Upload</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="generate">
-                  <form id="time-series-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* Schema detection notification */}
-                    {detectedSchema && (
-                      <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md mb-4">
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                          Using schema from uploaded file
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {uploadedFile?.name} · {Object.keys(detectedSchema).length} fields detected
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Display date range info when available */}
-                    {datasetAnalysis && (
-                      <DateRangeInfo 
-                        startDate={datasetAnalysis.dateRange.start}
-                        endDate={datasetAnalysis.dateRange.end}
-                        interval={datasetAnalysis.dateRange.interval}
-                        dataPoints={datasetAnalysis.dataPoints}
-                      />
-                    )}
-                    
-                    {/* Generation mode selector for uploaded data */}
-                    <DataGenerationOptions 
-                      generationMode={generationMode}
-                      onGenerationModeChange={(mode) => setValue('generationMode', mode)}
-                      hasExistingData={timeSeriesData.length > 0}
-                    />
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="datasetName">Dataset Name</Label>
-                      <Input
-                        id="datasetName"
-                        placeholder="Enter dataset name"
-                        {...register('datasetName', { required: 'Dataset name is required' })}
-                      />
-                      {errors.datasetName && (
-                        <p className="text-sm text-destructive">{errors.datasetName.message}</p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="useAi" 
-                        checked={useAi} 
-                        onCheckedChange={(checked) => setValue('useAi', checked)} 
-                      />
-                      <Label htmlFor="useAi" className="font-medium">
-                        Use AI Generation
-                      </Label>
-                    </div>
-                    
-                    {useAi && (
-                      <ApiKeyRequirement>
-                        <div className="space-y-2">
-                          <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
-                          <Textarea
-                            id="aiPrompt"
-                            placeholder={timeSeriesData.length > 0 
-                              ? "Describe how to enhance this existing data (e.g., 'Add seasonal patterns and extend by 30 days')" 
-                              : "Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data')"}
-                            className="h-24"
-                            {...register('aiPrompt')}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            {timeSeriesData.length > 0 
-                              ? "Describe how you want to enhance or extend the uploaded data" 
-                              : "Describe domain, patterns, seasonality, trends, and any specific characteristics"}
-                          </p>
-                        </div>
-                      </ApiKeyRequirement>
-                    )}
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Start Date</Label>
-                        <Controller
-                          control={control}
-                          name="startDate"
-                          render={({ field }) => (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                  }
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>End Date</Label>
-                        <Controller
-                          control={control}
-                          name="endDate"
-                          render={({ field }) => (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                  }
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Conditional heading based on whether data is uploaded or being created */}
-                    <div className="border-t pt-4 mt-4">
-                      <h3 className="font-medium mb-2">
-                        {timeSeriesData.length > 0 ? "Modification Options" : "Generation Options"}
-                      </h3>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="interval">Time Interval</Label>
-                      <Controller
-                        control={control}
-                        name="interval"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select interval" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="hourly">Hourly</SelectItem>
-                              <SelectItem value="daily">Daily</SelectItem>
-                              <SelectItem value="weekly">Weekly</SelectItem>
-                              <SelectItem value="monthly">Monthly</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="dataPoints">
-                        {timeSeriesData.length > 0 ? "Additional Data Points" : "Number of Data Points"}
-                      </Label>
-                      <Input
-                        id="dataPoints"
-                        type="number"
-                        {...register('dataPoints', { 
-                          required: 'Required',
-                          min: { value: 2, message: 'Minimum 2 points' },
-                          max: { value: 10000, message: 'Maximum 10000 points' }
-                        })}
-                      />
-                      {errors.dataPoints && (
-                        <p className="text-sm text-destructive">{errors.dataPoints.message}</p>
-                      )}
-                      {timeSeriesData.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Current dataset: {timeSeriesData.length} points
-                        </p>
-                      )}
-                    </div>
-                    
-                    {!useAi && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="trend">
-                            {timeSeriesData.length > 0 ? "Modification Pattern" : "Trend Pattern"}
-                          </Label>
-                          <Controller
-                            control={control}
-                            name="trend"
-                            render={({ field }) => (
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select trend" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="random">Random</SelectItem>
-                                  <SelectItem value="upward">Upward</SelectItem>
-                                  <SelectItem value="downward">Downward</SelectItem>
-                                  <SelectItem value="seasonal">Seasonal</SelectItem>
-                                  <SelectItem value="cyclical">Cyclical</SelectItem>
-                                  {timeSeriesData.length > 0 && (
-                                    <SelectItem value="extend">Extend Similar Pattern</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <Label htmlFor="noiseLevel">Noise Level</Label>
-                            <span className="text-sm text-muted-foreground">
-                              {Math.round(watch('noiseLevel') * 100)}%
-                            </span>
-                          </div>
-                          <Controller
-                            control={control}
-                            name="noiseLevel"
-                            render={({ field: { value, onChange } }) => (
-                              <Slider
-                                defaultValue={[value]}
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                onValueChange={(vals) => onChange(vals[0])}
-                              />
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="seed">Random Seed</Label>
-                          <Input
-                            id="seed"
-                            type="number"
-                            {...register('seed', { valueAsNumber: true })}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Use the same seed to generate reproducible results
-                          </p>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Add option to exclude default value field */}
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="excludeDefaultValue" 
-                        checked={excludeDefaultValue} 
-                        onCheckedChange={(checked) => setValue('excludeDefaultValue', checked)} 
-                      />
-                      <Label htmlFor="excludeDefaultValue" className="font-medium">
-                        Exclude default "value" field
-                      </Label>
-                    </div>
-                    
-                    {/* Replace the numeric field count input with the schema editor */}
-                    {detectedSchema && (
-                      <SchemaEditor
-                        schema={detectedSchema}
-                        additionalFields={additionalFields}
-                        setAdditionalFields={setAdditionalFields}
-                        excludeDefaultValue={excludeDefaultValue}
-                      />
-                    )}
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="outputFormat">Output Format</Label>
-                      <Controller
-                        control={control}
-                        name="outputFormat"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="json">JSON</SelectItem>
-                              <SelectItem value="csv">CSV</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </form>
-                </TabsContent>
-                
-                <TabsContent value="upload">
-                  <div className="space-y-4">
-                    <FileUploader
-                      onFileUpload={handleFileUpload}
-                      accept=".csv, .json"
-                      title="Upload Time Series Data"
-                      description="Upload a CSV or JSON file with timestamp and values"
-                    />
-                    
-                    {uploadedFile && (
-                      <div className="text-sm text-muted-foreground mt-2">
-                        <p className="font-medium">File: {uploadedFile.name}</p>
-                        <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                      </div>
-                    )}
-                    
-                    {timeSeriesData.length > 0 && (
-                      <ApiKeyRequirement>
-                        <Card className="mt-4">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base">AI Enhancements</CardTitle>
-                            <CardDescription>
-                              Enhance uploaded data with AI-generated patterns
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="aiNoisePrompt">AI Enhancement Instructions</Label>
-                                <Textarea
-                                  id="aiNoisePrompt"
-                                  placeholder="Describe how to modify the data (e.g., 'Add weekly seasonality pattern with 20% higher values on weekends')"
-                                  className="h-24"
-                                  value={aiNoisePrompt}
-                                  onChange={(e) => setAiNoisePrompt(e.target.value)}
-                                />
-                              </div>
-                              
-                              <Button 
-                                onClick={handleApplyAiNoise} 
-                                disabled={isApplyingAiNoise || !apiKey}
-                                className="w-full"
-                              >
-                                {isApplyingAiNoise ? (
-                                  <>
-                                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                    Applying AI Enhancements...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="mr-2 h-4 w-4" />
-                                    Apply AI Enhancements
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </ApiKeyRequirement>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-            
-            <CardFooter className="flex-col space-y-2">
-              {showProgress && (
-                <div className="w-full space-y-1 mb-2">
-                  <Progress value={progressPercentage} />
-                  <p className="text-xs text-right text-muted-foreground">
-                    {Math.round(progressPercentage)}%
-                  </p>
-                </div>
-              )}
-              
-              <div className="flex gap-2 w-full">
-                <Button 
-                  type="submit" 
-                  form="time-series-form" 
-                  className="flex-1" 
-                  disabled={loading || activeTab !== 'generate'}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : timeSeriesData.length > 0 ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Update
-                    </>
-                  ) : (
-                    <>
-                      <BarChart className="mr-2 h-4 w-4" />
-                      Generate
-                    </>
-                  )}
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={handleDownload}
-                  disabled={!formattedData}
-                >
-                  <DownloadCloud className="h-4 w-4" />
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={handleCopyToClipboard}
-                  disabled={!formattedData}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {timeSeriesData.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Dataset
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-        
-        <div className="w-full md:w-2/3 space-y-4">
-          {timeSeriesData.length > 0 ? (
-            <TimeSeriesChart 
-              data={timeSeriesData} 
-              title="Time Series Data Preview" 
-              additionalFields={additionalFieldNames}
-              defaultValue={excludeDefaultValue ? undefined : 'value'}
-              className="h-[500px]"
-            />
-          ) : (
-            <Card className="h-[500px]">
-              <CardContent className="flex flex-col items-center justify-center h-full p-6">
-                <div className="text-center space-y-3">
-                  <BarChart className="h-12 w-12 text-muted-foreground mx-auto" />
-                  <h3 className="font-medium text-xl">No Time Series Data</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    Generate a new time series data set using the form or upload an existing CSV/JSON file to visualize and manipulate time series data.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {formattedData && (
+    <ApiKeyRequirement>
+      <div className="container mx-auto py-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="w-full md:w-1/3">
             <Card>
               <CardHeader>
-                <CardTitle>Generated Data</CardTitle>
-                <CardDescription>Preview of the generated time series data</CardDescription>
+                <CardTitle>Time Series Generator</CardTitle>
+                <CardDescription>
+                  Configure and generate time series data with various patterns
+                </CardDescription>
               </CardHeader>
+              
               <CardContent>
-                <pre className="bg-secondary/20 p-4 rounded-md overflow-auto max-h-96 text-xs">
-                  {formattedData.length > 10000 
-                    ? formattedData.substring(0, 10000) + "... (truncated)"
-                    : formattedData
-                  }
-                </pre>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default TimeSeries;
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                 
