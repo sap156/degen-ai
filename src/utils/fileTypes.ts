@@ -9,7 +9,19 @@ export interface FileProcessingResult {
 }
 
 // Schema field type definition
-export type SchemaFieldType = 'string' | 'number' | 'boolean' | 'date' | 'integer' | 'float' | 'object' | 'array';
+export type SchemaFieldType = 
+  'string' | 
+  'number' | 
+  'boolean' | 
+  'date' | 
+  'integer' | 
+  'float' | 
+  'object' | 
+  'array' |
+  'email' |
+  'phone' |
+  'ssn' |
+  'creditcard';
 
 // Data field structure
 export interface DataField {
@@ -22,6 +34,8 @@ export interface DataField {
 }
 
 // For file upload formats
+export type SupportedFileType = 'csv' | 'json' | 'txt' | 'pdf' | 'doc' | 'docx' | 'xls' | 'xlsx';
+
 export const getFileType = (file: File): string => {
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
   return extension;

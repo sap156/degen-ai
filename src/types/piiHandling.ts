@@ -1,6 +1,6 @@
 
 // Field masking configuration
-export type MaskingTechnique = 'replace' | 'redact' | 'hash' | 'truncate' | 'tokenize' | 'pseudonymize' | string;
+export type MaskingTechnique = 'replace' | 'redact' | 'hash' | 'truncate' | 'tokenize' | 'pseudonymize';
 
 export interface FieldMaskingConfig {
   enabled: boolean;

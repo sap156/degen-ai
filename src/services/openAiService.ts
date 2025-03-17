@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 // Export common types
 export interface CompletionOptions {
   model: string;
-  messages: { role: string; content: string }[];
+  messages: OpenAiMessage[];
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
@@ -40,7 +40,7 @@ export const callOpenAI = async (
     // Make API call
     const response = await openai.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: options.messages as any, // Type casting to handle OpenAI API types
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens,
       top_p: options.top_p,

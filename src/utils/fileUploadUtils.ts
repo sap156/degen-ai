@@ -2,7 +2,7 @@
 import { parse } from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import * as openAiService from '@/services/openAiService';
-import { SchemaFieldType, DataTypeResult } from './fileTypes';
+import { SchemaFieldType, DataTypeResult, generateSchema } from './fileTypes';
 
 // Function to read file content as text
 export const readFileContent = (file: File): Promise<string> => {
@@ -233,13 +233,17 @@ export const generateSyntheticData = (schema: Record<string, SchemaFieldType>, c
           item[key] = uuidv4();
           break;
         case 'number':
+        case 'float':
+        case 'integer':
           item[key] = Math.random() * 100;
           break;
         case 'boolean':
           item[key] = Math.random() < 0.5;
           break;
+        case 'date':
+          item[key] = new Date().toISOString().split('T')[0];
+          break;
         default:
-          // Handle other types
           item[key] = `Value for ${key}`;
       }
     });

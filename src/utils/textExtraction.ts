@@ -1,5 +1,5 @@
 
-import { PDFDocumentProxy, getDocument } from 'pdfjs-dist';
+import { getDocument } from 'pdfjs-dist';
 import * as openAiService from '@/services/openAiService';
 import { FileProcessingResult } from './fileTypes';
 
