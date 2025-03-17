@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -402,4 +403,15 @@ const PiiHandling = () => {
                   </Button>
                 </div>
                 <CardDescription>
-                  Select fields
+                  Select fields to mask in the output
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </ApiKeyRequirement>
+  );
+};
+
+export default PiiHandling;
