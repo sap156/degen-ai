@@ -458,18 +458,18 @@ const extractTextWithAI = async (
       
       const messages = [
         { 
-          role: 'system', 
+          role: 'system' as const, 
           content: 'You are an expert OCR assistant. Extract all text from the provided image, preserving structure and layout as much as possible. Include tables, lists, and other formatted content.'
         },
         { 
-          role: 'user', 
+          role: 'user' as const, 
           content: [
-            { type: 'text', text: 'Extract all text content from this image:' },
+            { type: 'text' as const, text: 'Extract all text content from this image:' },
             { 
-              type: 'image_url', 
+              type: 'image_url' as const, 
               image_url: {
                 url: base64Content,
-                detail: 'high'
+                detail: 'high' as const
               } 
             }
           ]
