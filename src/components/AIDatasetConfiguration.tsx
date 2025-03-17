@@ -2,14 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Bot, Brain, FileSearch, Target, Tag, FileText, ChevronRight, ArrowLeft, Key } from 'lucide-react';
+import { Bot, Brain, FileSearch, Target, Key, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { DatasetAnalysis, DatasetPreferences } from '@/services/aiDatasetAnalysisService';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -28,7 +27,7 @@ const AIDatasetConfiguration = ({
   onConfigurationComplete,
   apiKeyAvailable
 }: AIDatasetConfigurationProps) => {
-  const [step, setStep] = useState<'target' | 'classes' | 'primaryKeys' | 'context'>('target');
+  const [step, setStep] = useState<'target' | 'primaryKeys' | 'context'>('target');
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<DatasetPreferences>({
     defaultValues: {
       targetColumn: datasetAnalysis?.detectedTarget || '',
@@ -64,15 +63,6 @@ const AIDatasetConfiguration = ({
 
   const uniqueClassValues = getUniqueClassValues();
   
-  // For the detected target column, show frequency of each value
-  const getValueFrequency = (value: string): number => {
-    if (!datasetAnalysis || !targetColumn) return 0;
-    
-    return datasetAnalysis.preview.filter(item => 
-      String(item[targetColumn]) === value
-    ).length;
-  };
-
   // Detect potential primary key fields
   const detectPrimaryKeys = (): string[] => {
     if (!datasetAnalysis) return [];
@@ -149,10 +139,6 @@ const AIDatasetConfiguration = ({
     
     // Auto-select the unique values as class labels
     setValue('classLabels', uniqueClassValues);
-    setStep('classes');
-  };
-
-  const handleClassesSelection = () => {
     setStep('primaryKeys');
   };
 
@@ -162,10 +148,6 @@ const AIDatasetConfiguration = ({
 
   const handleBackToTarget = () => {
     setStep('target');
-  };
-
-  const handleBackToClasses = () => {
-    setStep('classes');
   };
 
   const handleBackToPrimaryKeys = () => {
@@ -268,30 +250,12 @@ const AIDatasetConfiguration = ({
                   ))}
                 </SelectContent>
               </Select>
-              
-              {targetColumn && uniqueClassValues.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  <Label>Preview of target values:</Label>
-                  <div className="border rounded-md p-3">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      {uniqueClassValues.map(value => (
-                        <div key={value} className="flex justify-between items-center">
-                          <Badge variant="outline">{value}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {getValueFrequency(value)} occurrences
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
             
             <Button 
               onClick={handleTargetSelection} 
               className="mt-4"
-              disabled={!targetColumn || uniqueClassValues.length === 0}
+              disabled={!targetColumn}
             >
               Continue
               <ChevronRight className="ml-2 h-4 w-4" />
@@ -299,69 +263,11 @@ const AIDatasetConfiguration = ({
           </div>
         )}
         
-        {step === 'classes' && (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2 mb-4">
-              <Tag className="h-5 w-5 text-green-500" />
-              <h3 className="text-lg font-medium">2. Confirm Class Labels</h3>
-            </div>
-            
-            <div className="space-y-3">
-              <Label>Confirm the class values in your target variable</Label>
-              <p className="text-sm text-muted-foreground">
-                These are the unique values found in your selected target column. 
-                Please confirm they are correct.
-              </p>
-              
-              <div className="border rounded-md p-3">
-                <div className="grid grid-cols-1 gap-2">
-                  {uniqueClassValues.map(value => (
-                    <div key={value} className="flex items-center">
-                      <Switch 
-                        id={`class-${value}`}
-                        checked={watch('classLabels').includes(value)}
-                        onCheckedChange={(checked) => {
-                          const current = watch('classLabels');
-                          if (checked) {
-                            setValue('classLabels', [...current, value]);
-                          } else {
-                            setValue('classLabels', current.filter(v => v !== value));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`class-${value}`} className="ml-2">
-                        {value}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between mt-4">
-              <Button
-                variant="outline"
-                onClick={handleBackToTarget}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button 
-                onClick={handleClassesSelection} 
-                disabled={watch('classLabels').length < 2}
-              >
-                Continue
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-        
         {step === 'primaryKeys' && (
           <div className="space-y-4">
             <div className="flex items-center space-x-2 mb-4">
               <Key className="h-5 w-5 text-amber-500" />
-              <h3 className="text-lg font-medium">3. Select Primary Key Fields</h3>
+              <h3 className="text-lg font-medium">2. Select Primary Key Fields</h3>
             </div>
             
             <div className="space-y-3">
@@ -426,7 +332,7 @@ const AIDatasetConfiguration = ({
             <div className="flex justify-between mt-4">
               <Button
                 variant="outline"
-                onClick={handleBackToClasses}
+                onClick={handleBackToTarget}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
@@ -445,7 +351,7 @@ const AIDatasetConfiguration = ({
           <form onSubmit={handleSubmit(handleComplete)} className="space-y-4">
             <div className="flex items-center space-x-2 mb-4">
               <FileText className="h-5 w-5 text-purple-500" />
-              <h3 className="text-lg font-medium">4. Add Context (Optional)</h3>
+              <h3 className="text-lg font-medium">3. Add Context (Optional)</h3>
             </div>
             
             <div className="space-y-3">
