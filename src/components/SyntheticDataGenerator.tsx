@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4 } from 'lucide-react';
+import { Bot, Download, RefreshCw, PlusCircle, DatabaseBackup, BarChart4, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,6 +9,9 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { DatasetPreferences, ModelOptions } from '@/services/aiDataAnalysisService';
 import { DatasetInfo, generateSyntheticRecords } from '@/services/imbalancedDataService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface SyntheticDataGeneratorProps {
   preferences: DatasetPreferences;
@@ -29,6 +33,10 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [generatedCount, setGeneratedCount] = useState(0);
+  const [selectedPrimaryKeys, setSelectedPrimaryKeys] = useState<string[]>([]);
+  
+  // Detect potential primary key fields on component mount
+  const potentialPrimaryKeys = detectPrimaryKeyFields(originalData);
   
   const handleGenerateSyntheticData = async () => {
     if (!apiKeyAvailable) {
@@ -55,9 +63,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
       const batchSize = 20;
       let generatedSamples: any[] = [];
       
-      // Detect potential primary key fields
-      const potentialPrimaryKeys = detectPrimaryKeyFields(originalData);
-      console.log("Detected potential primary keys:", potentialPrimaryKeys);
+      console.log("Using primary keys:", selectedPrimaryKeys);
       
       for (let i = 0; i < totalToGenerate; i += batchSize) {
         // Update progress
@@ -82,7 +88,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
         // Generate synthetic samples ensuring primary key uniqueness
         const currentBatch = generateSyntheticSamplesWithUniqueKeys(
           minoritySamples,
-          potentialPrimaryKeys,
+          selectedPrimaryKeys, // Use user-selected primary keys
           batchCount,
           modelOptions.syntheticDataPreferences.diversity || 'medium',
           generatedSamples, // Existing samples to ensure uniqueness
@@ -110,7 +116,7 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   };
   
   // Detect potential primary key fields in the dataset
-  const detectPrimaryKeyFields = (data: any[]): string[] => {
+  function detectPrimaryKeyFields(data: any[]): string[] {
     if (!data || data.length === 0) return [];
     
     const commonPrimaryKeyNames = [
@@ -292,6 +298,59 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
   const minorityClassCount = minorityClassInfo?.count || 0;
   const targetCount = modelOptions.syntheticDataPreferences?.volume || 100;
   
+  // Component to show primary key selection
+  const PrimaryKeySelector = () => {
+    if (potentialPrimaryKeys.length === 0) {
+      return (
+        <div className="text-sm text-muted-foreground mt-2">
+          No potential primary key fields detected. Synthetic records may contain duplicates.
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-3 mt-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">Select Primary Key Fields</Label>
+          <span className="text-xs text-muted-foreground">
+            {selectedPrimaryKeys.length} selected
+          </span>
+        </div>
+        
+        <div className="border rounded-md p-3 space-y-2">
+          {potentialPrimaryKeys.map(field => (
+            <div key={field} className="flex items-center space-x-2">
+              <Checkbox 
+                id={`pk-${field}`}
+                checked={selectedPrimaryKeys.includes(field)}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setSelectedPrimaryKeys(prev => [...prev, field]);
+                  } else {
+                    setSelectedPrimaryKeys(prev => prev.filter(key => key !== field));
+                  }
+                }}
+              />
+              <Label 
+                htmlFor={`pk-${field}`}
+                className="text-sm cursor-pointer flex items-center"
+              >
+                <Key className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                {field}
+              </Label>
+            </div>
+          ))}
+        </div>
+        
+        {selectedPrimaryKeys.length > 0 && (
+          <div className="text-xs text-primary">
+            Synthetic data generation will ensure unique values for selected primary key fields
+          </div>
+        )}
+      </div>
+    );
+  };
+  
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -330,6 +389,10 @@ const SyntheticDataGenerator: React.FC<SyntheticDataGeneratorProps> = ({
             <span className="text-sm font-medium">Diversity Level</span>
             <span className="text-sm capitalize">{modelOptions.syntheticDataPreferences?.diversity || 'medium'}</span>
           </div>
+          
+          <Separator className="my-2" />
+          
+          <PrimaryKeySelector />
         </div>
         
         {loading && (
