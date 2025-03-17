@@ -86,6 +86,64 @@ export const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
 };
 
 /**
+ * Format a file size in bytes to a human-readable string
+ * @param bytes The file size in bytes
+ * @param decimals The number of decimal places to show (default: 2)
+ * @returns Formatted file size string
+ */
+export const formatFileSize = (bytes: number, decimals: number = 2): string => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+};
+
+/**
+ * Extract text from a file, handling different file types
+ * @param file The file to extract text from
+ * @param apiKey Optional API key for processing PDFs and other complex formats
+ * @returns Extracted text and file metadata
+ */
+export const extractTextFromFile = async (
+  file: File,
+  apiKey: string | null
+): Promise<{ text: string; metadata: Record<string, any> }> => {
+  const fileType = getFileType(file);
+  const metadata: Record<string, any> = {
+    name: file.name,
+    type: file.type,
+    size: formatFileSize(file.size),
+    lastModified: new Date(file.lastModified).toLocaleString(),
+    fileType
+  };
+  
+  let text = '';
+  
+  try {
+    // Simple text extraction for basic file types
+    if (fileType === 'txt' || fileType === 'csv' || fileType === 'json') {
+      text = await readFileContent(file);
+    } else {
+      // For complex file types, we'd normally use API services
+      // For now, just extract basic content
+      text = await readFileContent(file);
+      metadata.note = 'Basic text extraction only. Some content may not be properly parsed.';
+    }
+    
+    return { text, metadata };
+  } catch (error) {
+    console.error('Error extracting text:', error);
+    return { 
+      text: `Error extracting text: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      metadata 
+    };
+  }
+};
+
+/**
  * Download data as a file
  * @param data The data content as string
  * @param fileName The name for the downloaded file

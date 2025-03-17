@@ -157,7 +157,7 @@ const ImbalancedDataPage: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Sample dataset loaded with {datasetInfo.totalRecords} records.</p>
+          <p>Sample dataset loaded with {datasetInfo.totalSamples} records.</p>
           <p>Imbalance ratio: {datasetInfo.imbalanceRatio}:1</p>
           
           <div className="mt-4">
