@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { ProcessingMode, QueryResult } from '@/pages/DataQuery';
 import { processQueryWithAI } from '@/services/dataQueryService';
 import { Sparkles, Database, Loader2 } from 'lucide-react';
+import { isDatabaseConnected as checkDatabaseConnection } from '@/services/databaseService';
 
 interface QueryInputProps {
   schema: string;
@@ -27,8 +28,8 @@ const QueryInput: React.FC<QueryInputProps> = ({
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ProcessingMode>('generate');
 
-  // Database connection is not available yet (will be implemented in future)
-  const isDatabaseConnected = false;
+  // Rename the variable to avoid the naming conflict
+  const isDbConnected = checkDatabaseConnection();
 
   const handleSubmit = async () => {
     if (!query.trim()) {
@@ -42,8 +43,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
       const result = await processQueryWithAI(apiKey, query, mode, schema);
       onQueryProcessed(result);
       
-      // Change success message based on mode and connection status
-      if (!isDatabaseConnected) {
+      if (!isDbConnected) {
         if (mode === 'generate') {
           toast.success('SQL query generated successfully!');
         } else if (mode === 'optimize') {
@@ -74,16 +74,14 @@ const QueryInput: React.FC<QueryInputProps> = ({
     "Show sales by region compared to last year"
   ];
 
-  // Adjust the card title based on database connection status
-  const cardTitle = isDatabaseConnected ? 
+  const cardTitle = isDbConnected ? 
     "SQL Query Generator & Executor" : 
     "SQL Query Generator";
 
-  const cardDescription = isDatabaseConnected ? 
+  const cardDescription = isDbConnected ? 
     "Enter your question in natural language, and we'll convert it to SQL and execute it" : 
     "Enter your question in natural language, and we'll convert it to SQL";
 
-  // Get button text based on mode
   const getButtonText = () => {
     if (isProcessing) return "Processing";
     
@@ -107,7 +105,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
       <CardContent className="space-y-4">
         <div>
           <Textarea
-            placeholder="e.g., Show me the top 10 customers by revenue in the last quarter"
+            placeholder="Enter your query in natural language or paste SQL to optimize/analyze"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="min-h-[120px] mb-2"

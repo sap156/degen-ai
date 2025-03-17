@@ -6,9 +6,10 @@ import QueryInput from '@/components/DataQuery/QueryInput';
 import QueryOutput from '@/components/DataQuery/QueryOutput';
 import SchemaUploader from '@/components/DataQuery/SchemaUploader';
 import QueryResults from '@/components/DataQuery/QueryResults';
-import DatabaseConnectionPlaceholder from '@/components/DataQuery/DatabaseConnectionPlaceholder';
+import DatabaseExplorer from '@/components/DataQuery/DatabaseExplorer';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { isDatabaseConnected as checkDatabaseConnected } from '@/services/databaseService';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -29,17 +30,22 @@ const DataQuery = () => {
   const [activeTab, setActiveTab] = useState('query');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Database connection is not available yet (will be implemented in future)
-  const isDatabaseConnected = false;
+  // Fix: Declare and initialize the variable before using it
+  const isConnected = checkDatabaseConnected();
 
   // When a successful query is processed, switch to results tab if database is connected
   const handleQuerySuccess = (result: QueryResult) => {
     setQueryResult(result);
     // Only switch to results tab if the database is connected
-    if (isDatabaseConnected) {
+    if (isConnected) {
       setActiveTab('results');
     }
     setIsProcessing(false);
+  };
+
+  // Handle schema detection from database explorer
+  const handleSchemaDetected = (detectedSchema: string) => {
+    setSchema(detectedSchema);
   };
 
   return (
@@ -47,7 +53,7 @@ const DataQuery = () => {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Data Query Service</h1>
         <p className="text-muted-foreground">
-          Convert natural language to SQL queries, optimize them, analyze results, and get follow-up suggestions.
+          Connect to databases, convert natural language to SQL queries, optimize them, analyze results, and get follow-up suggestions.
         </p>
       </div>
 
@@ -56,6 +62,8 @@ const DataQuery = () => {
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="md:col-span-1 space-y-6">
+            <DatabaseExplorer onSchemaDetected={handleSchemaDetected} />
+            
             <Card>
               <CardHeader>
                 <CardTitle>Database Schema</CardTitle>
@@ -67,12 +75,10 @@ const DataQuery = () => {
                 <SchemaUploader schema={schema} setSchema={setSchema} />
               </CardContent>
             </Card>
-            
-            <DatabaseConnectionPlaceholder />
           </div>
 
           <div className="md:col-span-2 space-y-6">
-            {isDatabaseConnected ? (
+            {isConnected ? (
               // Only show tabs if database is connected
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
