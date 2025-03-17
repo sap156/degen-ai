@@ -1,6 +1,5 @@
-
 import { toast } from "sonner";
-import { getCompletion, OpenAiMessage } from "./openAiService";
+import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
 import { ProcessingMode, QueryResult } from "@/pages/DataQuery";
 
 /**
@@ -22,10 +21,7 @@ export const processQueryWithAI = async (
   // Create the user prompt with the query and explanation of what we want
   const userPrompt = getUserPromptForMode(mode, query);
   
-  const messages: OpenAiMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt }
-  ];
+  const messages = createMessages(systemPrompt, userPrompt);
   
   try {
     // Get the model from localStorage

@@ -405,27 +405,25 @@ export const getAIRecommendations = async (
   }
   
   try {
-    const messages: OpenAiMessage[] = [
-      {
-        role: "system",
-        content: "You are an expert in machine learning and data science specializing in handling imbalanced datasets. Provide practical recommendations for the given dataset."
-      },
-      {
-        role: "user",
-        content: `I have a dataset with the following class distribution:
+    const { createMessages } = await import("./openAiService");
+    const { getCompletion } = await import("./openAiService");
+    
+    const systemPrompt = "You are an expert in machine learning and data science specializing in handling imbalanced datasets. Provide practical recommendations for the given dataset.";
+    
+    const userPrompt = `I have a dataset with the following class distribution:
         
-        ${dataset.classes.map(c => `${c.className}: ${c.count} samples (${c.percentage}%)`).join('\n')}
-        
-        Total samples: ${dataset.totalSamples}
-        Imbalance ratio: ${dataset.imbalanceRatio}
-        
-        Please provide specific recommendations for handling this imbalanced dataset, including:
-        1. Which sampling techniques might work best
-        2. Algorithm recommendations
-        3. Evaluation metrics to use
-        4. Any other best practices`
-      }
-    ];
+    ${dataset.classes.map(c => `${c.className}: ${c.count} samples (${c.percentage}%)`).join('\n')}
+    
+    Total samples: ${dataset.totalSamples}
+    Imbalance ratio: ${dataset.imbalanceRatio}
+    
+    Please provide specific recommendations for handling this imbalanced dataset, including:
+    1. Which sampling techniques might work best
+    2. Algorithm recommendations
+    3. Evaluation metrics to use
+    4. Any other best practices`;
+    
+    const messages = createMessages(systemPrompt, userPrompt);
     
     return await getCompletion(apiKey, messages, {
       temperature: 0.7,

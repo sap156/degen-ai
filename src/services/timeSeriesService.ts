@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { getCompletion, OpenAiMessage } from '@/services/openAiService';
+import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
 import { Progress } from '@/components/ui/progress';
 
 export interface TimeSeriesDataPoint {

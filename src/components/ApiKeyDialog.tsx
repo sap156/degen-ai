@@ -50,7 +50,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
         
         <div className="space-y-6 py-2">
           {isAuthenticated && (
-            <Alert variant="info" className="bg-primary/5 text-primary border-primary/20">
+            <Alert className="bg-primary/5 text-primary border-primary/20">
               <Info className="h-4 w-4" />
               <AlertDescription>
                 Your API key is securely stored in your user profile, not in browser storage.

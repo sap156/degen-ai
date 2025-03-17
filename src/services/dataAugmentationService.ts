@@ -1,6 +1,5 @@
-
 import { toast } from "sonner";
-import { getCompletion, OpenAiMessage } from "./openAiService";
+import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
 
 export interface AugmentationOptions {
   method: string;
@@ -38,10 +37,7 @@ export const augmentDataWithAI = async (
     // Create user message with data samples and instructions
     const userMessage = createUserMessage(samples, options);
     
-    const messages: OpenAiMessage[] = [
-      { role: 'system', content: systemMessage },
-      { role: 'user', content: userMessage }
-    ];
+    const messages = createMessages(systemMessage, userMessage);
     
     // Call OpenAI API
     const response = await getCompletion(apiKey, messages, {

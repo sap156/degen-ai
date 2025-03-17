@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { getCompletion, OpenAiMessage } from "./openAiService";
+import { getCompletion, createMessages, OpenAiMessage } from "./openAiService";
 
 /**
  * Types of text processing operations
