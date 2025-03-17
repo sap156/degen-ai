@@ -10,7 +10,6 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -138,7 +137,7 @@ const DatabaseConnectionDialog: React.FC<DatabaseConnectionDialogProps> = ({
             {getConnectionLabel()}
           </DialogTitle>
           <DialogDescription>
-            Connect to your database to query and analyze your data
+            Connect to your on-premises or cloud database
           </DialogDescription>
         </DialogHeader>
         
@@ -234,7 +233,7 @@ const DatabaseConnectionDialog: React.FC<DatabaseConnectionDialogProps> = ({
                 <Label htmlFor="database">Database Name</Label>
                 <Input
                   id="database"
-                  placeholder="Optional database name"
+                  placeholder="Database name"
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
                 />
@@ -274,8 +273,8 @@ const DatabaseConnectionDialog: React.FC<DatabaseConnectionDialogProps> = ({
           )}
           
           <div className="text-xs text-muted-foreground">
-            <p>This application uses a simulated connection for demonstration purposes.</p>
-            <p className="mt-1">In a production environment, direct database connections would be established.</p>
+            <p>The application will attempt to establish a direct connection to your database.</p>
+            <p className="mt-1">Ensure your database allows connections from this application.</p>
           </div>
         </div>
         

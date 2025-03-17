@@ -105,7 +105,7 @@ const QueryInput: React.FC<QueryInputProps> = ({
       <CardContent className="space-y-4">
         <div>
           <Textarea
-            placeholder="e.g., Show me the top 10 customers by revenue in the last quarter"
+            placeholder="Enter your query in natural language or paste SQL to optimize/analyze"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="min-h-[120px] mb-2"
