@@ -7,8 +7,7 @@ import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, 
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
-import DatabaseConnectionDialog from '@/components/DatabaseConnectionDialog';
-import { isDatabaseConnected } from '@/services/databaseService';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const container = {
   hidden: {
@@ -39,52 +38,54 @@ const item = {
   }
 };
 
-const features = [{
-  title: 'Synthetic Data',
-  description: 'Generate realistic synthetic data for testing and development',
-  icon: <Layers className="h-5 w-5" />,
-  path: '/synthetic-data'
-}, {
-  title: 'Data Augmentation',
-  description: 'Enrich and expand your existing datasets',
-  icon: <BarChart3 className="h-5 w-5" />,
-  path: '/data-augmentation'
-}, {
-  title: 'Time Series Data',
-  description: 'Generate time-based data with customizable patterns',
-  icon: <TimerReset className="h-5 w-5" />,
-  path: '/time-series'
-}, {
-  title: 'Edge Cases',
-  description: 'Identify and generate edge cases to improve model robustness',
-  icon: <Bug className="h-5 w-5" />,
-  path: '/edge-cases'
-}, {
-  title: 'PII Handling',
-  description: 'Securely process and anonymize sensitive personal data',
-  icon: <ShieldAlert className="h-5 w-5" />,
-  path: '/pii-handling'
-}, {
-  title: 'Imbalanced Data',
-  description: 'Balance and optimize unevenly distributed datasets',
-  icon: <Scale className="h-5 w-5" />,
-  path: '/imbalanced-data'
-}, {
-  title: 'Data Parsing',
-  description: 'Parse, extract and analyze text with NER and AI processing',
-  icon: <FileJson className="h-5 w-5" />,
-  path: '/data-parsing'
-}, {
-  title: 'Data Extraction',
-  description: 'Extract structured data from web scrapes and images',
-  icon: <Globe className="h-5 w-5" />,
-  path: '/extraction'
-}, {
-  title: 'Data Query & Analysis',
-  description: 'Query, analyze and optimize your data operations',
-  icon: <Search className="h-5 w-5" />,
-  path: '/data-query'
-}];
+const features = [
+  {
+    title: 'Synthetic Data',
+    description: 'Generate realistic synthetic data for testing and development',
+    icon: <Layers className="h-5 w-5" />,
+    path: '/synthetic-data'
+  }, {
+    title: 'Data Augmentation',
+    description: 'Enrich and expand your existing datasets',
+    icon: <BarChart3 className="h-5 w-5" />,
+    path: '/data-augmentation'
+  }, {
+    title: 'Time Series Data',
+    description: 'Generate time-based data with customizable patterns',
+    icon: <TimerReset className="h-5 w-5" />,
+    path: '/time-series'
+  }, {
+    title: 'Edge Cases',
+    description: 'Identify and generate edge cases to improve model robustness',
+    icon: <Bug className="h-5 w-5" />,
+    path: '/edge-cases'
+  }, {
+    title: 'PII Handling',
+    description: 'Securely process and anonymize sensitive personal data',
+    icon: <ShieldAlert className="h-5 w-5" />,
+    path: '/pii-handling'
+  }, {
+    title: 'Imbalanced Data',
+    description: 'Balance and optimize unevenly distributed datasets',
+    icon: <Scale className="h-5 w-5" />,
+    path: '/imbalanced-data'
+  }, {
+    title: 'Data Parsing',
+    description: 'Parse, extract and analyze text with NER and AI processing',
+    icon: <FileJson className="h-5 w-5" />,
+    path: '/data-parsing'
+  }, {
+    title: 'Data Extraction',
+    description: 'Extract structured data from web scrapes and images',
+    icon: <Globe className="h-5 w-5" />,
+    path: '/extraction'
+  }, {
+    title: 'Data Query & Analysis',
+    description: 'Query, analyze and optimize your data operations',
+    icon: <Search className="h-5 w-5" />,
+    path: '/data-query'
+  }
+];
 
 const FeatureCard = ({
   feature
@@ -115,9 +116,7 @@ const Index: React.FC = () => {
     isKeySet
   } = useApiKey();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [dbConnectionDialogOpen, setDbConnectionDialogOpen] = useState(false);
-  const isDbConnected = isDatabaseConnected();
-
+  
   return <div className="container px-4 mx-auto py-8 max-w-7xl">
       <div className="flex flex-col items-center text-center mb-16 space-y-3">
         <motion.div initial={{
@@ -164,15 +163,24 @@ const Index: React.FC = () => {
         duration: 0.5,
         delay: 0.3
       }}>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => setDbConnectionDialogOpen(true)}
-          >
-            <Database className="h-4 w-4" />
-            {isDbConnected ? 'Manage Database' : 'Connect Database'}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="gap-2"
+                  disabled={true}
+                >
+                  <Database className="h-4 w-4" />
+                  Connect Database
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Database connection feature is currently disabled</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </motion.div>
         
         <motion.div className="w-full max-w-2xl mt-6" initial={{
@@ -216,7 +224,6 @@ const Index: React.FC = () => {
       </motion.div>
       
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
-      <DatabaseConnectionDialog open={dbConnectionDialogOpen} onOpenChange={setDbConnectionDialogOpen} />
     </div>;
 };
 

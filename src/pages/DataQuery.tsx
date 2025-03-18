@@ -6,10 +6,10 @@ import QueryInput from '@/components/DataQuery/QueryInput';
 import QueryOutput from '@/components/DataQuery/QueryOutput';
 import SchemaUploader from '@/components/DataQuery/SchemaUploader';
 import QueryResults from '@/components/DataQuery/QueryResults';
-import DatabaseExplorer from '@/components/DataQuery/DatabaseExplorer';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import { isDatabaseConnected as checkDatabaseConnected } from '@/services/databaseService';
+import { InfoIcon } from 'lucide-react';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -30,8 +30,8 @@ const DataQuery = () => {
   const [activeTab, setActiveTab] = useState('query');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Fix: Declare and initialize the variable before using it
-  const isConnected = checkDatabaseConnected();
+  // DB connection is disabled
+  const isConnected = false;
 
   // When a successful query is processed, switch to results tab if database is connected
   const handleQuerySuccess = (result: QueryResult) => {
@@ -53,7 +53,7 @@ const DataQuery = () => {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Data Query Service</h1>
         <p className="text-muted-foreground">
-          Connect to databases, convert natural language to SQL queries, optimize them, analyze results, and get follow-up suggestions.
+          Convert natural language to SQL queries, optimize them, analyze results, and get follow-up suggestions.
         </p>
       </div>
 
@@ -62,7 +62,14 @@ const DataQuery = () => {
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="md:col-span-1 space-y-6">
-            <DatabaseExplorer onSchemaDetected={handleSchemaDetected} />
+            <Alert variant="warning">
+              <InfoIcon className="h-4 w-4" />
+              <AlertTitle>Database Connection Disabled</AlertTitle>
+              <AlertDescription>
+                The database connection feature is currently unavailable. 
+                You can still use the SQL query generation with your schema.
+              </AlertDescription>
+            </Alert>
             
             <Card>
               <CardHeader>
@@ -78,47 +85,13 @@ const DataQuery = () => {
           </div>
 
           <div className="md:col-span-2 space-y-6">
-            {isConnected ? (
-              // Only show tabs if database is connected
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="query">Query</TabsTrigger>
-                  <TabsTrigger value="results">Results</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="query" className="space-y-4">
-                  <QueryInput 
-                    schema={schema}
-                    onQueryProcessed={handleQuerySuccess}
-                    isProcessing={isProcessing}
-                    setIsProcessing={setIsProcessing}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="results" className="space-y-4">
-                  {queryResult ? (
-                    <QueryResults queryResult={queryResult} />
-                  ) : (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>No Results Yet</CardTitle>
-                        <CardDescription>
-                          Enter a query in the Query tab to see results here
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-                  )}
-                </TabsContent>
-              </Tabs>
-            ) : (
-              // If database is not connected, just show the query input without tabs
-              <QueryInput 
-                schema={schema}
-                onQueryProcessed={handleQuerySuccess}
-                isProcessing={isProcessing}
-                setIsProcessing={setIsProcessing}
-              />
-            )}
+            {/* Always show the simplified view without tabs now that DB is disabled */}
+            <QueryInput 
+              schema={schema}
+              onQueryProcessed={handleQuerySuccess}
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+            />
             
             {queryResult && (
               <QueryOutput queryResult={queryResult} />
