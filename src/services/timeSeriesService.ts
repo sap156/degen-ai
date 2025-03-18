@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
 import { Progress } from '@/components/ui/progress';
@@ -331,17 +330,16 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     const formattedStartDate = startDate.toISOString().split('T')[0];
     const formattedEndDate = endDate.toISOString().split('T')[0];
     
-    // Create a system message explaining the task
+    // Create a system message explicitly instructing to generate pure JSON
     const systemMessage: OpenAiMessage = {
       role: 'system',
       content: `You are a time series data generation expert. Generate realistic time series data based on the user's request.
-      You must return ONLY a valid JSON array with data points and NO additional text, comments, or markdown formatting. 
+      YOU MUST RETURN ONLY a valid JSON array with NO explanatory text or markdown formatting.
       ${!excludeDefaultValue ? 'Each data point must have a "timestamp" (ISO format) and a "value" (numeric) field.' : 'Each data point must have a "timestamp" (ISO format) field.'}
       If additional fields are requested, include those as well.
-      The data should follow realistic temporal patterns and be suitable for analysis.
-      DO NOT wrap your response in code blocks, quotes, or any other formatting.
-      DO NOT explain your response or add any comments.
-      Your response MUST be a valid, properly formatted JSON array.`
+      The data should follow realistic temporal patterns.
+      DO NOT include any explanation, comments, code blocks, or conversation.
+      IMPORTANT: Your entire response must be JUST the raw JSON array and nothing else.`
     };
     
     onProgressUpdate?.(15);
@@ -384,15 +382,16 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       ${existingDataInfo}
       ${additionalFieldsInfo}
       ${excludeDefaultValue ? 'Do not include a default "value" field in the output.' : ''}
-      Return ONLY a valid JSON array of data points. DO NOT include any explanation, text, markdown code blocks, or comments. Your entire response should be the raw JSON array that can be parsed directly.`
+      
+      IMPORTANT: Respond with ONLY a valid JSON array of data points. DO NOT include ANY explanations, introductions, or code blocks. Your entire response should be JUST the JSON array of data points.`
     };
     
     onProgressUpdate?.(35);
     
-    console.log("Calling OpenAI for time series generation");
-    
     // Call the OpenAI API
     const messages = [systemMessage, userMessage];
+    console.log("Calling OpenAI for time series generation with messages:", JSON.stringify(messages, null, 2));
+    
     const response = await getCompletion(apiKey, messages, {
       model: "gpt-4o-mini",
       temperature: 0.5,
@@ -400,12 +399,9 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     });
     
     onProgressUpdate?.(75);
-    console.log("Raw API response:", response.substring(0, 100) + "...");
+    console.log("Raw OpenAI response received:", response.substring(0, 200) + "...");
     
     try {
-      // Parse the response
-      let parsedData: TimeSeriesDataPoint[];
-      
       // Clean the response to ensure we have valid JSON
       const cleanJsonResponse = (text: string): string => {
         let cleaned = text.trim();
@@ -416,6 +412,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
         
         if (match && match[1]) {
           cleaned = match[1].trim();
+          console.log("Extracted JSON from code block");
         }
         
         // Further clean potential markdown or text explanations
@@ -424,6 +421,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
         const arrayMatch = cleaned.match(arrayRegex);
         if (arrayMatch && arrayMatch[1]) {
           cleaned = arrayMatch[1].trim();
+          console.log("Extracted array pattern from response");
         }
         
         return cleaned;
@@ -433,18 +431,39 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       console.log("Cleaned response start:", cleanedResponse.substring(0, 100) + "...");
       
       // Try to parse the cleaned response
+      let parsedData: TimeSeriesDataPoint[];
+      
       try {
         parsedData = JSON.parse(cleanedResponse);
+        console.log("Successfully parsed JSON response");
       } catch (parseError) {
         console.error("Failed to parse cleaned response:", parseError);
         
-        // If direct parsing fails, try to extract JSON with regex
-        const jsonMatch = cleanedResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          parsedData = JSON.parse(jsonMatch[0]);
-        } else {
-          console.error("Failed to extract JSON pattern");
-          throw new Error('Failed to extract valid JSON from the response');
+        // If direct parsing fails, try more aggressive cleaning
+        // Remove any non-JSON characters at the start and end
+        let aggressivelyCleaned = cleanedResponse.replace(/^[^[]*/, '').replace(/[^\]]*$/, '');
+        console.log("Aggressively cleaned JSON:", aggressivelyCleaned.substring(0, 100) + "...");
+        
+        try {
+          parsedData = JSON.parse(aggressivelyCleaned);
+          console.log("Successfully parsed aggressively cleaned JSON");
+        } catch (secondParseError) {
+          console.error("Failed to parse even after aggressive cleaning:", secondParseError);
+          
+          // Final attempt: try to extract just the array pattern with regex
+          const jsonMatch = cleanedResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            try {
+              parsedData = JSON.parse(jsonMatch[0]);
+              console.log("Successfully parsed JSON using regex extraction");
+            } catch (finalParseError) {
+              console.error("All parsing attempts failed:", finalParseError);
+              throw new Error('Failed to extract valid JSON from the response. The AI model did not return properly formatted data.');
+            }
+          } else {
+            console.error("No JSON array pattern found in response");
+            throw new Error('Failed to find a valid JSON array in the response');
+          }
         }
       }
       
@@ -552,10 +571,10 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     const systemMessage: OpenAiMessage = {
       role: 'system',
       content: `You are a time series data noise generation expert. Add realistic noise, seasonality, or anomalies to the existing time series data based on the user's request.
-      Only return the modified data as a valid JSON array with no additional text, comments, or markdown formatting.
+      RETURN ONLY the modified data as a valid JSON array with NO additional text, comments, or markdown formatting.
       Maintain the original timestamp values and field structure.
       The modifications should match real-world patterns in similar data.
-      Your response must only contain valid JSON and nothing else.`
+      IMPORTANT: Your response must only contain the raw JSON array and nothing else.`
     };
     
     onProgressUpdate?.(15);
@@ -611,15 +630,17 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
       
       Specific instructions: ${prompt}
       
-      Return ONLY a JSON array of the modified data points with the same structure as the input.
-      Do not include any text, comments, or markdown formatting in your response.
-      Ensure the response is valid JSON that can be parsed directly.`
+      Return ONLY a JSON array of the modified data points with exactly the same structure as the input.
+      DO NOT include any explanations, text, or code blocks in your response.
+      IMPORTANT: Your entire response should be JUST the raw JSON array.`
     };
     
     onProgressUpdate?.(35);
     
     // Call the OpenAI API
     const messages = [systemMessage, userMessage];
+    console.log("Calling OpenAI for adding noise with messages:", JSON.stringify(messages, null, 2));
+    
     const response = await getCompletion(apiKey, messages, {
       model: "gpt-4o-mini",
       temperature: 0.5,
@@ -627,49 +648,79 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     });
     
     onProgressUpdate?.(75);
+    console.log("Raw noise response received:", response.substring(0, 200) + "...");
     
     try {
       // Parse the response
       let parsedData: TimeSeriesDataPoint[];
       
-      // Try to parse the response directly
-      try {
-        parsedData = JSON.parse(response);
-      } catch (parseError) {
-        console.error("Initial parsing failed:", parseError);
-        console.error("Raw response:", response);
+      // Clean and parse JSON using the same robust approach as in generateTimeSeriesWithAI
+      const cleanJsonResponse = (text: string): string => {
+        let cleaned = text.trim();
         
-        // If direct parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          parsedData = JSON.parse(jsonMatch[0]);
-        } else {
-          // If all parsing attempts fail, fallback to applying noise programmatically
-          console.warn("AI response parsing failed. Falling back to programmatic noise generation");
+        // Try to extract JSON from code blocks if present
+        const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+        const match = cleaned.match(jsonBlockRegex);
+        
+        if (match && match[1]) {
+          cleaned = match[1].trim();
+          console.log("Extracted JSON from code block");
+        }
+        
+        // Further clean potential markdown or text explanations
+        const arrayRegex = /(\[[\s\S]*\])/;
+        const arrayMatch = cleaned.match(arrayRegex);
+        if (arrayMatch && arrayMatch[1]) {
+          cleaned = arrayMatch[1].trim();
+          console.log("Extracted array pattern from response");
+        }
+        
+        return cleaned;
+      };
+      
+      const cleanedResponse = cleanJsonResponse(response);
+      console.log("Cleaned noise response start:", cleanedResponse.substring(0, 100) + "...");
+      
+      try {
+        parsedData = JSON.parse(cleanedResponse);
+        console.log("Successfully parsed noise JSON response");
+      } catch (parseError) {
+        console.error("Initial noise parsing failed:", parseError);
+        
+        // If direct parsing fails, try more aggressive cleaning
+        let aggressivelyCleaned = cleanedResponse.replace(/^[^[]*/, '').replace(/[^\]]*$/, '');
+        console.log("Aggressively cleaned noise JSON:", aggressivelyCleaned.substring(0, 100) + "...");
+        
+        try {
+          parsedData = JSON.parse(aggressivelyCleaned);
+          console.log("Successfully parsed aggressively cleaned noise JSON");
+        } catch (secondParseError) {
+          console.error("Failed to parse even after aggressive cleaning:", secondParseError);
           
-          // Apply simple noise to numeric fields ourselves
-          parsedData = data.map(point => {
-            const newPoint = { ...point };
-            numericFields.forEach(field => {
-              if (typeof point[field] === 'number') {
-                const value = point[field] as number;
-                const range = fieldStats[field] ? (fieldStats[field].max - fieldStats[field].min) : value * 0.5;
-                const noise = (Math.random() * 2 - 1) * noiseLevel * (range * 0.2);
-                newPoint[field] = Number((value + noise).toFixed(4));
-              }
-            });
-            return newPoint;
-          });
-          
-          toast.warning('AI response was invalid - applied simple noise pattern instead');
-          onProgressUpdate?.(100);
-          return parsedData;
+          // Final attempt: try to extract just the array pattern with regex
+          const jsonMatch = cleanedResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jsonMatch) {
+            try {
+              parsedData = JSON.parse(jsonMatch[0]);
+              console.log("Successfully parsed JSON using regex extraction");
+            } catch (finalParseError) {
+              console.error("All parsing attempts failed:", finalParseError);
+              
+              // Fallback to simple noise generation
+              throw new Error('Failed to parse AI response. Will use programmatic noise generation instead.');
+            }
+          } else {
+            console.error("No JSON array pattern found in response");
+            
+            // Fallback to simple noise generation
+            throw new Error('Failed to find a valid JSON array in the response. Will use programmatic noise generation instead.');
+          }
         }
       }
       
       onProgressUpdate?.(85);
       
-      // Validate the data
+      // Validate the data - ensure it's properly formatted
       if (!Array.isArray(parsedData) || parsedData.length === 0) {
         throw new Error('The response is not a valid array of data points');
       }
