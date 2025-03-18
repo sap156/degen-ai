@@ -373,13 +373,24 @@ export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Pr
   try {
     const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
     
-    return await analyzePiiWithAI(apiKey, sampleData);
+    const result = await analyzePiiWithAI(apiKey, sampleData);
+    
+    // If we got an empty array, provide a more helpful message
+    if (result.identifiedPii.length === 0 || 
+        (result.identifiedPii.length === 1 && result.identifiedPii[0].includes('Error'))) {
+      return {
+        identifiedPii: ["No PII detected or analysis failed"],
+        suggestions: "The analysis couldn't detect PII fields. Try adding more sample data or check if your sample data contains PII information."
+      };
+    }
+    
+    return result;
     
   } catch (error) {
     console.error("Error analyzing PII data:", error);
     return {
       identifiedPii: ["Error during analysis"],
-      suggestions: "An error occurred while analyzing the data. Please try again later."
+      suggestions: "An error occurred while analyzing the data. Please check the console for details and try again later."
     };
   }
 };
