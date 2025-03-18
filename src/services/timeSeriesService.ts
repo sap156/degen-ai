@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 import { getCompletion, OpenAiMessage } from '@/services/openAiService';
 import { Progress } from '@/components/ui/progress';
@@ -321,6 +322,11 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     // Initial progress update
     onProgressUpdate?.(5);
 
+    if (!apiKey) {
+      toast.error("API key is required for AI-powered time series generation");
+      throw new Error("API key is required");
+    }
+
     // Format the dates for the prompt
     const formattedStartDate = startDate.toISOString().split('T')[0];
     const formattedEndDate = endDate.toISOString().split('T')[0];
@@ -329,11 +335,13 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     const systemMessage: OpenAiMessage = {
       role: 'system',
       content: `You are a time series data generation expert. Generate realistic time series data based on the user's request.
-      Only return the data as a valid JSON array with no additional text, comments, or markdown formatting. 
+      You must return ONLY a valid JSON array with data points and NO additional text, comments, or markdown formatting. 
       ${!excludeDefaultValue ? 'Each data point must have a "timestamp" (ISO format) and a "value" (numeric) field.' : 'Each data point must have a "timestamp" (ISO format) field.'}
       If additional fields are requested, include those as well.
       The data should follow realistic temporal patterns and be suitable for analysis.
-      Your response must contain only valid JSON and nothing else.`
+      DO NOT wrap your response in code blocks, quotes, or any other formatting.
+      DO NOT explain your response or add any comments.
+      Your response MUST be a valid, properly formatted JSON array.`
     };
     
     onProgressUpdate?.(15);
@@ -376,10 +384,12 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       ${existingDataInfo}
       ${additionalFieldsInfo}
       ${excludeDefaultValue ? 'Do not include a default "value" field in the output.' : ''}
-      Return ONLY a valid JSON array of data points, with no additional text, comments, or markdown formatting.`
+      Return ONLY a valid JSON array of data points. DO NOT include any explanation, text, markdown code blocks, or comments. Your entire response should be the raw JSON array that can be parsed directly.`
     };
     
     onProgressUpdate?.(35);
+    
+    console.log("Calling OpenAI for time series generation");
     
     // Call the OpenAI API
     const messages = [systemMessage, userMessage];
@@ -390,23 +400,50 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     });
     
     onProgressUpdate?.(75);
+    console.log("Raw API response:", response.substring(0, 100) + "...");
     
     try {
       // Parse the response
       let parsedData: TimeSeriesDataPoint[];
       
-      // Try to parse the response directly
-      try {
-        parsedData = JSON.parse(response);
-      } catch (parseError) {
-        console.error("Initial parsing failed:", parseError);
+      // Clean the response to ensure we have valid JSON
+      const cleanJsonResponse = (text: string): string => {
+        let cleaned = text.trim();
         
-        // If direct parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        // Try to extract JSON from code blocks if present
+        const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+        const match = cleaned.match(jsonBlockRegex);
+        
+        if (match && match[1]) {
+          cleaned = match[1].trim();
+        }
+        
+        // Further clean potential markdown or text explanations
+        // Look for arrays starting with [ and ending with ]
+        const arrayRegex = /(\[[\s\S]*\])/;
+        const arrayMatch = cleaned.match(arrayRegex);
+        if (arrayMatch && arrayMatch[1]) {
+          cleaned = arrayMatch[1].trim();
+        }
+        
+        return cleaned;
+      };
+      
+      const cleanedResponse = cleanJsonResponse(response);
+      console.log("Cleaned response start:", cleanedResponse.substring(0, 100) + "...");
+      
+      // Try to parse the cleaned response
+      try {
+        parsedData = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error("Failed to parse cleaned response:", parseError);
+        
+        // If direct parsing fails, try to extract JSON with regex
+        const jsonMatch = cleanedResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
-          console.error("Failed to extract JSON pattern. Raw response:", response);
+          console.error("Failed to extract JSON pattern");
           throw new Error('Failed to extract valid JSON from the response');
         }
       }
@@ -478,6 +515,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       return parsedData;
     } catch (error) {
       console.error('Error parsing AI response:', error);
+      console.error('Raw response:', response);
       toast.error(`Failed to parse the AI-generated data: ${(error as Error).message}`);
       throw new Error(`Failed to parse the AI-generated data: ${(error as Error).message}`);
     }
