@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -224,7 +223,6 @@ const Index: React.FC = () => {
         {features.map((feature, index) => <FeatureCard key={index} feature={feature} />)}
       </motion.div>
       
-      {/* Social Media and Contact Information Footer */}
       <motion.footer 
         className="mt-20 pt-8 border-t border-border/40"
         initial={{ opacity: 0, y: 20 }}
@@ -270,7 +268,7 @@ const Index: React.FC = () => {
             </a>
           </div>
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} DeGen.AI - Created by Abhinav Neni
+            © {new Date().getFullYear()} DeGen.AI - Created by Sai Abhinav Parvathaneni
           </p>
         </div>
       </motion.footer>
