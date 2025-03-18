@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug, Linkedin, Mail, Github, ExternalLink } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
@@ -222,6 +223,57 @@ const Index: React.FC = () => {
       <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" variants={container} initial="hidden" animate="show">
         {features.map((feature, index) => <FeatureCard key={index} feature={feature} />)}
       </motion.div>
+      
+      {/* Social Media and Contact Information Footer */}
+      <motion.footer 
+        className="mt-20 pt-8 border-t border-border/40"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      >
+        <div className="flex flex-col items-center text-center">
+          <h2 className="text-xl font-semibold mb-4">Connect With Me</h2>
+          <div className="flex flex-wrap justify-center gap-4 mb-6">
+            <a 
+              href="https://www.linkedin.com/in/abhinavneni/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Linkedin className="h-5 w-5" />
+              <span>LinkedIn</span>
+            </a>
+            <a 
+              href="mailto:neni.abhinav@gmail.com" 
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Mail className="h-5 w-5" />
+              <span>Email</span>
+            </a>
+            <a 
+              href="https://github.com/sap156" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Github className="h-5 w-5" />
+              <span>GitHub</span>
+            </a>
+            <a 
+              href="https://saiparvathaneni.medium.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ExternalLink className="h-5 w-5" />
+              <span>Medium Blog</span>
+            </a>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} DeGen.AI - Created by Abhinav Neni
+          </p>
+        </div>
+      </motion.footer>
       
       <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
     </div>;
