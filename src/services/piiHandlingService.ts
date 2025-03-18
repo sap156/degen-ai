@@ -150,7 +150,7 @@ IMPORTANT REQUIREMENTS:
     const aiMaskedSampleData = await generateMaskedDataWithAI(
       apiKey,
       sampleData,
-      fieldsToMask as Array<keyof Omit<PiiData, 'id'>>,
+      fieldsToMask,
       {
         preserveFormat: options?.preserveFormat !== undefined ? options.preserveFormat : true,
         customPrompt: enhancedPrompt
