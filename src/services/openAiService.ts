@@ -1,4 +1,3 @@
-
 import { OpenAIModel } from '@/contexts/ApiKeyContext';
 
 export interface OpenAiMessage {
@@ -18,6 +17,8 @@ export const getCompletion = async (
   options: CompletionOptions = {}
 ): Promise<string> => {
   try {
+    console.log("Calling OpenAI API with model:", options.model ?? 'gpt-4o');
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -33,11 +34,18 @@ export const getCompletion = async (
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+      const errorData = await response.text();
+      console.error("OpenAI API error response:", errorData);
+      throw new Error(`OpenAI API error: ${response.status} ${errorData}`);
     }
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("Unexpected API response format:", data);
+      throw new Error("Invalid response format from OpenAI API");
+    }
+    
     return data.choices[0].message.content;
   } catch (error) {
     console.error('Error getting completion:', error);
@@ -173,7 +181,6 @@ Return ONLY a JSON array with the masked records. Do not include any explanation
   }
 };
 
-// Add missing functions required by other services
 export const analyzeImbalancedDataset = async (
   apiKey: string,
   data: any[],

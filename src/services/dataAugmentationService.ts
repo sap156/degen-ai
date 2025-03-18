@@ -46,21 +46,45 @@ export const augmentDataWithAI = async (
     // Call OpenAI API
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.7,
-      max_tokens: 2500
+      max_tokens: 2500,
+      model: 'gpt-4o' // Explicitly setting the model
     });
     
     // Parse the AI response
     try {
-      const augmentedData = JSON.parse(response);
+      // Clean the response from potential code blocks
+      const cleanJsonResponse = (text: string): string => {
+        let cleaned = text.trim();
+        const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+        const match = cleaned.match(jsonBlockRegex);
+        
+        if (match && match[1]) {
+          cleaned = match[1].trim();
+        }
+        return cleaned;
+      };
+      
+      const cleanedResponse = cleanJsonResponse(response);
+      const augmentedData = JSON.parse(cleanedResponse);
+      
+      if (!Array.isArray(augmentedData)) {
+        console.error("Response is not an array:", augmentedData);
+        toast.error("Invalid response format from AI");
+        return [];
+      }
+      
+      console.log(`Generated ${augmentedData.length} augmented records`);
       return augmentedData;
     } catch (error) {
       console.error("Error parsing AI response:", error);
+      console.error("Raw response:", response);
       toast.error("Failed to parse AI response");
-      throw new Error("Failed to parse AI response");
+      return [];
     }
   } catch (error) {
     console.error("Error augmenting data with AI:", error);
-    throw error;
+    toast.error(error instanceof Error ? error.message : "Error during data augmentation");
+    return [];
   }
 };
 
@@ -143,16 +167,41 @@ export const applyAugmentation = async (
   settings: any,
   aiPrompt?: string
 ): Promise<any[]> => {
+  if (!apiKey) {
+    toast.error("API key is required for data augmentation");
+    return [];
+  }
+  
+  if (data.length === 0) {
+    toast.error("No data provided for augmentation");
+    return [];
+  }
+  
   // Extract the relevant fields based on settings and method
   const options: AugmentationOptions = {
     method,
     intensity: getIntensityForMethod(method, settings),
     fields: getFieldsForMethod(method, settings),
     distribution: method === 'noise' ? settings.noise.distribution : undefined,
-    aiPrompt
+    aiPrompt,
+    sampleData: data.slice(0, 3) // Include sample data
   };
   
-  return augmentDataWithAI(apiKey, data, options);
+  try {
+    const augmentedData = await augmentDataWithAI(apiKey, data, options);
+    
+    if (augmentedData.length === 0) {
+      toast.warning("No augmented data was generated");
+    } else {
+      toast.success(`Generated ${augmentedData.length} augmented records`);
+    }
+    
+    return augmentedData;
+  } catch (error) {
+    console.error(`Error applying ${method}:`, error);
+    toast.error(`Failed to apply ${method}`);
+    return [];
+  }
 };
 
 // Helper to get the correct intensity value based on the method
