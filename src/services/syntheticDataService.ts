@@ -72,24 +72,35 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
         return;
       }
       
-      const { rowCount, outputFormat, onProgress } = options;
+      const { rowCount, outputFormat, onProgress, fields } = options;
+      
+      // Convert fields to schema format for the API
+      const schema: Record<string, string> = {};
+      fields.filter(field => field.included).forEach(field => {
+        schema[field.name] = field.type;
+      });
       
       // If rowCount is small (< 50), generate all at once
       if (rowCount <= 50) {
-        const aiPrompt = constructAIPrompt(options);
-        const result = await generateSyntheticDataWithAI(
-          apiKey, 
-          aiPrompt, 
-          outputFormat, 
-          rowCount
-        );
-        
-        // Validate the generated data
-        const validatedData = validateDataOutput(result, outputFormat, rowCount);
-        if (validatedData) {
-          resolve(validatedData);
-        } else {
-          reject(new Error("Failed to generate valid data"));
+        try {
+          const result = await generateSyntheticDataWithAI(
+            apiKey, 
+            schema, 
+            rowCount,
+            {
+              seedData: options.uploadedData?.slice(0, 3)
+            }
+          );
+          
+          // Convert to the requested format and return
+          const formattedData = outputFormat === 'json'
+            ? JSON.stringify(result, null, 2)
+            : convertToCSV(result);
+            
+          resolve(formattedData);
+        } catch (error) {
+          console.error('Error in single-batch generation:', error);
+          reject(error);
         }
         return;
       }
@@ -104,36 +115,26 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
         const remainingRows = rowCount - (i * chunkSize);
         const currentChunkSize = Math.min(chunkSize, remainingRows);
         
-        // Update options for this chunk
-        const chunkOptions = { ...options, rowCount: currentChunkSize };
-        const aiPrompt = constructAIPrompt(chunkOptions);
+        // Report progress
+        if (onProgress) {
+          onProgress(Math.round((i / chunks) * 100));
+        }
         
         try {
-          // Report progress
-          if (onProgress) {
-            onProgress(Math.round((i / chunks) * 100));
-          }
-          
           // Generate chunk
           const chunkResult = await generateSyntheticDataWithAI(
             apiKey, 
-            aiPrompt, 
-            outputFormat, 
+            schema, 
             currentChunkSize,
             {
               // Provide sample data from previous chunk if available
-              sampleData: allData.length > 0 ? allData.slice(-3) : undefined,
-              // Start ID for this chunk based on the highest ID from previous chunks
-              startId: allData.length > 0 ? highestId + 1 : undefined
+              seedData: allData.length > 0 ? allData.slice(-3) : options.uploadedData?.slice(0, 3)
             }
           );
           
-          // Parse the chunk
-          const parsedChunk = parseDataFromString(chunkResult, outputFormat);
-          
-          if (Array.isArray(parsedChunk) && parsedChunk.length > 0) {
+          if (Array.isArray(chunkResult) && chunkResult.length > 0) {
             // Update the highest ID if we find one higher in this chunk
-            parsedChunk.forEach(item => {
+            chunkResult.forEach(item => {
               // Check for all possible ID field names
               const idFields = ["id", "ID", "Id", "user_id", "transaction_id", "product_id", "patient_id"];
               
@@ -147,7 +148,7 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
               }
             });
             
-            allData = [...allData, ...parsedChunk];
+            allData = [...allData, ...chunkResult];
           } else {
             console.error("Invalid chunk data received:", chunkResult);
             // Try again with a smaller chunk
@@ -188,116 +189,6 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
   });
 };
 
-// Helper function to validate and potentially fix the generated data
-const validateDataOutput = (data: string, format: string, expectedRowCount: number): string | null => {
-  try {
-    if (format === 'json') {
-      let parsedData;
-      try {
-        parsedData = JSON.parse(data);
-      } catch (e) {
-        // Try to fix common JSON issues
-        const fixedData = fixJsonString(data);
-        parsedData = JSON.parse(fixedData);
-      }
-      
-      // Check if it's an array
-      if (!Array.isArray(parsedData)) {
-        if (typeof parsedData === 'object') {
-          // If it's a single object, convert to array
-          parsedData = [parsedData];
-        } else {
-          return null;
-        }
-      }
-      
-      // If we have at least some data, return it
-      if (parsedData.length > 0) {
-        return JSON.stringify(parsedData, null, 2);
-      }
-      return null;
-    } else if (format === 'csv') {
-      // Basic CSV validation - check if it has multiple lines and commas
-      const lines = data.trim().split('\n');
-      if (lines.length > 1 && lines[0].includes(',')) {
-        return data;
-      }
-      return null;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error validating data output:', error);
-    return null;
-  }
-};
-
-// Helper function to fix common JSON string issues
-const fixJsonString = (jsonString: string): string => {
-  // Remove any text before the first [
-  const startBracketPos = jsonString.indexOf('[');
-  if (startBracketPos >= 0) {
-    jsonString = jsonString.substring(startBracketPos);
-  }
-  
-  // Remove any text after the last ]
-  const endBracketPos = jsonString.lastIndexOf(']');
-  if (endBracketPos >= 0) {
-    jsonString = jsonString.substring(0, endBracketPos + 1);
-  }
-  
-  // Replace single quotes with double quotes
-  jsonString = jsonString.replace(/'/g, '"');
-  
-  // Fix unquoted property names (common in LLM outputs)
-  jsonString = jsonString.replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3');
-  
-  return jsonString;
-};
-
-// Helper function to parse data from string based on format
-const parseDataFromString = (data: string, format: string): any[] => {
-  try {
-    if (format === 'json') {
-      // Try to parse the JSON
-      try {
-        const parsed = JSON.parse(data);
-        return Array.isArray(parsed) ? parsed : [parsed];
-      } catch (e) {
-        console.error("Error parsing data:", e);
-        // Try to fix and parse
-        const fixedJson = fixJsonString(data);
-        const parsed = JSON.parse(fixedJson);
-        return Array.isArray(parsed) ? parsed : [parsed];
-      }
-    } else if (format === 'csv') {
-      // Simple CSV parsing - convert to JSON
-      const lines = data.trim().split('\n');
-      if (lines.length < 2) return [];
-      
-      const headers = lines[0].split(',').map(h => h.trim());
-      const result = [];
-      
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        const obj: Record<string, any> = {};
-        
-        headers.forEach((header, index) => {
-          obj[header] = values[index] || '';
-        });
-        
-        result.push(obj);
-      }
-      
-      return result;
-    }
-    
-    return [];
-  } catch (error) {
-    console.error('Error parsing data:', error);
-    return [];
-  }
-};
-
 // Helper function to convert array of objects to CSV
 const convertToCSV = (data: any[]): string => {
   if (!data.length) return '';
@@ -317,48 +208,6 @@ const convertToCSV = (data: any[]): string => {
   );
   
   return [headerRow, ...rows].join('\n');
-};
-
-// Helper function to construct AI prompt based on options
-const constructAIPrompt = (options: SyntheticDataOptions): string => {
-  const { fields, includeNulls, nullPercentage, aiPrompt, uploadedData } = options;
-  
-  // If custom AI prompt is provided, use that as the base
-  let prompt = aiPrompt || "Generate realistic synthetic data with the following structure:";
-  
-  // Add fields information
-  const includedFields = fields.filter(field => field.included);
-  
-  if (includedFields.length === 0) {
-    prompt = "Please select at least one field to include in your data.";
-    toast.error("No fields selected. Please select at least one field.");
-    throw new Error("No fields selected");
-  }
-  
-  prompt += "\n\nFields:";
-  includedFields.forEach(field => {
-    prompt += `\n- ${field.name} (${field.type})`;
-  });
-  
-  // Add null information if needed
-  if (includeNulls) {
-    prompt += `\n\nInclude null values in approximately ${nullPercentage}% of fields.`;
-  }
-  
-  // If we have uploaded data, provide it as a sample
-  if (uploadedData && uploadedData.length > 0) {
-    prompt += "\n\nHere are some sample data points to mimic the style and patterns:";
-    const sampleCount = Math.min(3, uploadedData.length);
-    for (let i = 0; i < sampleCount; i++) {
-      prompt += `\n${JSON.stringify(uploadedData[i])}`;
-    }
-    prompt += "\n\nGenerate more data points that follow similar patterns and distributions.";
-  }
-  
-  // Add critical instruction for data format
-  prompt += "\n\nYour response should ONLY consist of raw data with no explanations or additional text outside the data structure.";
-  
-  return prompt;
 };
 
 // Function to save data to a file and trigger download
