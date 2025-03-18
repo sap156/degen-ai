@@ -1,8 +1,10 @@
+
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import ThemeToggle from './ThemeToggle';
 
 const NavBar = () => {
   const location = useLocation();
@@ -96,6 +98,10 @@ const NavBar = () => {
               })}
             </ul>
           </nav>
+          
+          <div className="flex items-center">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
       

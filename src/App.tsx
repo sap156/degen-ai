@@ -17,6 +17,7 @@ import EdgeCases from "./pages/EdgeCases";
 import DataQuery from "./pages/DataQuery";
 import NotFound from "./pages/NotFound";
 import { ApiKeyProvider } from "./contexts/ApiKeyContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 // Create a new QueryClient instance with specific settings for databases
 const queryClient = new QueryClient({
@@ -32,29 +33,31 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ApiKeyProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/synthetic-data" element={<SyntheticData />} />
-              <Route path="/data-augmentation" element={<DataAugmentation />} />
-              <Route path="/time-series" element={<TimeSeries />} />
-              <Route path="/pii-handling" element={<PiiHandling />} />
-              <Route path="/imbalanced-data" element={<ImbalancedData />} />
-              <Route path="/data-parsing" element={<DataParsing />} />
-              <Route path="/extraction" element={<DataExtraction />} />
-              <Route path="/edge-cases" element={<EdgeCases />} />
-              <Route path="/data-query" element={<DataQuery />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ApiKeyProvider>
+    <ThemeProvider>
+      <ApiKeyProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/synthetic-data" element={<SyntheticData />} />
+                <Route path="/data-augmentation" element={<DataAugmentation />} />
+                <Route path="/time-series" element={<TimeSeries />} />
+                <Route path="/pii-handling" element={<PiiHandling />} />
+                <Route path="/imbalanced-data" element={<ImbalancedData />} />
+                <Route path="/data-parsing" element={<DataParsing />} />
+                <Route path="/extraction" element={<DataExtraction />} />
+                <Route path="/edge-cases" element={<EdgeCases />} />
+                <Route path="/data-query" element={<DataQuery />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ApiKeyProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
