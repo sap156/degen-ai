@@ -13,7 +13,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { FileJson, FileText, FileX, Download, FileType2, Wand2 } from 'lucide-react';
 import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
 import FileUploader from '@/components/FileUploader';
-<<<<<<< HEAD
 import { parseCSV, parseJSON, formatData } from '@/utils/dataParsing';
 
 interface ParsingOptions {
@@ -56,7 +55,6 @@ const DataParsing = () => {
         title: 'Error',
         description: 'Please upload a file and select its type.',
         variant: 'destructive',
-=======
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { parseCSV, parseJSON, readFileContent, SchemaFieldType } from '@/utils/fileUploadUtils';
