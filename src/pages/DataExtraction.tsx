@@ -1,43 +1,8 @@
-import React, { useState } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import FileUploader from '@/components/FileUploader';
-import { useApiKey } from '@/contexts/ApiKeyContext';
-import { 
-  Download,
-  Globe,
-  FileType,
-  Image,
-  Table,
-  Brackets,
-  FileText,
-  Copy,
-  ExternalLink,
-  Search,
-  List,
-  KeyRound
-} from 'lucide-react';
-import { 
-  extractDataFromUrl, 
-  extractDataFromImage, 
-  processExtractedData, 
-  ExtractedData, 
-  ExtractionType 
-} from '@/services/dataExtractionService';
-import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Globe } from 'lucide-react';
+import UserGuideDataExtraction from '@/components/ui/UserGuideDataExtraction';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();
@@ -81,10 +46,8 @@ const DataExtraction: React.FC = () => {
   };
 
   const handleImageUpload = (file: File) => {
-    // Create preview
     const preview = URL.createObjectURL(file);
     
-    // Add to images array
     setImages(prev => [...prev, { file, preview }]);
     
     toast.success(`Image uploaded: ${file.name}`);
@@ -99,12 +62,10 @@ const DataExtraction: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // For now we only process the first image
-      // In a more advanced implementation, we could merge results from multiple images
       const result = await extractDataFromImage(
         apiKey,
         images[0].file,
-        extractionType === 'tables' ? 'key-value' : extractionType, // 'tables' for images becomes 'key-value'
+        extractionType === 'tables' ? 'key-value' : extractionType,
         imageQuestion.trim() || undefined
       );
       
@@ -196,7 +157,6 @@ const DataExtraction: React.FC = () => {
   };
 
   const clearImages = () => {
-    // Revoke object URLs to avoid memory leaks
     images.forEach(image => URL.revokeObjectURL(image.preview));
     setImages([]);
   };
@@ -239,23 +199,15 @@ const DataExtraction: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <div className="space-y-2 mb-8">
-        <motion.h1 
-          className="text-3xl font-bold tracking-tight"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Globe className="h-8 w-8 text-primary" />
           Data Extraction
-        </motion.h1>
-        <motion.p 
-          className="text-muted-foreground"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          Extract structured data from websites, documents, and images using AI
-        </motion.p>
+        </h1>
+        <p className="text-muted-foreground">
+          Extract structured data from unstructured sources like web pages, PDFs, and documents
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -502,6 +454,8 @@ const DataExtraction: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      <UserGuideDataExtraction />
     </div>
   );
 };

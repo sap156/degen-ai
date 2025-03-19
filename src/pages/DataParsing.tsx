@@ -1,8 +1,10 @@
-
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FileJson } from 'lucide-react';
+import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
+
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -247,28 +249,16 @@ const DataParsing: React.FC = () => {
     }
   };
 
-  return <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <div className="space-y-2 mb-8">
-        <motion.h1 className="text-3xl font-bold tracking-tight" initial={{
-        opacity: 0,
-        y: -10
-      }} animate={{
-        opacity: 1,
-        y: 0
-      }}>
+  return (
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <FileJson className="h-8 w-8 text-primary" />
           Data Parsing
-        </motion.h1>
-        <motion.p className="text-muted-foreground" initial={{
-        opacity: 0,
-        y: 10
-      }} animate={{
-        opacity: 1,
-        y: 0
-      }} transition={{
-        delay: 0.1
-      }}>
-          Upload data files, analyze structure and process with AI
-        </motion.p>
+        </h1>
+        <p className="text-muted-foreground">
+          Parse, transform, and normalize data from various formats
+        </p>
       </div>
 
       <ApiKeyRequirement>
@@ -498,7 +488,10 @@ const DataParsing: React.FC = () => {
           </Card>
         </div>
       </ApiKeyRequirement>
-    </div>;
+
+      <UserGuideDataParsing />
+    </div>
+  );
 };
 
 export default DataParsing;
