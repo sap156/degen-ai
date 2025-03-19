@@ -4,7 +4,7 @@
  */
 import { getFileType } from './fileOperations';
 import { readFileContent } from './fileOperations';
-import { FileProcessingResult } from './fileTypes';
+import { FileProcessingResult, SupportedFileType } from './fileTypes';
 import { autoDetectAndParse } from './dataParsing';
 
 /**
@@ -42,11 +42,11 @@ export const extractTextFromFile = async (
         
       case 'pdf':
       case 'docx':
+      case 'doc' as SupportedFileType:
       case 'xlsx':
+      case 'xls' as SupportedFileType:
       case 'pptx':
-      case 'doc':
-      case 'xls':
-      case 'ppt':
+      case 'ppt' as SupportedFileType:
         // For complex file types, use AI to extract text
         if (!apiKey) {
           throw new Error("API key is required to process this file type");

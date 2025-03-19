@@ -17,6 +17,9 @@ export * from './textExtraction';
 // Re-export schema detection utilities
 export * from './schemaDetection';
 
+// Import the functions we need to use directly in this file
+import { parseCSV, parseJSON, parseXML, autoDetectAndParse } from './dataParsing';
+
 /**
  * Factory function to get appropriate parser for a file type
  * @param fileType The type of file to parse

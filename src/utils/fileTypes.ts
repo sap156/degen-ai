@@ -35,8 +35,11 @@ export type SupportedFileType =
   | 'txt' 
   | 'xml'
   | 'pdf' 
+  | 'doc'  
   | 'docx' 
+  | 'xls'
   | 'xlsx' 
+  | 'ppt'
   | 'pptx';
 
 /**
