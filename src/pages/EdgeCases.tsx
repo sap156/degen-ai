@@ -12,7 +12,17 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 
 const EdgeCases = () => {
   const [activeTab, setActiveTab] = useState('detect');
-  const { hasApiKey } = useApiKey();
+  const { apiKey, isKeySet } = useApiKey();
+  
+  // Mock props data for edge case components until actual implementation
+  const mockEdgeCaseProps = {
+    loading: false,
+    detectedEdgeCases: [],
+    generatedEdgeCases: [],
+    testResults: [],
+    targetColumn: "",
+    edgeCaseType: "outliers" as const
+  };
   
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -26,7 +36,7 @@ const EdgeCases = () => {
         </p>
       </div>
       
-      {!hasApiKey ? (
+      {!isKeySet ? (
         <ApiKeyRequirement />
       ) : (
         <Tabs defaultValue="detect" className="w-full" onValueChange={setActiveTab}>
@@ -45,7 +55,11 @@ const EdgeCases = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EdgeCaseDetector />
+                <EdgeCaseDetector 
+                  loading={mockEdgeCaseProps.loading}
+                  detectedEdgeCases={mockEdgeCaseProps.detectedEdgeCases}
+                  targetColumn={mockEdgeCaseProps.targetColumn}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -59,7 +73,12 @@ const EdgeCases = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EdgeCaseGenerator />
+                <EdgeCaseGenerator 
+                  loading={mockEdgeCaseProps.loading}
+                  generatedEdgeCases={mockEdgeCaseProps.generatedEdgeCases}
+                  edgeCaseType={mockEdgeCaseProps.edgeCaseType}
+                  targetColumn={mockEdgeCaseProps.targetColumn}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -73,7 +92,13 @@ const EdgeCases = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EdgeCaseReport />
+                <EdgeCaseReport 
+                  loading={mockEdgeCaseProps.loading}
+                  detectedEdgeCases={mockEdgeCaseProps.detectedEdgeCases}
+                  generatedEdgeCases={mockEdgeCaseProps.generatedEdgeCases}
+                  testResults={mockEdgeCaseProps.testResults}
+                  targetColumn={mockEdgeCaseProps.targetColumn}
+                />
               </CardContent>
             </Card>
           </TabsContent>

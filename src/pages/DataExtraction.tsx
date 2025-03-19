@@ -1,8 +1,19 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Globe } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Globe, Image, Search, Copy, Download, FileText, Table, List, Brackets, KeyRound } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import UserGuideDataExtraction from '@/components/ui/UserGuideDataExtraction';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import FileUploader from '@/components/FileUploader';
+import { toast } from 'sonner';
+import { ExtractionType, ExtractedData } from '@/types/dataExtraction';
+import { extractDataFromUrl, extractDataFromImage, processExtractedData } from '@/services/dataExtractionService';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();

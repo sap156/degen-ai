@@ -8,7 +8,17 @@ import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 
 const ImbalancedData = () => {
-  const { hasApiKey } = useApiKey();
+  const { apiKey, isKeySet } = useApiKey();
+  
+  // Mock props for DataBalancingControls
+  const mockBalancingProps = {
+    originalDataset: null,
+    parsedData: [],
+    onBalanceDataset: () => {},
+    onDownloadBalanced: () => {},
+    onClearData: () => {},
+    className: ""
+  };
   
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -22,7 +32,7 @@ const ImbalancedData = () => {
         </p>
       </div>
       
-      {!hasApiKey ? (
+      {!isKeySet ? (
         <ApiKeyRequirement />
       ) : (
         <Card>
@@ -33,7 +43,7 @@ const ImbalancedData = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <DataBalancingControls />
+            <DataBalancingControls {...mockBalancingProps} />
           </CardContent>
         </Card>
       )}

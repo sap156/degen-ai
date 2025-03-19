@@ -1,8 +1,16 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search } from 'lucide-react';
 import UserGuideDataQuery from '@/components/ui/UserGuideDataQuery';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { InfoIcon } from 'lucide-react';
+import SchemaUploader from '@/components/DataQuery/SchemaUploader';
+import QueryInput from '@/components/DataQuery/QueryInput';
+import QueryOutput from '@/components/DataQuery/QueryOutput';
 
 // Types for the SQL Query Service
 export interface QueryResult {

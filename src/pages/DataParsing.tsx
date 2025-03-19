@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileJson } from 'lucide-react';
+import { FileJson, Table, List, FileText, Brackets, KeyRound, Search, Download, Sparkles, Layers, Tag, SmilePlus, FileSearch, Database, PenTool } from 'lucide-react';
 import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
-
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,7 +17,7 @@ import { parseCSV, parseJSON, SchemaFieldType, getFileType, extractTextFromFile 
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
 import { ProcessingType, stripMarkdownCodeBlocks } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool, List } from 'lucide-react';
+import { DataParsingResult, ProcessedResult } from '@/types/dataParsing';
 
 const DataParsing: React.FC = () => {
   const {
@@ -38,7 +37,7 @@ const DataParsing: React.FC = () => {
   const [processingDetailLevel, setProcessingDetailLevel] = useState<'brief' | 'standard' | 'detailed'>('standard');
   const [processingOutputFormat, setProcessingOutputFormat] = useState<'json' | 'text'>('json');
   const [userContext, setUserContext] = useState<string>('');
-  const [aiProcessingResults, setAiProcessingResults] = useState<Record<string, any>>({});
+  const [aiProcessingResults, setAiProcessingResults] = useState<ProcessedResult>({});
 
   const handleFileUpload = async (file: File) => {
     try {
