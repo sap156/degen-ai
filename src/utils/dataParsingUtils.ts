@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 import { toast } from "sonner";
 import { SchemaFieldType } from './fileUploadUtils';
 import { processTextWithAI, ProcessingType } from '../services/textProcessingService';
-=======
-import { toast } from 'sonner';
-import { SchemaFieldType } from './fileUploadUtils';
->>>>>>> a951b28 (Fix: Resolve TypeScript type errors)
 
 interface GenerateDataOptions {
   sourceData: any[];
@@ -50,16 +45,9 @@ const generateValueForField = (
   const existingValues = sourceData.map(item => item[field]);
   
   switch (type) {
-<<<<<<< HEAD
     case "string":
     case "email":
     case "phone":
-=======
-    case 'string':
-    case 'email':
-    case 'phone':
-      // For strings, sample from existing values
->>>>>>> a951b28 (Fix: Resolve TypeScript type errors)
       return existingValues[Math.floor(Math.random() * existingValues.length)];
       
     case "integer":
