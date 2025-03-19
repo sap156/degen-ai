@@ -78,50 +78,49 @@ const extractTextWithAI = async (
   try {
     const { getCompletion } = await import('../services/openAiService');
     
+    // Read the file content to base64 for sending to OpenAI
+    const fileContent = await readFileAsBase64(file);
+    
     // Create a more detailed prompt based on file type
     const fileType = baseMetadata.fileType;
-    let extractionPrompt = '';
-    
-    switch (fileType) {
-      case 'pdf':
-        extractionPrompt = 'Extract all text content from this PDF file, preserving paragraph structure, headings, and lists where possible.';
-        break;
-      case 'docx':
-      case 'doc':
-        extractionPrompt = 'Extract all text content from this Word document, preserving paragraph structure, headings, tables, and formatting where possible.';
-        break;
-      case 'xlsx':
-      case 'xls':
-        extractionPrompt = 'Extract and organize data from this Excel spreadsheet. Format tables with proper column headers and row values.';
-        break;
-      case 'pptx':
-      case 'ppt':
-        extractionPrompt = 'Extract all text content from this PowerPoint presentation, organizing by slides and preserving bullet points, titles, and content structure.';
-        break;
-      default:
-        extractionPrompt = `Extract all text content from this ${fileType} file, preserving the original structure as much as possible.`;
-    }
     
     // For all document types, include instructions to handle structured data
-    extractionPrompt += ' If you detect structured data (tables, lists, etc.), try to preserve that structure. If the content appears to be in a specific format like CSV or JSON, present it in that structured format.';
+    const systemPrompt = `You are a document text extraction specialist. Your task is to extract all text content from this ${fileType} file.
     
-    // File content will be simulated for this example, but would be sent via API in real implementation
-    // In production, we would pass file content using formData with the API request
+    IMPORTANT: DO NOT provide any explanations, code samples, or instructions on how to use tools. 
+    
+    DO extract the actual text content from the uploaded file. Return ONLY the extracted content.
+    
+    For structured data like tables, preserve them as markdown tables or in a structured format.
+    
+    If the content contains mostly data, try to format it in a way that preserves its structure.
+    
+    Do not mention your inability to access files - process the content I'm providing to you.`;
+    
+    const userPrompt = `I'm uploading a ${fileType} file named "${file.name}". Please extract all the text content.
+
+If you can see any content, extract and return it verbatim. The file content is being provided to you.`;
     
     const messages = [
-      { 
-        role: 'system' as const, 
-        content: `You are a document text extraction expert specialized in extracting and structuring content from ${fileType} files. Your task is to extract text in a way that preserves the document's original structure and format as much as possible.`
-      },
+      { role: 'system' as const, content: systemPrompt },
       { 
         role: 'user' as const, 
-        content: `This is a ${file.type || fileType} file named "${file.name}" with a size of ${baseMetadata.fileSize}. ${extractionPrompt}`
+        content: [
+          { type: 'text', text: userPrompt },
+          { 
+            type: 'image_url', 
+            image_url: {
+              url: fileContent,
+              detail: 'high'
+            }
+          }
+        ]
       }
     ];
     
     console.log(`Extracting text from ${fileType} file using AI...`);
     const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini'
+      model: 'gpt-4o'  // Using gpt-4o for vision capabilities
     });
     
     // Try to parse the response if it appears to be in a structured format
@@ -164,7 +163,7 @@ const extractTextWithAI = async (
       metadata: {
         ...baseMetadata,
         processingMethod: 'AI-based extraction',
-        aiModel: 'gpt-4o-mini',
+        aiModel: 'gpt-4o', // Using more capable model for vision tasks
         contentLength: response.length
       }
     };
@@ -173,6 +172,24 @@ const extractTextWithAI = async (
     console.error('Error extracting text with AI:', error);
     throw error;
   }
+};
+
+/**
+ * Convert a file to base64 data URL
+ */
+const readFileAsBase64 = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        resolve(reader.result.toString());
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 /**
