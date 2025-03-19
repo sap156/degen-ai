@@ -1,3 +1,4 @@
+
 /**
  * Utilities for extracting text from various file types
  */
@@ -40,23 +41,23 @@ export const extractTextFromFile = async (
         return { text: content, metadata };
         
       case 'pdf':
+        // For PDF files, use vision AI to extract text
+        if (!apiKey) {
+          throw new Error("API key is required to process PDF files");
+        }
+        return await extractWithVisionAI(file, apiKey, metadata);
+      
       case 'docx':
       case 'doc' as SupportedFileType:
       case 'xlsx':
       case 'xls' as SupportedFileType:
       case 'pptx':
       case 'ppt' as SupportedFileType:
-        // For complex file types, use alternative extraction methods
+        // For other document types, also use vision AI
         if (!apiKey) {
           throw new Error("API key is required to process this file type");
         }
-        
-        // For PDF files, we'll handle differently than other document types
-        if (fileType === 'pdf') {
-          return await extractPdfWithAI(file, apiKey, metadata);
-        }
-        
-        return await extractDocumentWithAI(file, apiKey, metadata);
+        return await extractWithVisionAI(file, apiKey, metadata);
         
       default:
         // Try to extract with AI for unknown file types
@@ -64,9 +65,9 @@ export const extractTextFromFile = async (
           // Determine the best extraction method based on file type
           const mimeType = file.type;
           if (mimeType.startsWith('image/')) {
-            return await extractImageWithAI(file, apiKey, metadata);
+            return await extractWithVisionAI(file, apiKey, metadata);
           } else {
-            return await extractDocumentWithAI(file, apiKey, metadata);
+            return await extractWithVisionAI(file, apiKey, metadata);
           }
         }
         throw new Error(`Unsupported file type: ${fileType}`);
@@ -78,9 +79,9 @@ export const extractTextFromFile = async (
 };
 
 /**
- * Extract text from PDF files using AI
+ * Extract text from any file using OpenAI's Vision capabilities
  */
-const extractPdfWithAI = async (
+const extractWithVisionAI = async (
   file: File, 
   apiKey: string, 
   baseMetadata: Record<string, any>
@@ -88,51 +89,26 @@ const extractPdfWithAI = async (
   try {
     const { getCompletion } = await import('../services/openAiService');
     
-    // For PDFs, we'll use a text-based approach first
-    const fileContent = await readFileAsText(file);
-    
-    // If we got readable text content, we can just return it
-    if (fileContent && fileContent.length > 100) {
-      return {
-        text: fileContent,
-        metadata: {
-          ...baseMetadata,
-          processingMethod: 'text-based extraction',
-          contentLength: fileContent.length
-        }
-      };
-    }
-    
-    // If text extraction failed, try using the document AI approach
-    console.log("Text-based PDF extraction yielded insufficient results, trying with document AI...");
-    return await extractDocumentWithAI(file, apiKey, baseMetadata);
-  } catch (error) {
-    console.error('Error extracting PDF with AI:', error);
-    throw error;
-  }
-};
-
-/**
- * Extract text from images using AI vision capabilities
- */
-const extractImageWithAI = async (
-  file: File, 
-  apiKey: string, 
-  baseMetadata: Record<string, any>
-): Promise<FileProcessingResult> => {
-  try {
-    const { getCompletion } = await import('../services/openAiService');
-    
-    // Read the file content to base64 for sending to OpenAI
+    // Convert the file to base64
     const fileContent = await readFileAsBase64(file);
     
-    // Create a detailed prompt for image text extraction
-    const systemPrompt = `You are a document text extraction specialist. Your task is to extract all text content from this image.
+    // Create a detailed prompt for document text extraction
+    const systemPrompt = `You are a document text extraction specialist. Your ONLY task is to extract all text content from this document.
     
-    IMPORTANT: DO NOT provide any explanations, code samples, or instructions. 
-    Return ONLY the extracted text content from the image.`;
+    CRITICAL INSTRUCTIONS:
+    - Return ONLY the actual text content from the document in a clean, readable format
+    - Preserve the document's structure (paragraphs, sections, lists, etc.) when possible
+    - Include all meaningful text, but ignore watermarks, headers/footers, and page numbers
+    - If there are tables, format them in a readable way
+    - DO NOT analyze or summarize the content
+    - DO NOT include any explanations about what you're seeing or doing
+    - DO NOT include phrases like "The document contains..."
+    - DO NOT describe images - only extract text
+    - If the document appears to be encrypted, corrupted, or contains no readable text, simply state "No readable text content found in this document."
     
-    const userPrompt = `Extract all text content from this image.`;
+    Just extract and return the text as if someone had copied and pasted it from the document.`;
+    
+    const userPrompt = `Extract all text content from this document. Return ONLY the extracted text, formatted clearly.`;
     
     const messages = [
       { role: 'system' as const, content: systemPrompt },
@@ -151,7 +127,7 @@ const extractImageWithAI = async (
       }
     ];
     
-    console.log(`Extracting text from image using AI vision...`);
+    console.log(`Extracting text from ${baseMetadata.fileType} file using AI vision...`);
     const response = await getCompletion(apiKey, messages, { 
       model: 'gpt-4o'  // Using vision capable model
     });
@@ -167,57 +143,7 @@ const extractImageWithAI = async (
     };
     
   } catch (error) {
-    console.error('Error extracting image with AI:', error);
-    throw error;
-  }
-};
-
-/**
- * Extract text from document files using document AI approach
- */
-const extractDocumentWithAI = async (
-  file: File, 
-  apiKey: string, 
-  baseMetadata: Record<string, any>
-): Promise<FileProcessingResult> => {
-  try {
-    // Try to extract text using specialized document APIs or services
-    // For now, we'll use a simple approach to handle document files
-    
-    // First try to read directly as text for some formats
-    try {
-      const textContent = await readFileAsText(file);
-      if (textContent && textContent.length > 100) {
-        return {
-          text: textContent,
-          metadata: {
-            ...baseMetadata,
-            processingMethod: 'text-based extraction',
-            contentLength: textContent.length
-          }
-        };
-      }
-    } catch (e) {
-      console.log('Direct text extraction failed, falling back to alternative methods');
-    }
-    
-    // If we cannot get the content directly, inform the user
-    const fileType = baseMetadata.fileType;
-    return {
-      text: `This ${fileType.toUpperCase()} file requires specialized document processing capabilities. 
-      
-The current implementation doesn't fully support this file type.
-
-Please try converting the file to a supported format like PDF, TXT, or CSV.`,
-      metadata: {
-        ...baseMetadata,
-        processingMethod: 'limited extraction',
-        status: 'partial_support'
-      }
-    };
-    
-  } catch (error) {
-    console.error('Error extracting document with AI:', error);
+    console.error('Error extracting with Vision AI:', error);
     throw error;
   }
 };

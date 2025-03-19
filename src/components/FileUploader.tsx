@@ -69,12 +69,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     }
 
     // Check file type
-    const fileType = file.name.split('.').pop()?.toLowerCase();
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
     const acceptedTypes = accept.split(',').map(type => 
       type.trim().replace('.', '').toLowerCase()
     );
     
-    if (fileType && !acceptedTypes.includes(fileType) && acceptedTypes[0] !== '*') {
+    if (fileExtension && !acceptedTypes.includes(fileExtension) && accept !== '*' && acceptedTypes[0] !== '*') {
       setUploadError(`Invalid file type. Accepted formats: ${accept}`);
       toast.error(`Invalid file type. Accepted formats: ${accept}`);
       return;
@@ -85,6 +85,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     
     // Call the onFileUpload handler and handle potential errors
     try {
+      // Show a toast for complex document formats that require AI processing
+      const complexFormats = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'];
+      if (fileExtension && complexFormats.includes(fileExtension)) {
+        toast.loading(`Processing ${fileExtension.toUpperCase()} file with AI. This may take a moment...`, {
+          duration: 3000
+        });
+      }
+      
       onFileUpload(file);
       
       // Success state after a delay for UI feedback
@@ -100,8 +108,20 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     } catch (error) {
       console.error('Error handling file upload:', error);
       setIsUploading(false);
-      setUploadError('Error processing file. Please try another file or format.');
-      toast.error('Error processing file. Please check file format.');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Error processing file. Please try another file or format.';
+      if (error instanceof Error) {
+        if (error.message.includes('API key')) {
+          errorMessage = 'OpenAI API key is required to process this file type.';
+        } else if (error.message.includes('MIME type')) {
+          errorMessage = 'This file format cannot be processed. Please convert to a supported format.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      setUploadError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
