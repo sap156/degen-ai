@@ -1,16 +1,15 @@
 
 import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search } from 'lucide-react';
-import UserGuideDataQuery from '@/components/ui/UserGuideDataQuery';
-import { useApiKey } from '@/contexts/ApiKeyContext';
-import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { InfoIcon } from 'lucide-react';
-import SchemaUploader from '@/components/DataQuery/SchemaUploader';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import QueryInput from '@/components/DataQuery/QueryInput';
 import QueryOutput from '@/components/DataQuery/QueryOutput';
+import SchemaUploader from '@/components/DataQuery/SchemaUploader';
+import QueryResults from '@/components/DataQuery/QueryResults';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { InfoIcon } from 'lucide-react';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -50,14 +49,11 @@ const DataQuery = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container py-6 space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Search className="h-8 w-8 text-primary" />
-          Data Query
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight">Data Query Service</h1>
         <p className="text-muted-foreground">
-          Query, explore, and analyze your data using natural language
+          Convert natural language to SQL queries, optimize them, analyze results, and get follow-up suggestions.
         </p>
       </div>
 
@@ -103,8 +99,6 @@ const DataQuery = () => {
           </div>
         </div>
       )}
-      
-      <UserGuideDataQuery />
     </div>
   );
 };

@@ -1,10 +1,9 @@
+
 import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileJson, Table, List, FileText, Brackets, KeyRound, Search, Download, Sparkles, Layers, Tag, SmilePlus, FileSearch, Database, PenTool } from 'lucide-react';
-import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,7 +16,7 @@ import { parseCSV, parseJSON, SchemaFieldType, getFileType, extractTextFromFile 
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
 import { ProcessingType, stripMarkdownCodeBlocks } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { DataParsingResult, ProcessedResult } from '@/types/dataParsing';
+import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool, List } from 'lucide-react';
 
 const DataParsing: React.FC = () => {
   const {
@@ -37,7 +36,7 @@ const DataParsing: React.FC = () => {
   const [processingDetailLevel, setProcessingDetailLevel] = useState<'brief' | 'standard' | 'detailed'>('standard');
   const [processingOutputFormat, setProcessingOutputFormat] = useState<'json' | 'text'>('json');
   const [userContext, setUserContext] = useState<string>('');
-  const [aiProcessingResults, setAiProcessingResults] = useState<ProcessedResult>({});
+  const [aiProcessingResults, setAiProcessingResults] = useState<Record<string, any>>({});
 
   const handleFileUpload = async (file: File) => {
     try {
@@ -248,16 +247,28 @@ const DataParsing: React.FC = () => {
     }
   };
 
-  return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <FileJson className="h-8 w-8 text-primary" />
+  return <div className="container mx-auto px-4 py-6 max-w-7xl">
+      <div className="space-y-2 mb-8">
+        <motion.h1 className="text-3xl font-bold tracking-tight" initial={{
+        opacity: 0,
+        y: -10
+      }} animate={{
+        opacity: 1,
+        y: 0
+      }}>
           Data Parsing
-        </h1>
-        <p className="text-muted-foreground">
-          Parse, transform, and normalize data from various formats
-        </p>
+        </motion.h1>
+        <motion.p className="text-muted-foreground" initial={{
+        opacity: 0,
+        y: 10
+      }} animate={{
+        opacity: 1,
+        y: 0
+      }} transition={{
+        delay: 0.1
+      }}>
+          Upload data files, analyze structure and process with AI
+        </motion.p>
       </div>
 
       <ApiKeyRequirement>
@@ -487,10 +498,7 @@ const DataParsing: React.FC = () => {
           </Card>
         </div>
       </ApiKeyRequirement>
-
-      <UserGuideDataParsing />
-    </div>
-  );
+    </div>;
 };
 
 export default DataParsing;
