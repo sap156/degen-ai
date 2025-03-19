@@ -2,48 +2,47 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileJson, FileText, FileType2, FileCode, Settings } from 'lucide-react';
+import { FileJson, FileText, FileType2, Wand2, Download, Settings, Info } from 'lucide-react';
 
 const UserGuideDataParsing = () => {
   return (
     <Card className="mt-8">
       <CardHeader>
         <CardTitle className="flex items-center">
-          <FileType2 className="mr-2 h-5 w-5" />
+          <FileJson className="mr-2 h-5 w-5" />
           Data Parsing Guide
         </CardTitle>
         <CardDescription>
-          Learn how to effectively use the Data Parsing service
+          Learn how to use the Data Parsing service effectively
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-2">
         <Tabs defaultValue="overview">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="formats">File Formats</TabsTrigger>
-            <TabsTrigger value="parsing">Parsing Options</TabsTrigger>
+            <TabsTrigger value="upload">Upload</TabsTrigger>
+            <TabsTrigger value="parsing">Parsing</TabsTrigger>
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
+            <TabsTrigger value="tips">Tips</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="space-y-4 mt-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">What is Data Parsing?</h3>
               <p className="text-sm text-muted-foreground">
-                Data parsing is the process of converting data from one format to another, extracting meaningful information,
-                and transforming it into a structure that's easier to work with. This service helps you parse various file 
-                formats and convert between them with powerful customization options.
+                Data parsing is the process of converting data from one format to another, making it usable for different purposes.
+                This service helps you transform data between popular formats like CSV, JSON, and plain text.
               </p>
             </div>
             
             <div>
               <h3 className="text-lg font-semibold mb-2">Key Features</h3>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                <li>Upload and parse data from multiple formats (CSV, JSON, XML, Text)</li>
-                <li>Preview parsed data structure</li>
-                <li>Convert between different formats</li>
-                <li>Customize parsing options for each format</li>
-                <li>Clean and transform data during parsing</li>
-                <li>Export the parsed data in your desired format</li>
+                <li>Parse CSV files with customizable delimiters and quote characters</li>
+                <li>Convert JSON data with support for complex nested structures</li>
+                <li>Transform plain text using regular expressions or patterns</li>
+                <li>Export parsed data to your preferred format</li>
+                <li>Preview and validate transformations before downloading</li>
               </ul>
             </div>
             
@@ -54,187 +53,160 @@ const UserGuideDataParsing = () => {
               </p>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
                 <li>You need to convert data between different formats</li>
-                <li>You're working with complex or nested data structures</li>
-                <li>You need to clean or standardize data formatting</li>
-                <li>You're preparing data for analysis or import into another system</li>
-                <li>You need to extract specific information from larger datasets</li>
+                <li>You're preparing data for import into another system</li>
+                <li>You want to extract specific information from structured data</li>
+                <li>You need to standardize data formats across multiple sources</li>
               </ul>
             </div>
           </TabsContent>
           
-          <TabsContent value="formats" className="space-y-4 mt-4">
+          <TabsContent value="upload" className="space-y-4 mt-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">Supported File Formats</h3>
-              <div className="space-y-3">
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium flex items-center">
-                    <FileText className="h-4 w-4 mr-2" />
-                    CSV (Comma-Separated Values)
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tabular data where each row is a record and columns are separated by commas.
-                    Best for: Simple tabular data, spreadsheet exports, database exports.
-                  </p>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium flex items-center">
-                    <FileJson className="h-4 w-4 mr-2" />
-                    JSON (JavaScript Object Notation)
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Structured data in a key-value format that can handle nested values and arrays.
-                    Best for: Complex data structures, API responses, configuration files.
-                  </p>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium flex items-center">
-                    <FileCode className="h-4 w-4 mr-2" />
-                    XML (eXtensible Markup Language)
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tag-based markup language for structured data with attributes and nested elements.
-                    Best for: Document-oriented data, SOAP APIs, configuration files, data with metadata.
-                  </p>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium flex items-center">
-                    <FileType2 className="h-4 w-4 mr-2" />
-                    Plain Text
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Unformatted text data that can be parsed using delimiters or regular expressions.
-                    Best for: Logs, simple data records, custom formatted data.
-                  </p>
-                </div>
-              </div>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li><strong>CSV</strong> - Comma-separated values files</li>
+                <li><strong>JSON</strong> - JavaScript Object Notation files</li>
+                <li><strong>Text</strong> - Plain text files that can be parsed with patterns</li>
+              </ul>
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold mb-2">File Format Guidelines</h3>
+              <h3 className="text-lg font-semibold mb-2">File Upload Process</h3>
+              <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+                <li>Click the upload area or drag and drop your file</li>
+                <li>The system will automatically detect the file type based on extension</li>
+                <li>File size is limited to 10MB for optimal performance</li>
+                <li>After upload, you'll be able to configure parsing options</li>
+              </ol>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">File Preparation Tips</h3>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                <li><strong>CSV:</strong> Include header row, escape quotes properly, consistent column count</li>
-                <li><strong>JSON:</strong> Valid JSON syntax, consistent object structure for arrays</li>
-                <li><strong>XML:</strong> Well-formed with proper opening/closing tags, valid namespace declarations</li>
-                <li><strong>Text:</strong> Consistent delimiters or patterns for effective parsing</li>
+                <li>Ensure your CSV files have consistent delimiters throughout</li>
+                <li>Verify your JSON is valid before uploading (use a JSON validator)</li>
+                <li>For text files, identify patterns or delimiters for effective parsing</li>
+                <li>Remove any sensitive data before uploading</li>
               </ul>
             </div>
           </TabsContent>
           
           <TabsContent value="parsing" className="space-y-4 mt-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Parsing Options</h3>
-              <div className="space-y-3">
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium">CSV Parsing Options</h4>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    <li><strong>Delimiter:</strong> Choose between comma, tab, semicolon, or custom</li>
-                    <li><strong>Header Row:</strong> Toggle whether first row contains column names</li>
-                    <li><strong>Quote Character:</strong> Specify character used for quoting text fields</li>
-                    <li><strong>Type Detection:</strong> Automatically convert to appropriate data types</li>
-                  </ul>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium">JSON Parsing Options</h4>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    <li><strong>Path Selection:</strong> Select specific paths within JSON structure</li>
-                    <li><strong>Array Handling:</strong> Choose how to process arrays (flatten, keep as-is)</li>
-                    <li><strong>Flattening:</strong> Convert nested objects to flat structure with dot notation</li>
-                    <li><strong>Date Formatting:</strong> Parse date strings to standardized formats</li>
-                  </ul>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium">XML Parsing Options</h4>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    <li><strong>XPath:</strong> Extract specific nodes using XPath queries</li>
-                    <li><strong>Attribute Handling:</strong> Include attributes as properties or separate</li>
-                    <li><strong>Namespace Handling:</strong> Preserve namespaces or strip them</li>
-                    <li><strong>Text Nodes:</strong> Configure handling of mixed content</li>
-                  </ul>
-                </div>
-                
-                <div className="border rounded-md p-3">
-                  <h4 className="font-medium">Text Parsing Options</h4>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    <li><strong>Pattern Matching:</strong> Use regular expressions or fixed positions</li>
-                    <li><strong>Line Separator:</strong> Configure how to identify record boundaries</li>
-                    <li><strong>Field Extraction:</strong> Define rules for extracting fields</li>
-                    <li><strong>Preprocessing:</strong> Strip whitespace, normalize case, etc.</li>
-                  </ul>
-                </div>
-              </div>
+              <h3 className="text-lg font-semibold mb-2">CSV Parsing Options</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li><strong>Delimiter</strong> - Character used to separate values (default: comma)</li>
+                <li><strong>Quote Character</strong> - Character used to quote fields (default: double quote)</li>
+                <li><strong>Has Header</strong> - Toggle whether the first row contains column names</li>
+              </ul>
             </div>
             
-            <div className="bg-muted p-3 rounded-md text-sm">
-              <h4 className="font-medium flex items-center">
-                <Settings className="h-4 w-4 mr-1" />
-                Advanced Parsing Tips
-              </h4>
-              <ul className="list-disc pl-5 text-muted-foreground mt-1 space-y-1">
-                <li>For large files, use streaming options to reduce memory usage</li>
-                <li>Set explicit data types when automatic detection is unreliable</li>
-                <li>Use sample datasets to verify parsing configuration before processing the full dataset</li>
-                <li>Consider breaking very complex files into multiple parsing steps</li>
+            <div>
+              <h3 className="text-lg font-semibold mb-2">JSON Parsing Options</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li><strong>JSON Path</strong> - Optional path to extract specific data from JSON structure</li>
+                <li>Examples of JSON path: <code>$.items</code>, <code>$[0].users</code>, <code>$.data.records</code></li>
+                <li>Leave empty to parse the entire JSON structure</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Text Parsing Options</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li><strong>Pattern</strong> - Regular expression or delimiter to split the text</li>
+                <li>Simple delimiter example: use <code>,</code> to split by commas</li>
+                <li>Regex example: <code>\d{3}-\d{2}-\d{4}</code> to extract SSN patterns</li>
               </ul>
             </div>
           </TabsContent>
           
           <TabsContent value="conversion" className="space-y-4 mt-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Format Conversion Process</h3>
-              <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
-                <li>Upload your source file in any supported format</li>
-                <li>Configure parsing options specific to your source format</li>
-                <li>Preview the parsed data structure</li>
-                <li>Select your desired output format</li>
-                <li>Configure format-specific output options</li>
-                <li>Apply any transformations or filters</li>
-                <li>Generate and download the converted file</li>
-              </ol>
+              <h3 className="text-lg font-semibold mb-2">Output Format Options</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li><strong>CSV</strong> - Converts data to comma-separated values</li>
+                <li><strong>JSON</strong> - Converts data to a JSON array or object</li>
+                <li><strong>Text</strong> - Outputs data as formatted plain text</li>
+              </ul>
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold mb-2">Conversion Challenges</h3>
-              <div className="space-y-3">
+              <h3 className="text-lg font-semibold mb-2">Conversion Process</h3>
+              <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+                <li>After parsing, preview your data to verify correct transformation</li>
+                <li>Select your desired output format from the dropdown</li>
+                <li>Click "Convert & Download" to generate and download the file</li>
+                <li>Downloaded files will be named "converted.[format]"</li>
+              </ol>
+            </div>
+            
+            <div className="bg-muted p-3 rounded-md text-sm">
+              <h4 className="font-medium flex items-center">
+                <Info className="h-4 w-4 mr-1" />
+                Data Preservation Notes
+              </h4>
+              <p className="text-muted-foreground mt-1">
+                When converting between formats:
+              </p>
+              <ul className="list-disc pl-5 text-muted-foreground mt-1 space-y-1">
+                <li>CSV to JSON: Column names become JSON property names</li>
+                <li>JSON to CSV: Object properties become column names</li>
+                <li>Complex nested objects may be flattened or stringified</li>
+                <li>Data types are preserved when possible</li>
+              </ul>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="tips" className="space-y-4 mt-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Best Practices</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li>Use consistent naming conventions across formats</li>
+                <li>Validate your input data before parsing to avoid errors</li>
+                <li>For large files, consider splitting them into smaller chunks</li>
+                <li>Use preview functionality to verify transformation before downloading</li>
+                <li>Keep a copy of your original data before transformation</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Common Issues and Solutions</h3>
+              <div className="space-y-2">
                 <div className="border rounded-md p-3">
-                  <h4 className="font-medium">Handling Structural Differences</h4>
+                  <h4 className="font-medium">CSV Parsing Errors</h4>
                   <p className="text-sm text-muted-foreground">
-                    Converting between different format types may require structural transformation:
+                    If your CSV isn't parsing correctly, check for inconsistent delimiters, 
+                    mismatched quotes, or special characters. Try adjusting the delimiter 
+                    and quote character settings.
                   </p>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1">
-                    <li>Flat data to nested (CSV → JSON/XML) requires grouping configuration</li>
-                    <li>Nested data to flat (JSON/XML → CSV) requires flattening strategy</li>
-                    <li>Converting text to structured formats needs explicit field mapping</li>
-                  </ul>
                 </div>
                 
                 <div className="border rounded-md p-3">
-                  <h4 className="font-medium">Data Type Preservation</h4>
+                  <h4 className="font-medium">JSON Structure Issues</h4>
                   <p className="text-sm text-muted-foreground">
-                    Different formats have different type systems:
+                    Invalid JSON will fail to parse. Verify your JSON with a validator, 
+                    check for missing commas, unmatched brackets, or quotes. For complex 
+                    structures, use JSON Path to extract specific sections.
                   </p>
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1">
-                    <li>JSON distinguishes between numbers, strings, booleans, etc.</li>
-                    <li>CSV stores everything as text, requiring explicit conversion</li>
-                    <li>XML attributes are always strings, element content can be mixed</li>
-                  </ul>
+                </div>
+                
+                <div className="border rounded-md p-3">
+                  <h4 className="font-medium">Character Encoding Problems</h4>
+                  <p className="text-sm text-muted-foreground">
+                    If you see garbled text or strange characters, your file might use a 
+                    non-standard encoding. Try saving your file as UTF-8 before uploading.
+                  </p>
                 </div>
               </div>
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold mb-2">Conversion Best Practices</h3>
+              <h3 className="text-lg font-semibold mb-2">Advanced Tips</h3>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                <li>Validate your input data before conversion</li>
-                <li>Handle special characters and encoding issues appropriately</li>
-                <li>Consider data size limits and performance implications</li>
-                <li>Preserve metadata where possible or document lost information</li>
-                <li>Test converted data in its intended environment</li>
-                <li>Use data cleaning options to standardize format during conversion</li>
+                <li>For complex data structures, convert to JSON first, then to other formats</li>
+                <li>Use text parsing with regex for extracting specific patterns from logs or unstructured text</li>
+                <li>When converting to CSV, consider how nested data will be represented in a flat structure</li>
+                <li>For repeated transformations, document your parsing settings for consistency</li>
               </ul>
             </div>
           </TabsContent>
