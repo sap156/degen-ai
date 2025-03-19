@@ -468,3 +468,143 @@ export const downloadData = (data: string, filename: string, type: 'json' | 'csv
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
+
+// Analyze the dataset
+export const analyzeDataset = async (data: any[]): Promise<any> => {
+  try {
+    // Simple analysis of the dataset
+    if (!data || data.length === 0) {
+      throw new Error('No data provided for analysis');
+    }
+    
+    // Get all column names from the first item
+    const columnNames = Object.keys(data[0]);
+    
+    // Let's assume we're looking for binary classification, find columns with binary values
+    let targetColumn = null;
+    let positiveClassCount = 0;
+    let negativeClassCount = 0;
+    
+    // Try to find a column with binary values (0/1, true/false, etc.)
+    for (const column of columnNames) {
+      const values = new Set(data.map(item => item[column]));
+      if (values.size === 2) {
+        // This could be a binary target column
+        targetColumn = column;
+        
+        // Count positive and negative instances
+        positiveClassCount = data.filter(item => 
+          item[column] === 1 || 
+          item[column] === true || 
+          item[column] === 'true' || 
+          item[column] === 'yes' || 
+          item[column] === 'positive'
+        ).length;
+        
+        negativeClassCount = data.length - positiveClassCount;
+        
+        // If a clear imbalance is found, use this column
+        if (positiveClassCount !== negativeClassCount) {
+          break;
+        }
+      }
+    }
+    
+    // If no binary column was found, use the first column as a fallback
+    if (!targetColumn) {
+      targetColumn = columnNames[0];
+      // Count unique values in this column
+      const valueCounts: Record<string, number> = {};
+      
+      data.forEach(item => {
+        const value = String(item[targetColumn]);
+        valueCounts[value] = (valueCounts[value] || 0) + 1;
+      });
+      
+      // Get the two most frequent values
+      const sortedValues = Object.entries(valueCounts)
+        .sort(([, countA], [, countB]) => countB - countA);
+      
+      if (sortedValues.length >= 2) {
+        positiveClassCount = sortedValues[0][1];
+        negativeClassCount = sortedValues[1][1];
+      } else {
+        positiveClassCount = sortedValues[0][1];
+        negativeClassCount = 0;
+      }
+    }
+    
+    // Calculate imbalance ratio
+    const imbalanceRatio = Math.max(positiveClassCount, negativeClassCount) / 
+                          Math.max(1, Math.min(positiveClassCount, negativeClassCount));
+    
+    return {
+      totalRows: data.length,
+      columnNames,
+      positiveClassCount,
+      negativeClassCount,
+      imbalanceRatio,
+      aiRecommendations: "Analysis complete. Consider using balancing techniques to address the class imbalance."
+    };
+  } catch (error) {
+    console.error('Error analyzing dataset:', error);
+    throw error;
+  }
+};
+
+// Download the balanced dataset
+export const downloadBalancedDataset = async (
+  data: any[], 
+  format: 'json' | 'csv', 
+  filename: string
+): Promise<void> => {
+  try {
+    let content: string;
+    let type: string;
+    
+    if (format === 'json') {
+      content = JSON.stringify(data, null, 2);
+      type = 'application/json';
+    } else {
+      // CSV format
+      if (data.length === 0) {
+        throw new Error('No data to download');
+      }
+      
+      const headers = Object.keys(data[0]);
+      const csvRows = [
+        headers.join(','), // Header row
+        ...data.map(row => 
+          headers.map(field => {
+            // Handle special characters and quotes in CSV
+            const value = row[field];
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          }).join(',')
+        )
+      ];
+      
+      content = csvRows.join('\n');
+      type = 'text/csv';
+    }
+    
+    // Create and trigger download
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error downloading balanced dataset:', error);
+    throw error;
+  }
+};

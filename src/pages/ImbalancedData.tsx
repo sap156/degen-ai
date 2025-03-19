@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { FileUploader } from '@/components/FileUploader';
-import { AIDatasetAnalysis } from '@/components/AIDatasetAnalysis';
+import FileUploader from '@/components/FileUploader';
+import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
 import { BarChart3, Upload, Download, RefreshCw } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
@@ -22,6 +23,7 @@ interface DatasetInfo {
   positiveClassCount: number;
   negativeClassCount: number;
   imbalanceRatio: number;
+  aiRecommendations?: string;
 }
 
 const ImbalancedData = () => {
@@ -29,7 +31,7 @@ const ImbalancedData = () => {
   const [originalDataset, setOriginalDataset] = useState<DatasetInfo | null>(null);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [balancedDataset, setBalancedDataset] = useState<any[] | null>(null);
-  const [aiRecommendations, setAIRecommendations] = useState<any | null>(null);
+  const [aiRecommendations, setAIRecommendations] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isBalancing, setIsBalancing] = useState(false);
   
@@ -63,13 +65,13 @@ const ImbalancedData = () => {
     reader.readAsText(file);
   };
   
-  const handleBalanceDataset = async (options: any, data?: any[]) => {
+  const handleBalanceDataset = async (options: any) => {
     if (!originalDataset) return;
     
     setIsBalancing(true);
     
     try {
-      const balancedData = await balanceDatasetService(options, data);
+      const balancedData = await balanceDatasetService(options);
       setBalancedDataset(balancedData);
       toast.success('Dataset balanced successfully!');
     } catch (error: any) {

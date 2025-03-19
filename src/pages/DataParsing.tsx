@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { FileUploader } from '@/components/FileUploader';
+import FileUploader from '@/components/FileUploader';
 import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
 import { 
   FileText, 
@@ -21,23 +21,20 @@ import {
   Upload, 
   FileUp, 
   ListFilter, 
-  Magic, 
+  Wand2, 
   RefreshCw
 } from 'lucide-react';
 
-// Define the structure of the parsed data
 interface ParsedData {
   [key: string]: any;
 }
 
-// Define the structure for handling errors
 interface ParsingError {
   message: string;
   line?: number;
   column?: number;
 }
 
-// Define the type for the parsing format
 type ParsingFormat = 'json' | 'csv' | 'xml' | 'yaml' | 'text';
 
 const DataParsing = () => {
@@ -49,7 +46,6 @@ const DataParsing = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Function to handle parsing data based on the selected format
   const parseData = (data: string, format: ParsingFormat) => {
     setIsProcessing(true);
     setParsingError(null);
@@ -58,7 +54,6 @@ const DataParsing = () => {
         case 'json':
           return JSON.parse(data);
         case 'csv':
-          // Basic CSV parsing (can be improved with a proper CSV parser)
           const lines = data.split('\n');
           const headers = lines[0].split(',');
           const result: any[] = [];
@@ -72,10 +67,8 @@ const DataParsing = () => {
           }
           return result;
         case 'xml':
-          // Basic XML parsing (can be improved with a proper XML parser)
           return { message: "XML parsing is not fully supported. Please use JSON or CSV." };
         case 'yaml':
-          // Basic YAML parsing (can be improved with a proper YAML parser)
           return { message: "YAML parsing is not fully supported. Please use JSON or CSV." };
         case 'text':
           return { content: data };
@@ -96,7 +89,6 @@ const DataParsing = () => {
     }
   };
 
-  // Function to handle processing the data
   const handleProcessData = async () => {
     if (!rawData) {
       toast({
@@ -117,7 +109,6 @@ const DataParsing = () => {
     }
   };
 
-  // Function to handle file upload
   const handleFileUpload = (fileContent: string) => {
     setRawData(fileContent);
     toast({
@@ -126,7 +117,6 @@ const DataParsing = () => {
     });
   };
 
-  // Function to handle pasted data
   const handlePastedData = () => {
     if (!rawData) {
       toast({
@@ -142,7 +132,6 @@ const DataParsing = () => {
     });
   };
 
-  // Function to handle downloading the parsed data
   const handleDownload = () => {
     if (!parsedData) {
       toast({
@@ -177,9 +166,7 @@ const DataParsing = () => {
         </p>
       </div>
       
-      {/* Main content area */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left sidebar with upload options */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -240,7 +227,6 @@ const DataParsing = () => {
               <CardDescription>Configure how to parse your data</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Source Format Selection */}
               <div className="space-y-2">
                 <Label>Source Format</Label>
                 <RadioGroup defaultValue="json" className="grid grid-cols-2 gap-2" onValueChange={(value) => setParsingFormat(value as ParsingFormat)}>
@@ -267,7 +253,6 @@ const DataParsing = () => {
                 </RadioGroup>
               </div>
               
-              {/* Target Format Selection */}
               <div className="space-y-2">
                 <Label>Target Format</Label>
                 <Select onValueChange={(value) => setTargetFormat(value as ParsingFormat)}>
@@ -284,7 +269,6 @@ const DataParsing = () => {
                 </Select>
               </div>
               
-              {/* Processing Actions */}
               <div className="pt-2 space-y-4">
                 <Button
                   className="w-full"
@@ -298,7 +282,7 @@ const DataParsing = () => {
                     </>
                   ) : (
                     <>
-                      <Magic className="mr-2 h-4 w-4" />
+                      <Wand2 className="mr-2 h-4 w-4" />
                       Process Data
                     </>
                   )}
@@ -306,12 +290,10 @@ const DataParsing = () => {
               </div>
             </CardContent>
           </Card>
-          
-          {/* User Guide */}
+
           <UserGuideDataParsing />
         </div>
 
-        {/* Main content area - right side */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
