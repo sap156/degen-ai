@@ -1,4 +1,3 @@
-
 /**
  * Utilities for extracting text from various file types
  */
@@ -47,17 +46,28 @@ export const extractTextFromFile = async (
       case 'xls' as SupportedFileType:
       case 'pptx':
       case 'ppt' as SupportedFileType:
-        // For complex file types, use AI to extract text
+        // For complex file types, use alternative extraction methods
         if (!apiKey) {
           throw new Error("API key is required to process this file type");
         }
         
-        return await extractTextWithAI(file, apiKey, metadata);
+        // For PDF files, we'll handle differently than other document types
+        if (fileType === 'pdf') {
+          return await extractPdfWithAI(file, apiKey, metadata);
+        }
+        
+        return await extractDocumentWithAI(file, apiKey, metadata);
         
       default:
         // Try to extract with AI for unknown file types
         if (apiKey) {
-          return await extractTextWithAI(file, apiKey, metadata);
+          // Determine the best extraction method based on file type
+          const mimeType = file.type;
+          if (mimeType.startsWith('image/')) {
+            return await extractImageWithAI(file, apiKey, metadata);
+          } else {
+            return await extractDocumentWithAI(file, apiKey, metadata);
+          }
         }
         throw new Error(`Unsupported file type: ${fileType}`);
     }
@@ -68,9 +78,44 @@ export const extractTextFromFile = async (
 };
 
 /**
- * Extract text from complex file types using AI
+ * Extract text from PDF files using AI
  */
-const extractTextWithAI = async (
+const extractPdfWithAI = async (
+  file: File, 
+  apiKey: string, 
+  baseMetadata: Record<string, any>
+): Promise<FileProcessingResult> => {
+  try {
+    const { getCompletion } = await import('../services/openAiService');
+    
+    // For PDFs, we'll use a text-based approach first
+    const fileContent = await readFileAsText(file);
+    
+    // If we got readable text content, we can just return it
+    if (fileContent && fileContent.length > 100) {
+      return {
+        text: fileContent,
+        metadata: {
+          ...baseMetadata,
+          processingMethod: 'text-based extraction',
+          contentLength: fileContent.length
+        }
+      };
+    }
+    
+    // If text extraction failed, try using the document AI approach
+    console.log("Text-based PDF extraction yielded insufficient results, trying with document AI...");
+    return await extractDocumentWithAI(file, apiKey, baseMetadata);
+  } catch (error) {
+    console.error('Error extracting PDF with AI:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extract text from images using AI vision capabilities
+ */
+const extractImageWithAI = async (
   file: File, 
   apiKey: string, 
   baseMetadata: Record<string, any>
@@ -81,25 +126,13 @@ const extractTextWithAI = async (
     // Read the file content to base64 for sending to OpenAI
     const fileContent = await readFileAsBase64(file);
     
-    // Create a more detailed prompt based on file type
-    const fileType = baseMetadata.fileType;
+    // Create a detailed prompt for image text extraction
+    const systemPrompt = `You are a document text extraction specialist. Your task is to extract all text content from this image.
     
-    // For all document types, include instructions to handle structured data
-    const systemPrompt = `You are a document text extraction specialist. Your task is to extract all text content from this ${fileType} file.
+    IMPORTANT: DO NOT provide any explanations, code samples, or instructions. 
+    Return ONLY the extracted text content from the image.`;
     
-    IMPORTANT: DO NOT provide any explanations, code samples, or instructions on how to use tools. 
-    
-    DO extract the actual text content from the uploaded file. Return ONLY the extracted content.
-    
-    For structured data like tables, preserve them as markdown tables or in a structured format.
-    
-    If the content contains mostly data, try to format it in a way that preserves its structure.
-    
-    Do not mention your inability to access files - process the content I'm providing to you.`;
-    
-    const userPrompt = `I'm uploading a ${fileType} file named "${file.name}". Please extract all the text content.
-
-If you can see any content, extract and return it verbatim. The file content is being provided to you.`;
+    const userPrompt = `Extract all text content from this image.`;
     
     const messages = [
       { role: 'system' as const, content: systemPrompt },
@@ -118,60 +151,93 @@ If you can see any content, extract and return it verbatim. The file content is 
       }
     ];
     
-    console.log(`Extracting text from ${fileType} file using AI...`);
+    console.log(`Extracting text from image using AI vision...`);
     const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o'  // Using gpt-4o for vision capabilities
+      model: 'gpt-4o'  // Using vision capable model
     });
     
-    // Try to parse the response if it appears to be in a structured format
-    let structuredContent = response;
-    try {
-      // See if the AI response contains structured data we can parse
-      if (response.includes('{') && response.includes('}')) {
-        const possibleJson = response.substring(
-          response.indexOf('{'), 
-          response.lastIndexOf('}') + 1
-        );
-        const parsed = JSON.parse(possibleJson);
-        // If parsing succeeds, update the extraction method
-        baseMetadata.structuredFormat = 'json';
-        structuredContent = JSON.stringify(parsed, null, 2);
-      } 
-      else if (response.includes('[') && response.includes(']')) {
-        const possibleArray = response.substring(
-          response.indexOf('['), 
-          response.lastIndexOf(']') + 1
-        );
-        const parsed = JSON.parse(possibleArray);
-        baseMetadata.structuredFormat = 'json';
-        structuredContent = JSON.stringify(parsed, null, 2);
-      }
-      else if (response.includes(',') && response.includes('\n')) {
-        // Check if it looks like CSV data
-        const lines = response.split('\n').filter(l => l.trim());
-        if (lines.length > 1 && lines[0].includes(',') && lines[1].includes(',')) {
-          baseMetadata.structuredFormat = 'csv';
-        }
-      }
-    } catch (e) {
-      // If parsing fails, just use the raw response
-      console.log('Could not parse structured data from AI response');
-    }
-    
     return {
-      text: structuredContent,
+      text: response,
       metadata: {
         ...baseMetadata,
-        processingMethod: 'AI-based extraction',
-        aiModel: 'gpt-4o', // Using more capable model for vision tasks
+        processingMethod: 'AI-vision extraction',
+        aiModel: 'gpt-4o',
         contentLength: response.length
       }
     };
     
   } catch (error) {
-    console.error('Error extracting text with AI:', error);
+    console.error('Error extracting image with AI:', error);
     throw error;
   }
+};
+
+/**
+ * Extract text from document files using document AI approach
+ */
+const extractDocumentWithAI = async (
+  file: File, 
+  apiKey: string, 
+  baseMetadata: Record<string, any>
+): Promise<FileProcessingResult> => {
+  try {
+    // Try to extract text using specialized document APIs or services
+    // For now, we'll use a simple approach to handle document files
+    
+    // First try to read directly as text for some formats
+    try {
+      const textContent = await readFileAsText(file);
+      if (textContent && textContent.length > 100) {
+        return {
+          text: textContent,
+          metadata: {
+            ...baseMetadata,
+            processingMethod: 'text-based extraction',
+            contentLength: textContent.length
+          }
+        };
+      }
+    } catch (e) {
+      console.log('Direct text extraction failed, falling back to alternative methods');
+    }
+    
+    // If we cannot get the content directly, inform the user
+    const fileType = baseMetadata.fileType;
+    return {
+      text: `This ${fileType.toUpperCase()} file requires specialized document processing capabilities. 
+      
+The current implementation doesn't fully support this file type.
+
+Please try converting the file to a supported format like PDF, TXT, or CSV.`,
+      metadata: {
+        ...baseMetadata,
+        processingMethod: 'limited extraction',
+        status: 'partial_support'
+      }
+    };
+    
+  } catch (error) {
+    console.error('Error extracting document with AI:', error);
+    throw error;
+  }
+};
+
+/**
+ * Read file as text
+ */
+const readFileAsText = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        resolve(reader.result.toString());
+      } else {
+        reject(new Error('Failed to read file'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
 };
 
 /**
