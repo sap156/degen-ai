@@ -10,7 +10,7 @@ import { SupportedFileType } from './fileTypes';
 export const isSupportedFileType = (file: File): boolean => {
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
   return [
-    'csv', 'json', 'txt', 
+    'csv', 'json', 'txt', 'xml',
     'pdf', 'doc', 'docx', 
     'xls', 'xlsx', 
     'ppt', 'pptx'
@@ -26,6 +26,7 @@ export const getFileType = (file: File): SupportedFileType => {
   if (['csv'].includes(extension)) return 'csv';
   if (['json'].includes(extension)) return 'json';
   if (['txt', 'text', 'md'].includes(extension)) return 'txt';
+  if (['xml'].includes(extension)) return 'xml';
   if (['pdf'].includes(extension)) return 'pdf';
   if (['doc', 'docx'].includes(extension)) return 'docx';
   if (['xls', 'xlsx'].includes(extension)) return 'xlsx';
@@ -107,4 +108,44 @@ export const downloadData = (data: string, fileName: string, format: 'csv' | 'js
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+/**
+ * Get a human-readable file size
+ * @param bytes The file size in bytes
+ * @returns Human-readable file size (e.g., "1.2 MB")
+ */
+export const getHumanReadableFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+/**
+ * Get file MIME type based on extension
+ * @param file The file to check
+ * @returns The MIME type
+ */
+export const getFileMimeType = (file: File): string => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  
+  const mimeTypes: Record<string, string> = {
+    'csv': 'text/csv',
+    'json': 'application/json',
+    'txt': 'text/plain',
+    'xml': 'application/xml',
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  
+  return mimeTypes[extension] || 'application/octet-stream';
 };

@@ -16,3 +16,22 @@ export * from './textExtraction';
 
 // Re-export schema detection utilities
 export * from './schemaDetection';
+
+/**
+ * Factory function to get appropriate parser for a file type
+ * @param fileType The type of file to parse
+ * @returns A parsing function for the specified file type
+ */
+export const getParserForFileType = (fileType: string): ((content: string) => any) => {
+  switch (fileType.toLowerCase()) {
+    case 'csv':
+      return (content: string) => parseCSV(content);
+    case 'json':
+      return (content: string) => parseJSON(content);
+    case 'xml':
+      return (content: string) => parseXML(content);
+    default:
+      // For unknown types, try to auto-detect
+      return (content: string) => autoDetectAndParse(content);
+  }
+};
