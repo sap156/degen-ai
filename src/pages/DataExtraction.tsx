@@ -38,6 +38,7 @@ import {
   ExtractionType 
 } from '@/services/dataExtractionService';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import UserGuideDataExtraction from '@/components/ui/UserGuideDataExtraction';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();
@@ -81,10 +82,8 @@ const DataExtraction: React.FC = () => {
   };
 
   const handleImageUpload = (file: File) => {
-    // Create preview
     const preview = URL.createObjectURL(file);
     
-    // Add to images array
     setImages(prev => [...prev, { file, preview }]);
     
     toast.success(`Image uploaded: ${file.name}`);
@@ -99,12 +98,10 @@ const DataExtraction: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // For now we only process the first image
-      // In a more advanced implementation, we could merge results from multiple images
       const result = await extractDataFromImage(
         apiKey,
         images[0].file,
-        extractionType === 'tables' ? 'key-value' : extractionType, // 'tables' for images becomes 'key-value'
+        extractionType === 'tables' ? 'key-value' : extractionType,
         imageQuestion.trim() || undefined
       );
       
@@ -196,7 +193,6 @@ const DataExtraction: React.FC = () => {
   };
 
   const clearImages = () => {
-    // Revoke object URLs to avoid memory leaks
     images.forEach(image => URL.revokeObjectURL(image.preview));
     setImages([]);
   };
@@ -502,6 +498,8 @@ const DataExtraction: React.FC = () => {
           </Card>
         </div>
       </div>
+      
+      <UserGuideDataExtraction />
     </div>
   );
 };

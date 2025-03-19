@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { 
@@ -34,6 +33,7 @@ import FileUploader from '@/components/FileUploader';
 import SchemaEditor from '@/components/SchemaEditor';
 import DataGenerationOptions from '@/components/DataGenerationOptions';
 import DateRangeInfo from '@/components/DateRangeInfo';
+import UserGuideTimeSeriesGenerator from '@/components/ui/UserGuideTimeSeriesGenerator';
 import { parseCSV, parseJSON, readFileContent, detectDataType, generateSchema, SchemaFieldType } from '@/utils/fileUploadUtils';
 import { detectTimeSeriesFields, analyzeDataset } from '@/utils/schemaDetectionUtils';
 
@@ -108,7 +108,6 @@ const TimeSeries = () => {
   const interval = watch('interval');
   const dataPoints = watch('dataPoints');
   
-  // Handle additionalFields changes directly instead of through additionalFieldCount
   const setAdditionalFields = (fields: any[]) => {
     setValue('additionalFields', fields);
     setValue('additionalFieldCount', fields.length);
@@ -138,11 +137,6 @@ const TimeSeries = () => {
           onProgressUpdate: setProgressPercentage
         });
       } else {
-        // For manual generation, simulate progress
-        setProgressPercentage(25);
-        setTimeout(() => setProgressPercentage(50), 300);
-        setTimeout(() => setProgressPercentage(75), 500);
-        
         generatedData = generateTimeSeriesData({
           ...data,
           excludeDefaultValue: data.excludeDefaultValue,
@@ -154,22 +148,17 @@ const TimeSeries = () => {
         setTimeout(() => setProgressPercentage(100), 700);
       }
       
-      // If appending, combine with existing data
       if (data.generationMode === 'append' && timeSeriesData.length > 0) {
-        // Ensure no duplicate timestamps by creating a Map
         const uniqueData = new Map<string, TimeSeriesDataPoint>();
         
-        // Add existing data to map
         timeSeriesData.forEach(item => {
           uniqueData.set(item.timestamp, item);
         });
         
-        // Add or replace with new data
         generatedData.forEach(item => {
           uniqueData.set(item.timestamp, item);
         });
         
-        // Convert map back to array and sort by timestamp
         generatedData = Array.from(uniqueData.values()).sort((a, b) => {
           return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         });
@@ -183,7 +172,6 @@ const TimeSeries = () => {
         
       setFormattedData(formatted);
       
-      // Update date range info when new data is generated
       if (generatedData.length > 0) {
         updateDatasetAnalysis(generatedData);
       }
@@ -194,21 +182,17 @@ const TimeSeries = () => {
       toast.error('Failed to generate time series data');
     } finally {
       setLoading(false);
-      // Hide progress after a delay
       setTimeout(() => setShowProgress(false), 1000);
     }
   };
   
-  // Update additional fields when schema changes
   useEffect(() => {
     if (detectedSchema && Object.keys(detectedSchema).length > 0) {
       const schemaFields = Object.entries(detectedSchema)
         .filter(([key, type]) => {
-          // Exclude timestamp and optionally value fields
           return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
         })
         .map(([key, type]) => {
-          // Convert schema type to additionalField type
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
           if (type === 'boolean') {
@@ -303,7 +287,6 @@ const TimeSeries = () => {
       toast.error('Failed to apply AI noise');
     } finally {
       setIsApplyingAiNoise(false);
-      // Hide progress after a delay
       setTimeout(() => setShowProgress(false), 1000);
     }
   };
@@ -312,14 +295,11 @@ const TimeSeries = () => {
     if (!data.length) return;
     
     try {
-      // Get timestamps from data
       const timestamps = data.map(item => new Date(item.timestamp));
       
-      // Find min and max dates
       const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
       
-      // Get time interval if available
       const timeInterval = detectTimeInterval(timestamps);
       
       const analysis = {
@@ -355,28 +335,22 @@ const TimeSeries = () => {
         throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
       
-      // Process the data and detect schema
       const timeSeriesData = processUploadedTimeSeriesData(parsedData);
       setTimeSeriesData(timeSeriesData);
       
-      // Generate formatted data for display
       const formatted = outputFormat === 'csv'
         ? formatAsCSV(timeSeriesData)
         : formatAsJSON(timeSeriesData);
       
       setFormattedData(formatted);
       
-      // Extract schema from the data
       const schema = generateSchema(timeSeriesData);
       setDetectedSchema(schema);
       
-      // Analyze the dataset and extract properties
       updateDatasetAnalysis(timeSeriesData);
       
-      // Set detected dataset properties to the form
       updateFormWithDetectedSchema(timeSeriesData, schema);
       
-      // Automatically switch to generate tab
       setActiveTab('generate');
       
       toast.success(`Processed ${timeSeriesData.length} time series data points and detected schema`);
@@ -388,40 +362,32 @@ const TimeSeries = () => {
     }
   };
   
-  // New function to update form with detected schema
   const updateFormWithDetectedSchema = (data: TimeSeriesDataPoint[], schema: Record<string, SchemaFieldType>) => {
     if (!data.length) return;
     
     try {
-      // Detect date range from the data
       const timestamps = data.map(item => new Date(item.timestamp));
       const minDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
       
-      // Set start and end dates based on the data
       setValue('startDate', minDate);
       setValue('endDate', maxDate);
       
-      // Detect interval (daily, hourly, etc.)
       const detectedInterval = detectTimeInterval(timestamps);
       if (detectedInterval) {
         setValue('interval', detectedInterval);
       }
       
-      // Update dataset name based on file
       if (uploadedFile) {
         const fileName = uploadedFile.name.split('.')[0];
         setValue('datasetName', fileName);
       }
       
-      // Convert schema to additionalFields format
       const schemaFields = Object.entries(schema)
         .filter(([key, type]) => {
-          // Exclude timestamp and default value fields
           return key !== 'timestamp' && (excludeDefaultValue ? key !== 'value' : true);
         })
         .map(([key, type]) => {
-          // Convert schema type to additionalField type
           let fieldType: 'number' | 'boolean' | 'category' = 'number';
           
           if (type === 'boolean') {
@@ -433,30 +399,23 @@ const TimeSeries = () => {
           return { name: key, type: fieldType };
         });
       
-      // Update the additionalFields in the form
       setAdditionalFields(schemaFields);
       
-      // Exclude default value if specified
       setValue('excludeDefaultValue', schema['value'] ? false : true);
       
-      // Get data points count
       setValue('dataPoints', data.length);
       
-      // Default to append mode when data is uploaded
       setValue('generationMode', 'append');
     } catch (error) {
       console.error('Error updating form with detected schema:', error);
     }
   };
   
-  // Helper function to detect time interval in the data
   const detectTimeInterval = (timestamps: Date[]): 'hourly' | 'daily' | 'weekly' | 'monthly' | undefined => {
     if (timestamps.length < 2) return undefined;
     
-    // Sort dates chronologically
     timestamps.sort((a, b) => a.getTime() - b.getTime());
     
-    // Calculate average difference between consecutive timestamps in milliseconds
     let totalDiff = 0;
     for (let i = 1; i < Math.min(10, timestamps.length); i++) {
       totalDiff += timestamps[i].getTime() - timestamps[i-1].getTime();
@@ -464,11 +423,10 @@ const TimeSeries = () => {
     
     const avgDiffMs = totalDiff / Math.min(9, timestamps.length - 1);
     
-    // Convert to appropriate interval
     const hourMs = 60 * 60 * 1000;
     const dayMs = 24 * hourMs;
     const weekMs = 7 * dayMs;
-    const monthMs = 30 * dayMs; // Approximate
+    const monthMs = 30 * dayMs;
     
     if (avgDiffMs < 2 * hourMs) return 'hourly';
     if (avgDiffMs < 2 * dayMs) return 'daily';
@@ -495,7 +453,7 @@ const TimeSeries = () => {
       const timestamp = parseTimestamp(item[timestampField]);
       const point: TimeSeriesDataPoint = { 
         timestamp,
-        value: 0 // Initialize with a default value
+        value: 0
       };
       
       if (valueFields.length > 0) {
@@ -527,7 +485,6 @@ const TimeSeries = () => {
       return dateA.getTime() - dateB.getTime();
     });
     
-    // Store the detected timestamp field for later use
     if (timestampField) {
       setUploadedTimestampField(timestampField);
     }
@@ -616,13 +573,11 @@ const TimeSeries = () => {
     }
   };
   
-  // Get field names for the chart
   const additionalFieldNames = useMemo(() => {
     if (!timeSeriesData.length) return [];
     
     return Object.keys(timeSeriesData[0])
       .filter(key => {
-        // Include only numeric fields that are not the timestamp or default value (if excluded)
         return (
           key !== 'timestamp' && 
           typeof timeSeriesData[0][key] === 'number' && 
@@ -652,7 +607,6 @@ const TimeSeries = () => {
                 
                 <TabsContent value="generate">
                   <form id="time-series-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* Schema detection notification */}
                     {detectedSchema && (
                       <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md mb-4">
                         <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
@@ -664,7 +618,6 @@ const TimeSeries = () => {
                       </div>
                     )}
                     
-                    {/* Display date range info when available */}
                     {datasetAnalysis && (
                       <DateRangeInfo 
                         startDate={datasetAnalysis.dateRange.start}
@@ -674,7 +627,6 @@ const TimeSeries = () => {
                       />
                     )}
                     
-                    {/* Generation mode selector for uploaded data */}
                     <DataGenerationOptions 
                       generationMode={generationMode}
                       onGenerationModeChange={(mode) => setValue('generationMode', mode)}
@@ -797,7 +749,6 @@ const TimeSeries = () => {
                       </div>
                     </div>
                     
-                    {/* Conditional heading based on whether data is uploaded or being created */}
                     <div className="border-t pt-4 mt-4">
                       <h3 className="font-medium mb-2">
                         {timeSeriesData.length > 0 ? "Modification Options" : "Generation Options"}
@@ -912,8 +863,7 @@ const TimeSeries = () => {
                         </div>
                       </>
                     )}
-
-                    {/* Add option to exclude default value field */}
+                    
                     <div className="flex items-center space-x-2">
                       <Switch 
                         id="excludeDefaultValue" 
@@ -925,7 +875,6 @@ const TimeSeries = () => {
                       </Label>
                     </div>
                     
-                    {/* Replace the numeric field count input with the schema editor */}
                     {detectedSchema && (
                       <SchemaEditor
                         schema={detectedSchema}
@@ -1138,6 +1087,8 @@ const TimeSeries = () => {
           )}
         </div>
       </div>
+      
+      <UserGuideTimeSeriesGenerator />
     </div>
   );
 };

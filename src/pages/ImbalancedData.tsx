@@ -10,6 +10,7 @@ import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import AIDatasetConfiguration from '@/components/AIDatasetConfiguration';
 import AIDatasetAnalysis from '@/components/AIDatasetAnalysis';
 import DataBalancingControls from '@/components/DataBalancingControls';
+import UserGuideImbalancedData from '@/components/ui/UserGuideImbalancedData';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DatasetAnalysis, 
@@ -829,6 +830,8 @@ const ImbalancedData = () => {
           />
         </div>
       </div>
+
+      <UserGuideImbalancedData />
     </motion.div>
   );
 };

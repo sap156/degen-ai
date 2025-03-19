@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { InfoIcon } from 'lucide-react';
+import UserGuideDataQuery from '@/components/ui/UserGuideDataQuery';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -60,44 +60,49 @@ const DataQuery = () => {
       {!isKeySet ? (
         <ApiKeyRequirement />
       ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="md:col-span-1 space-y-6">
-            <Alert variant="warning">
-              <InfoIcon className="h-4 w-4" />
-              <AlertTitle>Database Connection Disabled</AlertTitle>
-              <AlertDescription>
-                The database connection feature is currently unavailable. 
-                You can still use the SQL query generation with your schema.
-              </AlertDescription>
-            </Alert>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Database Schema</CardTitle>
-                <CardDescription>
-                  Upload your database schema or sample data to improve SQL generation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SchemaUploader schema={schema} setSchema={setSchema} />
-              </CardContent>
-            </Card>
-          </div>
+        <>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="md:col-span-1 space-y-6">
+              <Alert variant="warning">
+                <InfoIcon className="h-4 w-4" />
+                <AlertTitle>Database Connection Disabled</AlertTitle>
+                <AlertDescription>
+                  The database connection feature is currently unavailable. 
+                  You can still use the SQL query generation with your schema.
+                </AlertDescription>
+              </Alert>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Database Schema</CardTitle>
+                  <CardDescription>
+                    Upload your database schema or sample data to improve SQL generation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SchemaUploader schema={schema} setSchema={setSchema} />
+                </CardContent>
+              </Card>
+            </div>
 
-          <div className="md:col-span-2 space-y-6">
-            {/* Always show the simplified view without tabs now that DB is disabled */}
-            <QueryInput 
-              schema={schema}
-              onQueryProcessed={handleQuerySuccess}
-              isProcessing={isProcessing}
-              setIsProcessing={setIsProcessing}
-            />
-            
-            {queryResult && (
-              <QueryOutput queryResult={queryResult} />
-            )}
+            <div className="md:col-span-2 space-y-6">
+              {/* Always show the simplified view without tabs now that DB is disabled */}
+              <QueryInput 
+                schema={schema}
+                onQueryProcessed={handleQuerySuccess}
+                isProcessing={isProcessing}
+                setIsProcessing={setIsProcessing}
+              />
+              
+              {queryResult && (
+                <QueryOutput queryResult={queryResult} />
+              )}
+            </div>
           </div>
-        </div>
+          
+          {/* Add the user guide at the bottom of the page */}
+          <UserGuideDataQuery />
+        </>
       )}
     </div>
   );

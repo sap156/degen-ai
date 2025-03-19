@@ -21,6 +21,7 @@ import EdgeCaseGenerator from '@/components/EdgeCaseGenerator';
 import ModelTester from '@/components/ModelTester';
 import EdgeCaseReport from '@/components/EdgeCaseReport';
 import { edgeCaseService } from '@/services/edgeCaseService';
+import UserGuideEdgeCases from '@/components/ui/UserGuideEdgeCases';
 
 const EdgeCases = () => {
   const { apiKey } = useApiKey();
@@ -312,8 +313,8 @@ const EdgeCases = () => {
         <h1 className="text-3xl font-bold tracking-tight">Edge Cases</h1>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="space-y-6 md:col-span-2">
+      <div className="grid gap-6 md:grid-cols-12">
+        <div className="space-y-6 md:col-span-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -535,85 +536,7 @@ const EdgeCases = () => {
           )}
         </div>
         
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Edge Case Guide</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    What are Edge Cases?
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Edge cases are unusual or rare data points that may cause your model to 
-                    behave unexpectedly. Identifying and addressing these can improve model robustness.
-                  </p>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
-                    <GitBranch className="h-4 w-4 text-blue-500" />
-                    Types of Edge Cases
-                  </h3>
-                  <ul className="space-y-1 text-muted-foreground">
-                    <li className="flex items-start">
-                      <span className="text-blue-500 mr-2">•</span>
-                      <span><strong>Anomalies:</strong> Unusual data points that deviate significantly from the norm</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-blue-500 mr-2">•</span>
-                      <span><strong>Rare Classes:</strong> Underrepresented categories in your dataset</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-blue-500 mr-2">•</span>
-                      <span><strong>Adversarial:</strong> Samples designed to trick your model</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-blue-500 mr-2">•</span>
-                      <span><strong>Boundary Cases:</strong> Samples near decision boundaries</span>
-                    </li>
-                  </ul>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="font-medium mb-1 flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-green-500" />
-                    Getting Started
-                  </h3>
-                  <ol className="space-y-1 text-muted-foreground">
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">1.</span>
-                      <span>Upload your dataset (CSV or JSON format)</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">2.</span>
-                      <span>Select your target variable and edge case type</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">3.</span>
-                      <span>Choose your preferred generation method</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">4.</span>
-                      <span>Run detection, generation, or model testing</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">5.</span>
-                      <span>Export your findings and generated data</span>
-                    </li>
-                  </ol>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
+        <div className="space-y-6 md:col-span-4">
           {detectedEdgeCases.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
@@ -666,6 +589,8 @@ const EdgeCases = () => {
           )}
         </div>
       </div>
+      
+      <UserGuideEdgeCases />
     </div>
   );
 };
