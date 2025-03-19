@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -44,12 +43,13 @@ import {
   detectSchemaFromData,
   defaultSchemas
 } from "@/services/syntheticDataService";
-import { Code, Database, Download, FileJson, FilePlus2, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import { Code, Database, Download, FileJson, FilePlus2, Plus, Sparkles, Trash2, Upload, Info, HelpCircle, MousePointer, Book, ArrowRight, Lightbulb } from "lucide-react";
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import FileUploader from '@/components/FileUploader';
 import { readFileContent, parseCSV, parseJSON } from '@/utils/fileUploadUtils';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const dataTypes = [
   { value: 'user', label: 'User Data' },
@@ -83,7 +83,6 @@ function SyntheticData() {
     },
   });
   
-  // Watch for dataType changes to update the schema fields
   useEffect(() => {
     const dataType = form.watch("dataType");
     if (dataType in defaultSchemas) {
@@ -97,7 +96,6 @@ function SyntheticData() {
       return;
     }
     
-    // Check if at least one field is included
     const hasIncludedFields = dataFields.some(field => field.included);
     if (!hasIncludedFields) {
       toast.error("Please select at least one field to include in your data");
@@ -129,7 +127,7 @@ function SyntheticData() {
       toast.error(`Error generating data: ${errorMsg}`);
     } finally {
       setIsGenerating(false);
-      setGenerationProgress(100); // Ensure progress bar completes
+      setGenerationProgress(100);
     }
   };
 
@@ -160,12 +158,10 @@ function SyntheticData() {
         return;
       }
       
-      // Detect schema from uploaded data
       const detectedFields = detectSchemaFromData(parsedData);
       setDataFields(detectedFields);
       setUploadedData(parsedData);
       
-      // Update form values
       form.setValue("dataType", "custom");
       form.setValue("aiPrompt", `Generate synthetic data that follows the same pattern as the uploaded ${file.name.split('.').pop()} file`);
       
@@ -211,25 +207,21 @@ function SyntheticData() {
     updatedFields[index].type = type;
     setDataFields(updatedFields);
   };
-  
-  // Function to add a new field to the schema
+
   const addNewField = () => {
     setDataFields([...dataFields, { name: "", type: "string", included: false }]);
   };
-  
-  // Function to update a field's name
+
   const updateFieldName = (index: number, name: string) => {
     const updatedFields = [...dataFields];
     updatedFields[index].name = name;
     setDataFields(updatedFields);
   };
-  
-  // Function to remove a field from the schema
+
   const removeField = (index: number) => {
     setDataFields(dataFields.filter((_, i) => i !== index));
   };
 
-  // Function to select all fields
   const selectAllFields = (select: boolean) => {
     const updatedFields = dataFields.map(field => ({
       ...field,
@@ -656,6 +648,166 @@ function SyntheticData() {
           </Tabs>
         </div>
       </ApiKeyRequirement>
+      
+      <div className="mt-16 border-t pt-10">
+        <div className="flex items-center gap-2 mb-6">
+          <Book className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-bold tracking-tight">Synthetic Data Generator Guide</h2>
+        </div>
+        
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="what-is">
+            <AccordionTrigger className="text-lg font-medium">
+              <div className="flex items-center">
+                <HelpCircle className="h-5 w-5 mr-2 text-muted-foreground" />
+                What is Synthetic Data?
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="text-muted-foreground space-y-2 pl-7">
+              <p>
+                Synthetic data is artificially generated information that mimics real-world data without containing any actual personal or sensitive information. 
+                It maintains the statistical properties and patterns of the original data while preserving privacy.
+              </p>
+              <p>
+                Our synthetic data generator uses OpenAI's powerful models to create realistic data based on your specifications.
+              </p>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <AccordionItem value="how-to-use">
+            <AccordionTrigger className="text-lg font-medium">
+              <div className="flex items-center">
+                <MousePointer className="h-5 w-5 mr-2 text-muted-foreground" />
+                How to Use This Tool
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 pl-7">
+              <div className="space-y-2">
+                <h4 className="font-medium">Step 1: Choose Your Data Source</h4>
+                <p className="text-muted-foreground">
+                  You can either use a pre-defined schema template, upload your own data file, 
+                  or manually create a custom schema by defining fields.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Step 2: Configure Your Data</h4>
+                <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                  <li>Select which fields to include in your generated data</li>
+                  <li>Set the number of rows to generate</li>
+                  <li>Choose the output format (JSON or CSV)</li>
+                  <li>Optionally include null values at a specified percentage</li>
+                </ul>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Step 3: Generate & Export</h4>
+                <p className="text-muted-foreground">
+                  Click "Generate Data" to create your synthetic dataset, then download 
+                  it or save it to your database for further use.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <AccordionItem value="features">
+            <AccordionTrigger className="text-lg font-medium">
+              <div className="flex items-center">
+                <Sparkles className="h-5 w-5 mr-2 text-muted-foreground" />
+                Key Features
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pl-7">
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">AI-Powered Generation</span>
+                    <p className="text-sm text-muted-foreground">Uses OpenAI models to create realistic, contextually appropriate data</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Multiple Data Types</span>
+                    <p className="text-sm text-muted-foreground">Support for common data schemas including user, transaction, product, and health data</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Schema Detection</span>
+                    <p className="text-sm text-muted-foreground">Automatically detect fields and types from uploaded CSV or JSON files</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Customizable Fields</span>
+                    <p className="text-sm text-muted-foreground">Add, remove, and configure data fields with various types (string, number, date, email, etc.)</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Flexible Output</span>
+                    <p className="text-sm text-muted-foreground">Export your synthetic data as JSON or CSV files</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Database Integration</span>
+                    <p className="text-sm text-muted-foreground">Save generated data directly to your connected database</p>
+                  </div>
+                </li>
+              </ul>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <AccordionItem value="tips">
+            <AccordionTrigger className="text-lg font-medium">
+              <div className="flex items-center">
+                <Lightbulb className="h-5 w-5 mr-2 text-muted-foreground" />
+                Tips for Better Results
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-3 pl-7">
+              <div className="space-y-1">
+                <h4 className="font-medium">Use AI Prompts Effectively</h4>
+                <p className="text-muted-foreground text-sm">
+                  Be specific in your AI generation prompt. For example, instead of "Generate user data", 
+                  try "Generate data for tech professionals aged 25-40 with job titles and salary ranges".
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Upload Sample Data</h4>
+                <p className="text-muted-foreground text-sm">
+                  For best results, upload a sample of real data (with sensitive information removed) 
+                  to help the AI understand your specific data patterns and relationships.
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Generate in Batches</h4>
+                <p className="text-muted-foreground text-sm">
+                  For large datasets (1000+ rows), consider generating in smaller batches 
+                  to ensure optimal quality and reduce the chance of API timeouts.
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Check Field Type Accuracy</h4>
+                <p className="text-muted-foreground text-sm">
+                  When uploading a schema, verify that detected field types are correct. 
+                  Correctly typed fields lead to more accurate synthetic data generation.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
     </div>
   );
 }
