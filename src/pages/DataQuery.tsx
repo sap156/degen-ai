@@ -10,7 +10,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { InfoIcon } from 'lucide-react';
-import UserGuideDataQuery from '@/components/ui/UserGuideDataQuery';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -83,9 +82,6 @@ const DataQuery = () => {
                 <SchemaUploader schema={schema} setSchema={setSchema} />
               </CardContent>
             </Card>
-            
-            {/* User Guide */}
-            <UserGuideDataQuery />
           </div>
 
           <div className="md:col-span-2 space-y-6">
