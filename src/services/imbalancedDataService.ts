@@ -13,6 +13,11 @@ export interface DatasetInfo {
   classes: ClassDistribution[];
   isImbalanced: boolean;
   imbalanceRatio: number;
+  totalRows?: number;
+  columnNames?: string[];
+  positiveClassCount?: number;
+  negativeClassCount?: number;
+  aiRecommendations?: string;
 }
 
 export interface BalancingOptions {
@@ -93,6 +98,179 @@ export const generateSampleDataset = (
     isImbalanced: imbalanceRatio > 1.5,
     imbalanceRatio,
   };
+};
+
+// Balance the dataset based on the provided options
+export const balanceDataset = async (options: BalancingOptions, data: any[]): Promise<any[]> => {
+  // If no balancing is requested, return the original data
+  if (options.method === 'none' || !data || data.length === 0) {
+    return data;
+  }
+  
+  // Clone the data to avoid modifying the original
+  const balancedData = [...data];
+  
+  // Find the target column (assume binary classification)
+  const targetColumn = findTargetColumn(data);
+  if (!targetColumn) {
+    console.warn('No binary target column found for balancing');
+    return data;
+  }
+  
+  // Count instances by class
+  const classCounts: Record<string | number, number> = {};
+  data.forEach(item => {
+    const classValue = item[targetColumn];
+    classCounts[classValue] = (classCounts[classValue] || 0) + 1;
+  });
+  
+  // Get majority and minority classes
+  const classes = Object.entries(classCounts).sort((a, b) => b[1] - a[1]);
+  const majorityClass = classes[0][0];
+  const majorityCount = classes[0][1];
+  const minorityClass = classes[1]?.[0];
+  const minorityCount = classes[1]?.[1] || 0;
+  
+  // If no minority class found, return original data
+  if (!minorityClass) {
+    return data;
+  }
+  
+  // Calculate target counts
+  const targetRatio = options.targetRatio || 1.0; // Default to 1:1 ratio if not specified
+  
+  switch (options.method) {
+    case 'undersample':
+      // Remove instances from majority class
+      const targetMajorityCount = Math.max(
+        Math.round(minorityCount * targetRatio),
+        Math.min(majorityCount, 5) // Keep at least a few samples
+      );
+      
+      // Randomly select instances to keep from majority class
+      const majorityInstances = data.filter(item => item[targetColumn] == majorityClass);
+      const minorityInstances = data.filter(item => item[targetColumn] == minorityClass);
+      
+      // Random undersample
+      const shuffledMajority = majorityInstances.sort(() => Math.random() - 0.5);
+      const selectedMajority = shuffledMajority.slice(0, targetMajorityCount);
+      
+      return [...selectedMajority, ...minorityInstances];
+      
+    case 'oversample':
+      // Add duplicates of minority class
+      const targetMinorityCount = Math.round(majorityCount / targetRatio);
+      const oversamples = [];
+      
+      // Get all minority class instances
+      const minorityItems = data.filter(item => item[targetColumn] == minorityClass);
+      
+      // Calculate how many times to duplicate each minority instance
+      const replicationFactor = Math.ceil((targetMinorityCount - minorityCount) / minorityCount);
+      
+      // Add duplicates with slight modifications for each minority instance
+      for (let i = 0; i < replicationFactor; i++) {
+        minorityItems.forEach(item => {
+          // Clone the item
+          const newItem = { ...item };
+          
+          // Add a small amount of noise to numeric features to avoid exact duplicates
+          Object.keys(newItem).forEach(key => {
+            if (typeof newItem[key] === 'number' && key !== targetColumn) {
+              // Add small noise (±2%)
+              const noise = newItem[key] * (1 + (Math.random() * 0.04 - 0.02));
+              newItem[key] = parseFloat(noise.toFixed(4));
+            }
+          });
+          
+          oversamples.push(newItem);
+        });
+      }
+      
+      // Take only as many oversamples as needed
+      const needed = targetMinorityCount - minorityCount;
+      return [...data, ...oversamples.slice(0, needed)];
+      
+    case 'smote':
+      // Synthetic Minority Over-sampling Technique (simplified)
+      const syntheticCount = Math.round(majorityCount / targetRatio) - minorityCount;
+      const synthetic = [];
+      
+      // Get all minority class instances
+      const minoritySamples = data.filter(item => item[targetColumn] == minorityClass);
+      
+      // SMOTE requires at least 2 minority samples
+      if (minoritySamples.length < 2) {
+        return balanceDataset({ method: 'oversample', targetRatio }, data);
+      }
+      
+      // Generate synthetic samples
+      for (let i = 0; i < syntheticCount; i++) {
+        // Select two random samples
+        const idx1 = Math.floor(Math.random() * minoritySamples.length);
+        let idx2 = Math.floor(Math.random() * minoritySamples.length);
+        
+        // Make sure we select different samples
+        while (idx2 === idx1 && minoritySamples.length > 1) {
+          idx2 = Math.floor(Math.random() * minoritySamples.length);
+        }
+        
+        const sample1 = minoritySamples[idx1];
+        const sample2 = minoritySamples[idx2];
+        
+        // Create a synthetic sample by interpolating between the two samples
+        const syntheticSample: any = { ...sample1 };
+        
+        // Interpolate numeric features
+        Object.keys(sample1).forEach(key => {
+          if (typeof sample1[key] === 'number' && key !== targetColumn) {
+            const alpha = Math.random(); // Random interpolation factor
+            syntheticSample[key] = sample1[key] * alpha + sample2[key] * (1 - alpha);
+            
+            // Round to same precision as original
+            syntheticSample[key] = parseFloat(syntheticSample[key].toFixed(4));
+          }
+        });
+        
+        synthetic.push(syntheticSample);
+      }
+      
+      return [...data, ...synthetic];
+      
+    default:
+      return data;
+  }
+};
+
+// Helper function to find a likely target column (assumes binary classification)
+const findTargetColumn = (data: any[]): string | null => {
+  if (!data || data.length === 0) return null;
+  
+  const sampleRow = data[0];
+  const columns = Object.keys(sampleRow);
+  
+  // Look for columns with only 2 unique values
+  for (const col of columns) {
+    const uniqueValues = new Set(data.map(row => row[col]));
+    if (uniqueValues.size === 2) {
+      // Found a binary column
+      return col;
+    }
+  }
+  
+  // Common class column names as fallback
+  const possibleTargetNames = [
+    'class', 'target', 'label', 'y', 'outcome', 
+    'result', 'category', 'diagnosis', 'response'
+  ];
+  
+  for (const name of possibleTargetNames) {
+    if (columns.includes(name)) {
+      return name;
+    }
+  }
+  
+  return null;
 };
 
 // Apply balancing techniques to the dataset

@@ -109,12 +109,17 @@ const DataParsing = () => {
     }
   };
 
-  const handleFileUpload = (fileContent: string) => {
-    setRawData(fileContent);
-    toast({
-      title: "File Uploaded",
-      description: "File content has been loaded.",
-    });
+  const handleFileUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setRawData(content);
+      toast({
+        title: "File Uploaded",
+        description: "File content has been loaded.",
+      });
+    };
+    reader.readAsText(file);
   };
 
   const handlePastedData = () => {
@@ -184,7 +189,7 @@ const DataParsing = () => {
                 </TabsList>
                 <TabsContent value="upload" className="space-y-4 pt-4">
                   <FileUploader 
-                    onFileSelect={handleFileUpload}
+                    onFileUpload={handleFileUpload}
                     acceptedFileTypes={{
                       'application/json': ['.json'],
                       'text/csv': ['.csv'],
