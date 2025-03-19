@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, X, FileText, Check, Download, AlertCircle } from 'lucide-react';
+import { Upload, X, FileText, Check, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,7 +28,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -57,25 +56,20 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   const validateAndUploadFile = (file: File) => {
-    // Reset error state
-    setUploadError(null);
-    
     // Check file size
     const fileSizeInMB = file.size / (1024 * 1024);
     if (fileSizeInMB > maxSize) {
-      setUploadError(`File is too large. Maximum size is ${maxSize}MB.`);
       toast.error(`File is too large. Maximum size is ${maxSize}MB.`);
       return;
     }
 
     // Check file type
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const fileType = file.name.split('.').pop()?.toLowerCase();
     const acceptedTypes = accept.split(',').map(type => 
       type.trim().replace('.', '').toLowerCase()
     );
     
-    if (fileExtension && !acceptedTypes.includes(fileExtension) && accept !== '*' && acceptedTypes[0] !== '*') {
-      setUploadError(`Invalid file type. Accepted formats: ${accept}`);
+    if (fileType && !acceptedTypes.includes(fileType)) {
       toast.error(`Invalid file type. Accepted formats: ${accept}`);
       return;
     }
@@ -83,51 +77,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     setFile(file);
     setIsUploading(true);
     
-    // Call the onFileUpload handler and handle potential errors
-    try {
-      // Show a toast for complex document formats that require AI processing
-      const complexFormats = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'];
-      if (fileExtension && complexFormats.includes(fileExtension)) {
-        toast.loading(`Processing ${fileExtension.toUpperCase()} file with AI. This may take a moment...`, {
-          duration: 3000
-        });
-      }
-      
+    // Simulate upload delay for UI feedback
+    setTimeout(() => {
       onFileUpload(file);
-      
-      // Success state after a delay for UI feedback
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadSuccess(true);
-        
-        // Reset success state after some time
-        setTimeout(() => {
-          setUploadSuccess(false);
-        }, 3000);
-      }, 1500);
-    } catch (error) {
-      console.error('Error handling file upload:', error);
       setIsUploading(false);
+      setUploadSuccess(true);
       
-      // Provide more specific error messages
-      let errorMessage = 'Error processing file. Please try another file or format.';
-      if (error instanceof Error) {
-        if (error.message.includes('API key')) {
-          errorMessage = 'OpenAI API key is required to process this file type.';
-        } else if (error.message.includes('MIME type')) {
-          errorMessage = 'This file format cannot be processed. Please convert to a supported format.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      setUploadError(errorMessage);
-      toast.error(errorMessage);
-    }
+      // Reset success state after some time
+      setTimeout(() => {
+        setUploadSuccess(false);
+      }, 3000);
+    }, 1500);
   };
 
   const handleRemoveFile = () => {
     setFile(null);
-    setUploadError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -222,15 +186,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                     <Check className="h-5 w-5 text-green-500" />
                   </motion.div>
                 )}
-                {uploadError && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                  >
-                    <AlertCircle className="h-5 w-5 text-red-500" />
-                  </motion.div>
-                )}
               </AnimatePresence>
               <Button
                 variant="ghost"
@@ -246,12 +201,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               </Button>
             </div>
           </div>
-          
-          {uploadError && (
-            <p className="text-xs text-red-500 mt-2 text-center">
-              {uploadError}
-            </p>
-          )}
         </div>
       )}
       

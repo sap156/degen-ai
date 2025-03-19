@@ -1,80 +1,186 @@
-
-// Define OpenAI client type locally instead of importing from @/types
-export interface OpenAIClient {
-  id: string;
-  created: number;
-  model: string;
-  object: string;
-  choices: Array<{
-    index: number;
-    message: OpenAiMessage;
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
+import { OpenAIModel } from '@/contexts/ApiKeyContext';
 
 export interface OpenAiMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | {type: string, text?: string, image_url?: {url: string, detail?: string}}[];
+  content: string | { type: string; text?: string; image_url?: { url: string; detail: string } }[];
 }
 
-interface OpenAiOptions {
-  model?: string;
+interface CompletionOptions {
   temperature?: number;
   max_tokens?: number;
+  model?: string;
 }
 
-/**
- * OpenAI Chat Completion API call
- */
 export const getCompletion = async (
-  apiKey: string,
+  apiKey: string | null,
   messages: OpenAiMessage[],
-  options?: OpenAiOptions
+  options: CompletionOptions = {}
 ): Promise<string> => {
   try {
-    const model = options?.model || 'gpt-4o-mini';
-    const temperature = options?.temperature !== undefined ? options.temperature : 0.7;
-    const max_tokens = options?.max_tokens || 2000;
-
-    console.log(`Calling OpenAI API with model: ${model}`);
-
-    const requestBody = {
-      model,
-      messages,
-      temperature,
-      max_tokens
-    };
-
+    console.log("Calling OpenAI API with model:", options.model ?? 'gpt-4o');
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({
+        model: options.model ?? 'gpt-4o',
+        messages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.max_tokens ?? 2000
+      })
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      const errorData = await response.text();
+      console.error("OpenAI API error response:", errorData);
+      throw new Error(`OpenAI API error: ${response.status} ${errorData}`);
     }
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("Unexpected API response format:", data);
+      throw new Error("Invalid response format from OpenAI API");
+    }
+    
     return data.choices[0].message.content;
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
+    console.error('Error getting completion:', error);
     throw error;
   }
 };
 
-/**
- * Analyze imbalanced dataset to provide recommendations
- */
+// Function to clean a JSON string that might be wrapped in markdown code blocks
+const cleanJsonResponse = (text: string): string => {
+  // If the text starts with markdown code block indicators, remove them
+  let cleaned = text.trim();
+  
+  // Remove markdown code block syntax if present
+  const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+  const match = cleaned.match(jsonBlockRegex);
+  
+  if (match && match[1]) {
+    cleaned = match[1].trim();
+  }
+  
+  return cleaned;
+};
+
+// Function to parse a potential JSON string safely
+const safeJsonParse = (text: string): any => {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    console.error('JSON parse error:', error);
+    console.error('Failed text:', text);
+    throw new Error('Failed to parse JSON response from OpenAI');
+  }
+};
+
+export const analyzePiiWithAI = async (
+  apiKey: string,
+  dataToAnalyze: string
+): Promise<{ identifiedPii: string[]; suggestions: string }> => {
+  try {
+    const messages: OpenAiMessage[] = [
+      {
+        role: 'system',
+        content: 'You are a PII detection expert. Identify PII (Personally Identifiable Information) in the provided data sample and suggest appropriate handling methods.'
+      },
+      {
+        role: 'user',
+        content: `Analyze this data and identify any PII elements: ${dataToAnalyze}... 
+    Return your response as a JSON object with two properties: 
+    1. "identifiedPii": an array of strings naming each type of PII found
+    2. "suggestions": a string with recommendations for handling this data safely`
+      }
+    ];
+
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 1000
+    });
+
+    // Clean and parse the response
+    const cleanedResponse = cleanJsonResponse(response);
+    const result = safeJsonParse(cleanedResponse);
+
+    // Validate the response structure
+    if (!result.identifiedPii || !Array.isArray(result.identifiedPii) || !result.suggestions) {
+      throw new Error('Invalid response format from OpenAI');
+    }
+
+    return {
+      identifiedPii: result.identifiedPii,
+      suggestions: result.suggestions
+    };
+  } catch (error) {
+    console.error('Error analyzing PII with AI:', error);
+    return {
+      identifiedPii: ['Error analyzing PII data'],
+      suggestions: 'An error occurred when analyzing the data. Please check your API key and try again.'
+    };
+  }
+};
+
+export const generateMaskedDataWithAI = async (
+  apiKey: string,
+  data: any[],
+  fieldsToMask: string[],
+  options: {
+    preserveFormat?: boolean;
+    customPrompt?: string;
+  } = {}
+): Promise<any[]> => {
+  try {
+    const customPrompt = options.customPrompt || 
+      "Mask the selected fields to preserve privacy while maintaining data usability.";
+    
+    const preserveFormat = options.preserveFormat !== undefined ? options.preserveFormat : true;
+    
+    const messages: OpenAiMessage[] = [
+      {
+        role: 'system',
+        content: 'You are a data privacy expert with experience in masking PII (Personally Identifiable Information).'
+      },
+      {
+        role: 'user',
+        content: `${customPrompt}
+
+Here is the original data:
+${JSON.stringify(data, null, 2)}
+
+Mask only these fields: ${fieldsToMask.join(', ')}
+${preserveFormat ? 'Ensure the masked data maintains the same format as the original.' : ''}
+
+Return ONLY a JSON array with the masked records. Do not include any explanation or additional text.`
+      }
+    ];
+
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 2000
+    });
+
+    // Clean and parse the response
+    const cleanedResponse = cleanJsonResponse(response);
+    const maskedData = safeJsonParse(cleanedResponse);
+
+    // Validate the response is an array
+    if (!Array.isArray(maskedData)) {
+      throw new Error('Invalid response format from OpenAI: expected an array');
+    }
+
+    return maskedData;
+  } catch (error) {
+    console.error('Error generating masked data with AI:', error);
+    throw new Error('Failed to generate masked data. Please try again.');
+  }
+};
+
 export const analyzeImbalancedDataset = async (
   apiKey: string,
   data: any[],
@@ -90,72 +196,57 @@ export const analyzeImbalancedDataset = async (
   modelRecommendations?: string[]
 }> => {
   try {
-    // Create a sample of the data to avoid sending too much data
-    const sampleSize = Math.min(data.length, 50);
-    const sampleData = data.slice(0, sampleSize);
+    const systemPrompt = `You are an AI data scientist specializing in imbalanced datasets. 
+    Analyze the provided dataset for class imbalance issues and provide recommendations.`;
     
-    // Generate class distribution stats
-    const classDistribution: Record<string, number> = {};
-    data.forEach(item => {
-      const className = String(item[targetColumn]);
-      classDistribution[className] = (classDistribution[className] || 0) + 1;
-    });
+    const userPrompt = `
+    Analyze this dataset with target column "${targetColumn}" and class labels [${classLabels.join(", ")}].
+    ${datasetContext ? `Dataset context: ${datasetContext}` : ''}
+    ${performancePriorities ? `Performance priorities: ${performancePriorities.join(", ")}` : ''}
+    
+    Dataset sample:
+    ${JSON.stringify(data.slice(0, 5), null, 2)}
+    
+    Total samples: ${data.length}
+    
+    Provide your analysis as a JSON with these fields:
+    1. analysis: detailed analysis of the imbalance
+    2. recommendations: specific recommendations
+    3. suggestedMethods: array of suggested methods to address imbalance
+    4. featureImportance: object mapping features to importance scores (0-100)
+    5. modelRecommendations: array of recommended models`;
     
     const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a data science expert specializing in imbalanced datasets. Analyze the provided dataset and give recommendations.'
-      },
-      {
-        role: 'user',
-        content: `Analyze this imbalanced dataset and provide specific recommendations for handling the class imbalance.
-        
-        Dataset Info:
-        - Total samples: ${data.length}
-        - Target column: ${targetColumn}
-        - Class labels: ${classLabels.join(', ')}
-        - Class distribution: ${JSON.stringify(classDistribution)}
-        ${datasetContext ? `- Dataset context: ${datasetContext}` : ''}
-        ${performancePriorities ? `- Performance priorities: ${performancePriorities.join(', ')}` : ''}
-        
-        Sample data (first ${sampleSize} rows): ${JSON.stringify(sampleData)}
-        
-        Please provide:
-        1. A brief analysis of the imbalance
-        2. Specific recommendations for addressing the imbalance
-        3. A list of suggested methods or techniques (as an array)
-        4. Relative feature importance if possible (as a JSON object)
-        5. Model recommendations (as an array)
-        
-        Format your response as a JSON object with keys: analysis, recommendations, suggestedMethods, featureImportance, and modelRecommendations.`
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
     ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature: 0.3
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.4,
+      max_tokens: 2000,
+      model: 'gpt-4o'
     });
     
-    try {
-      return JSON.parse(response);
-    } catch {
-      // If JSON parsing fails, create a structured response
-      return {
-        analysis: "Analysis could not be properly formatted. Please see raw response.",
-        recommendations: response,
-        suggestedMethods: ["SMOTE", "RandomUnderSampling", "ClassWeights"],
-        modelRecommendations: ["RandomForest", "XGBoost"]
-      };
-    }
+    const cleanedResponse = cleanJsonResponse(response);
+    const result = safeJsonParse(cleanedResponse);
+    
+    return {
+      analysis: result.analysis || "Analysis not available",
+      recommendations: result.recommendations || "No recommendations available",
+      suggestedMethods: result.suggestedMethods || [],
+      featureImportance: result.featureImportance,
+      modelRecommendations: result.modelRecommendations
+    };
   } catch (error) {
-    console.error('Error analyzing imbalanced dataset:', error);
-    throw error;
+    console.error("Error analyzing imbalanced dataset:", error);
+    return {
+      analysis: "Error analyzing dataset",
+      recommendations: "Please try again with a different dataset or approach",
+      suggestedMethods: ["SMOTE", "Class weights", "Undersampling"]
+    };
   }
 };
 
-/**
- * Generate synthetic samples for imbalanced datasets
- */
 export const generateSyntheticSamplesForImbalance = async (
   apiKey: string,
   minorityClassSamples: any[],
@@ -165,58 +256,54 @@ export const generateSyntheticSamplesForImbalance = async (
   diversity: 'low' | 'medium' | 'high'
 ): Promise<any[]> => {
   try {
-    // Take a small sample of minority class samples to use as examples
-    const sampleSize = Math.min(minorityClassSamples.length, 5);
-    const sampleData = minorityClassSamples.slice(0, sampleSize);
+    const diversityFactors = {
+      'low': 0.3,
+      'medium': 0.6,
+      'high': 0.9
+    };
     
-    // Calculate temperature based on desired diversity
-    const temperature = diversity === 'low' ? 0.3 : diversity === 'medium' ? 0.7 : 0.9;
+    const systemPrompt = `You are an AI data scientist specializing in synthetic data generation
+    for imbalanced datasets. Generate realistic synthetic samples for the minority class.`;
+    
+    const userPrompt = `
+    Generate ${count} new synthetic samples for the minority class "${minorityClass}" in column "${targetColumn}".
+    Use diversity level: ${diversity} (${diversityFactors[diversity]})
+    
+    Base your generation on these existing minority samples:
+    ${JSON.stringify(minorityClassSamples.slice(0, 5), null, 2)}
+    
+    Rules:
+    1. Keep the target column value as "${minorityClass}"
+    2. Maintain the same schema but create realistic variations
+    3. Ensure the returned data is a valid JSON array
+    4. Respect data types and formats of the original
+    `;
     
     const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a data generation expert specializing in creating synthetic samples for imbalanced datasets.'
-      },
-      {
-        role: 'user',
-        content: `Generate ${count} synthetic samples for the minority class in this imbalanced dataset.
-        
-        Target column: ${targetColumn}
-        Minority class value: ${minorityClass}
-        Sample minority class records: ${JSON.stringify(sampleData)}
-        
-        Create new samples that are diverse but realistic for this class. The diversity level requested is: ${diversity}.
-        
-        Return ONLY a JSON array containing the new synthetic samples. Each sample should have the same fields as the examples provided.
-        Ensure that every generated sample has the minority class value in the target column.`
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
     ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: diversityFactors[diversity] + 0.2,
+      max_tokens: 2000,
+      model: 'gpt-4o'
     });
     
-    try {
-      const samples = JSON.parse(response);
-      // Ensure each sample has the correct minority class value
-      return samples.map((sample: any) => ({
-        ...sample,
-        [targetColumn]: minorityClass
-      }));
-    } catch (error) {
-      console.error('Error parsing synthetic samples:', error);
-      throw new Error('Failed to generate synthetic samples: Invalid response format');
+    const cleanedResponse = cleanJsonResponse(response);
+    const syntheticSamples = safeJsonParse(cleanedResponse);
+    
+    if (!Array.isArray(syntheticSamples)) {
+      throw new Error("Invalid response: expected an array of synthetic samples");
     }
+    
+    return syntheticSamples;
   } catch (error) {
-    console.error('Error generating synthetic samples:', error);
+    console.error("Error generating synthetic samples:", error);
     throw error;
   }
 };
 
-/**
- * Get feature engineering suggestions for a dataset
- */
 export const getFeatureEngineeringSuggestions = async (
   apiKey: string,
   data: any[],
@@ -227,212 +314,103 @@ export const getFeatureEngineeringSuggestions = async (
   expectedImpact: string
 }> => {
   try {
-    // Use a sample of the data for the API call
-    const sampleSize = Math.min(data.length, 20);
-    const sampleData = data.slice(0, sampleSize);
+    const systemPrompt = `You are an AI data scientist specializing in feature engineering. 
+    Suggest new features that could improve model performance.`;
+    
+    const userPrompt = `
+    Analyze this dataset with target column "${targetColumn}" and suggest new engineered features.
+    
+    Existing features: ${existingFeatures.join(", ")}
+    
+    Dataset sample:
+    ${JSON.stringify(data.slice(0, 5), null, 2)}
+    
+    Return your suggestions as a JSON with these fields:
+    1. suggestedFeatures: array of objects with name, description, and formula
+    2. expectedImpact: description of expected impact on model performance
+    `;
     
     const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a data science expert specializing in feature engineering.'
-      },
-      {
-        role: 'user',
-        content: `Suggest new features to engineer for this dataset to improve model performance.
-        
-        Dataset sample: ${JSON.stringify(sampleData)}
-        Target column: ${targetColumn}
-        Existing features: ${existingFeatures.join(', ')}
-        
-        Please provide:
-        1. A list of suggested new features to engineer, each with:
-           - name: a concise name for the new feature
-           - description: what the feature represents and why it's useful
-           - formula: how to calculate the feature using existing features
-        
-        2. The expected impact of these features on model performance
-        
-        Format your response as a JSON object with keys: suggestedFeatures (array) and expectedImpact (string).`
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
     ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature: 0.5
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.4,
+      max_tokens: 2000,
+      model: 'gpt-4o'
     });
     
-    try {
-      return JSON.parse(response);
-    } catch {
-      // If JSON parsing fails, create a structured response
-      return {
-        suggestedFeatures: [
-          {
-            name: "feature_ratio",
-            description: "Ratio of two key numeric features",
-            formula: "feature1 / feature2"
-          }
-        ],
-        expectedImpact: "These features may help the model better capture relationships in the data."
-      };
-    }
-  } catch (error) {
-    console.error('Error getting feature engineering suggestions:', error);
-    throw error;
-  }
-};
-
-/**
- * Analyze PII data using AI to identify sensitive information
- */
-export const analyzePiiWithAI = async (
-  apiKey: string, 
-  sampleData: string
-): Promise<{
-  identifiedPii: string[],
-  suggestions: string
-}> => {
-  try {
-    const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a privacy and data security expert. Analyze the provided data for PII (Personally Identifiable Information).'
-      },
-      {
-        role: 'user',
-        content: `Analyze this sample data and identify all PII (Personally Identifiable Information) fields:
-        
-        ${sampleData}
-        
-        Please provide:
-        1. A list of identified PII fields or patterns
-        2. Suggestions for how to handle this sensitive data
-        
-        Format your response as a JSON object with keys: identifiedPii (array of strings) and suggestions (string).`
-      }
-    ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature: 0.3
-    });
+    const cleanedResponse = cleanJsonResponse(response);
+    const result = safeJsonParse(cleanedResponse);
     
-    try {
-      return JSON.parse(response);
-    } catch {
-      // If JSON parsing fails, create a structured response
-      return {
-        identifiedPii: ["Error: Could not parse response"],
-        suggestions: response
-      };
-    }
-  } catch (error) {
-    console.error('Error analyzing PII data:', error);
     return {
-      identifiedPii: [`Error during analysis: ${error instanceof Error ? error.message : String(error)}`],
-      suggestions: "An error occurred during analysis. Please try again."
+      suggestedFeatures: result.suggestedFeatures || [],
+      expectedImpact: result.expectedImpact || "No impact information available"
+    };
+  } catch (error) {
+    console.error("Error getting feature engineering suggestions:", error);
+    return {
+      suggestedFeatures: [],
+      expectedImpact: "Error processing feature suggestions"
     };
   }
 };
 
-/**
- * Generate masked PII data using AI
- */
-export const generateMaskedDataWithAI = async (
-  apiKey: string,
-  data: any[],
-  fieldsToMask: string[],
-  options?: {
-    preserveFormat?: boolean,
-    customPrompt?: string
-  }
-): Promise<any[]> => {
-  try {
-    // Use sample data for the API call
-    const sampleSize = Math.min(data.length, 10);
-    const sampleData = data.slice(0, sampleSize);
-    
-    const preserveFormat = options?.preserveFormat !== undefined ? options.preserveFormat : true;
-    
-    const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a privacy and data masking expert. Generate masked versions of the provided data.'
-      },
-      {
-        role: 'user',
-        content: `${options?.customPrompt || 'Mask the PII fields in this data while preserving data format.'}
-        
-        Original data: ${JSON.stringify(sampleData)}
-        Fields to mask: ${fieldsToMask.join(', ')}
-        Preserve format: ${preserveFormat}
-        
-        Please generate masked versions of this data where the specified fields are masked to protect privacy.
-        Return ONLY a JSON array with the masked data items, maintaining the same structure as the original.`
-      }
-    ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature: 0.4
-    });
-    
-    try {
-      return JSON.parse(response);
-    } catch (error) {
-      console.error('Error parsing masked data:', error);
-      throw new Error('Failed to generate masked data: Invalid response format');
-    }
-  } catch (error) {
-    console.error('Error generating masked data:', error);
-    throw error;
-  }
-};
-
-/**
- * Generate synthetic data with AI
- */
 export const generateSyntheticDataWithAI = async (
   apiKey: string,
   schema: Record<string, string>,
   count: number,
-  options?: {
-    seedData?: any[]
-  }
+  options: {
+    constraints?: Record<string, any>;
+    seedData?: any[];
+    realism?: 'low' | 'medium' | 'high';
+  } = {}
 ): Promise<any[]> => {
   try {
-    const seedData = options?.seedData || [];
+    const realism = options.realism || 'medium';
+    const realismFactor = {
+      'low': 0.3,
+      'medium': 0.6,
+      'high': 0.9
+    }[realism];
+    
+    const systemPrompt = `You are an AI data scientist specializing in synthetic data generation.
+    Generate realistic synthetic data according to the provided schema and constraints.`;
+    
+    const userPrompt = `
+    Generate ${count} synthetic data records with this schema:
+    ${JSON.stringify(schema, null, 2)}
+    
+    ${options.constraints ? `Constraints: ${JSON.stringify(options.constraints, null, 2)}` : ''}
+    ${options.seedData ? `Seed data (use similar patterns): ${JSON.stringify(options.seedData.slice(0, 3), null, 2)}` : ''}
+    
+    Realism level: ${realism}
+    
+    Return ONLY a JSON array with the generated records. No explanations.
+    `;
     
     const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are a synthetic data generation expert. Generate realistic synthetic data based on the provided schema.'
-      },
-      {
-        role: 'user',
-        content: `Generate ${count} synthetic data records based on this schema:
-        
-        Schema: ${JSON.stringify(schema)}
-        ${seedData.length > 0 ? `Example data: ${JSON.stringify(seedData)}` : ''}
-        
-        Create realistic and diverse synthetic data following the provided schema.
-        Return ONLY a JSON array containing the synthetic records.`
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
     ];
-
-    const response = await getCompletion(apiKey, messages, { 
-      model: 'gpt-4o-mini',
-      temperature: 0.7
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: realismFactor + 0.2,
+      max_tokens: 2000,
+      model: 'gpt-4o'
     });
     
-    try {
-      return JSON.parse(response);
-    } catch (error) {
-      console.error('Error parsing synthetic data:', error);
-      throw new Error('Failed to generate synthetic data: Invalid response format');
+    const cleanedResponse = cleanJsonResponse(response);
+    const syntheticData = safeJsonParse(cleanedResponse);
+    
+    if (!Array.isArray(syntheticData)) {
+      throw new Error("Invalid response: expected an array of synthetic data records");
     }
+    
+    return syntheticData;
   } catch (error) {
-    console.error('Error generating synthetic data:', error);
+    console.error("Error generating synthetic data:", error);
     throw error;
   }
 };

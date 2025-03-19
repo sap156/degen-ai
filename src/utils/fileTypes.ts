@@ -33,13 +33,9 @@ export type SupportedFileType =
   | 'csv' 
   | 'json' 
   | 'txt' 
-  | 'xml'
   | 'pdf' 
-  | 'doc'  
   | 'docx' 
-  | 'xls'
   | 'xlsx' 
-  | 'ppt'
   | 'pptx';
 
 /**
@@ -48,24 +44,4 @@ export type SupportedFileType =
 export interface FileProcessingResult {
   text: string;
   metadata: Record<string, any>;
-}
-
-/**
- * AI processing options
- */
-export interface AIProcessingOptions {
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-  detailLevel?: 'brief' | 'standard' | 'detailed';
-  format?: 'json' | 'text' | 'csv';
-}
-
-/**
- * Structured data extraction result
- */
-export interface StructuredDataResult {
-  data: any[];
-  format: 'json' | 'csv' | 'table' | 'unknown';
-  schema?: Record<string, SchemaFieldType>;
 }

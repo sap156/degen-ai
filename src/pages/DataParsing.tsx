@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { parseCSV, parseJSON, SchemaFieldType, getFileType, extractTextFromFile 
 import { processDataWithAI, AIProcessingOptions } from '@/utils/dataParsingUtils';
 import { ProcessingType, stripMarkdownCodeBlocks } from '@/services/textProcessingService';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool, List, AlertCircle } from 'lucide-react';
+import { Download, FileUp, Filter, Sparkles, Layers, Tag, SmilePlus, FileSearch, FileText, Database, PenTool, List } from 'lucide-react';
 
 const DataParsing: React.FC = () => {
   const {
@@ -50,83 +51,50 @@ const DataParsing: React.FC = () => {
       const detectedFileType = getFileType(file);
       setFileType(detectedFileType);
 
-      console.log(`Processing file of type: ${detectedFileType}`);
-      
-      if (!apiKey && ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(detectedFileType)) {
-        toast.error('API key is required to process this file type');
-        setIsLoading(false);
-        return;
-      }
-
-      // Show processing toast for complex file types
-      let toastId;
-      if (['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(detectedFileType)) {
-        toastId = toast.loading(`Processing ${detectedFileType.toUpperCase()} file...`);
-      }
-
       const {
         text,
         metadata
       } = await extractTextFromFile(file, apiKey);
-      
-      // Dismiss the loading toast if it exists
-      if (toastId) {
-        toast.dismiss(toastId);
-      }
-      
       setFileMetadata(metadata);
       setExtractedText(text);
 
       if (detectedFileType === 'csv' || detectedFileType === 'json') {
         setFileContent(text);
         let parsedData;
-        try {
-          if (detectedFileType === 'csv') {
-            parsedData = parseCSV(text);
-          } else {
-            parsedData = parseJSON(text);
-          }
-
-          if (!Array.isArray(parsedData)) {
-            if (typeof parsedData === 'object' && parsedData !== null) {
-              if (Array.isArray(parsedData.data)) {
-                parsedData = parsedData.data;
-              } else {
-                parsedData = [parsedData];
-              }
-            } else {
-              toast.error('Unable to parse data from file. Expected array of objects.');
-              setIsLoading(false);
-              return;
-            }
-          }
-          if (parsedData.length > 0) {
-            const detectedSchema = detectSchema(parsedData);
-            setSchema(detectedSchema);
-          }
-
-          setData(parsedData);
-
-          const dataSize = parsedData.length;
-          setUserContext(prev => `${prev ? prev + '\n' : ''}This dataset contains ${dataSize} records.`);
-        } catch (error) {
-          console.error('Error parsing data:', error);
-          toast.error('Error parsing file data. The file may be corrupted or in an unsupported format.');
+        if (detectedFileType === 'csv') {
+          parsedData = parseCSV(text);
+        } else {
+          parsedData = parseJSON(text);
         }
+
+        if (!Array.isArray(parsedData)) {
+          if (typeof parsedData === 'object' && parsedData !== null) {
+            if (Array.isArray(parsedData.data)) {
+              parsedData = parsedData.data;
+            } else {
+              parsedData = [parsedData];
+            }
+          } else {
+            toast.error('Unable to parse data from file. Expected array of objects.');
+            setIsLoading(false);
+            return;
+          }
+        }
+        if (parsedData.length > 0) {
+          const detectedSchema = detectSchema(parsedData);
+          setSchema(detectedSchema);
+        }
+
+        setData(parsedData);
+
+        const dataSize = parsedData.length;
+        setUserContext(prev => `${prev ? prev + '\n' : ''}This dataset contains ${dataSize} records.`);
       }
       setActiveTab('analyze');
       toast.success(`Successfully processed ${file.name}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading file:', error);
-      
-      // Provide more specific error messages based on the error
-      if (error.message && error.message.includes('Invalid MIME type')) {
-        toast.error('This file format is not supported for AI processing. Please convert to a text-based format like CSV or JSON.');
-      } else if (error.message && error.message.includes('API key is required')) {
-        toast.error('An API key is required to process this file type. Please add your API key in the settings.');
-      } else {
-        toast.error('Error processing file. Please check file format or try another file.');
-      }
+      toast.error('Error processing file. Please check file format.');
     } finally {
       setIsLoading(false);
     }
