@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
+import { FileProcessingResult, extractTextFromFile } from "../utils/fileUploadUtils";
 
 /**
  * Types of data that can be extracted
@@ -9,7 +10,7 @@ export type ExtractionType = 'tables' | 'lists' | 'text' | 'json' | 'key-value';
 /**
  * Source of data for extraction
  */
-export type ExtractionSource = 'web' | 'images';
+export type ExtractionSource = 'web' | 'documents';
 
 /**
  * Response format for extracted data
@@ -105,6 +106,96 @@ export const extractDataFromUrl = async (
 };
 
 /**
+ * Extract data from a document file using OpenAI
+ */
+export const extractDataFromDocument = async (
+  apiKey: string | null,
+  file: File,
+  extractionType: ExtractionType,
+  userQuery?: string
+): Promise<ExtractedData> => {
+  if (!apiKey) {
+    throw new Error("API key is not set");
+  }
+
+  try {
+    // First extract text from the document
+    const fileResult: FileProcessingResult = await extractTextFromFile(file, apiKey);
+    
+    if (!fileResult.text || fileResult.text.trim() === '') {
+      throw new Error("No text could be extracted from the document");
+    }
+
+    // Get current date and time in ISO format
+    const currentTimestamp = new Date().toISOString();
+    const fileType = file.type || file.name.split('.').pop()?.toLowerCase() || 'unknown';
+    
+    // Create system message based on extraction type
+    const systemMessage = `You are an expert document analysis AI assistant specialized in extracting structured data from various document formats.
+    Your task is to extract ${extractionType} from the provided document text (from a ${fileType} file).
+    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, preserving their structure and relationships.' : ''}
+    ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs, especially for forms, receipts, or invoices.' : ''}
+    ${extractionType === 'lists' ? 'Focus on finding and properly formatting all lists, including those with multiple levels.' : ''}
+    ${extractionType === 'text' ? 'Organize extracted text in a coherent and readable manner, preserving the document structure.' : ''}
+    ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the document content with proper nesting and relationships.' : ''}
+    ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
+    
+    Return your response in valid JSON format with the following structure:
+    {
+      "extracted_data": [...], // The main extracted content
+      "metadata": {
+        "source_type": "document",
+        "file_type": "${fileType}",
+        "filename": "${file.name}",
+        "extraction_type": "${extractionType}",
+        "timestamp": "${currentTimestamp}",
+        "query": "${userQuery || 'none'}"
+      },
+      "summary": "A brief summary of what was extracted"
+    }
+    
+    If you cannot extract certain parts of the document, indicate this in your response.
+    Do NOT include any explanatory text outside the JSON structure.`;
+
+    // Create user message 
+    const userMessage = userQuery 
+      ? `Extract data from this ${fileType} document. Specifically, I need information about: ${userQuery}\n\nDocument content:\n${fileResult.text}`
+      : `Extract ${extractionType} from this ${fileType} document.\n\nDocument content:\n${fileResult.text}`;
+
+    const messages: OpenAiMessage[] = [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
+    ];
+
+    // Use the appropriate model based on the document type and size
+    const model = 'gpt-4o-mini'; // Default to gpt-4o-mini for document analysis
+    
+    const response = await getCompletion(apiKey, messages, { model });
+    
+    try {
+      // Try to parse as JSON
+      const jsonData = JSON.parse(response);
+      return {
+        raw: response,
+        format: 'json',
+        structured: jsonData,
+        summary: jsonData.summary || 'Data extracted successfully'
+      };
+    } catch (error) {
+      // If parsing fails, return as text
+      console.warn('Failed to parse response as JSON:', error);
+      return {
+        raw: response,
+        format: 'text'
+      };
+    }
+  } catch (error) {
+    console.error('Error extracting data from document:', error);
+    throw error;
+  }
+};
+
+/**
  * Extract data from an image using OpenAI
  */
 export const extractDataFromImage = async (
@@ -115,6 +206,14 @@ export const extractDataFromImage = async (
 ): Promise<ExtractedData> => {
   if (!apiKey) {
     throw new Error("API key is not set");
+  }
+
+  // Check if file is a document type instead of an image
+  const fileExt = imageFile.name.split('.').pop()?.toLowerCase();
+  const isDocument = ['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(fileExt || '');
+  
+  if (isDocument) {
+    return extractDataFromDocument(apiKey, imageFile, extractionType, userQuery);
   }
 
   try {
@@ -136,7 +235,7 @@ export const extractDataFromImage = async (
         "source_type": "image",
         "filename": "${imageFile.name}",
         "extraction_type": "${extractionType}",
-        "timestamp": "current_time",
+        "timestamp": "${new Date().toISOString()}",
         "query": "${userQuery || 'none'}"
       },
       "summary": "A brief summary of what was extracted"

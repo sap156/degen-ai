@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, X, FileText, Check, Download } from 'lucide-react';
+import { Upload, X, FileText, Check, Download, File, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -52,6 +52,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       validateAndUploadFile(e.target.files[0]);
+    }
+  };
+
+  const getFileIcon = (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'tiff'].includes(ext || '')) {
+      return <ImageIcon className="h-6 w-6 text-primary" />;
+    } else if (ext === 'pdf') {
+      return <FileText className="h-6 w-6 text-red-500" />;
+    } else if (['doc', 'docx'].includes(ext || '')) {
+      return <FileText className="h-6 w-6 text-blue-500" />;
+    } else if (['txt'].includes(ext || '')) {
+      return <FileText className="h-6 w-6 text-gray-500" />;
+    } else {
+      return <File className="h-6 w-6 text-primary" />;
     }
   };
 
@@ -156,7 +171,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-muted/50 p-2 rounded-lg">
-                <FileText className="h-6 w-6 text-primary" />
+                {getFileIcon(file)}
               </div>
               <div>
                 <h4 className="text-sm font-medium text-foreground truncate max-w-[200px]">

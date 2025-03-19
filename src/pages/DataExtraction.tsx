@@ -81,38 +81,41 @@ const DataExtraction: React.FC = () => {
   };
 
   const handleImageUpload = (file: File) => {
-    // Create preview
-    const preview = URL.createObjectURL(file);
+    const isImage = file.type.startsWith('image/') || 
+                   ['jpg', 'jpeg', 'png', 'gif', 'webp', 'tiff'].includes(
+                     file.name.split('.').pop()?.toLowerCase() || ''
+                   );
     
-    // Add to images array
+    const preview = isImage 
+      ? URL.createObjectURL(file)
+      : `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+    
     setImages(prev => [...prev, { file, preview }]);
     
-    toast.success(`Image uploaded: ${file.name}`);
+    toast.success(`File uploaded: ${file.name}`);
   };
 
   const handleExtractFromImages = async () => {
     if (images.length === 0) {
-      toast.error('Please upload at least one image');
+      toast.error('Please upload at least one file');
       return;
     }
     
     try {
       setIsLoading(true);
       
-      // For now we only process the first image
-      // In a more advanced implementation, we could merge results from multiple images
       const result = await extractDataFromImage(
         apiKey,
         images[0].file,
-        extractionType === 'tables' ? 'key-value' : extractionType, // 'tables' for images becomes 'key-value'
+        extractionType,
         imageQuestion.trim() || undefined
       );
       
       setExtractedData(result);
       toast.success('Analysis completed successfully');
     } catch (error) {
-      console.error('Error extracting from images:', error);
-      toast.error('Failed to extract information from images');
+      console.error('Error extracting from file:', error);
+      toast.error('Failed to extract information from file');
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +199,6 @@ const DataExtraction: React.FC = () => {
   };
 
   const clearImages = () => {
-    // Revoke object URLs to avoid memory leaks
     images.forEach(image => URL.revokeObjectURL(image.preview));
     setImages([]);
   };
@@ -275,8 +277,8 @@ const DataExtraction: React.FC = () => {
                     Web
                   </TabsTrigger>
                   <TabsTrigger value="images">
-                    <Image className="h-4 w-4 mr-2" />
-                    Images
+                    <FileType className="h-4 w-4 mr-2" />
+                    Documents
                   </TabsTrigger>
                 </TabsList>
                 
@@ -329,13 +331,13 @@ const DataExtraction: React.FC = () => {
                 
                 <TabsContent value="images" className="space-y-4">
                   <div>
-                    <Label className="mb-2 block">Upload Images</Label>
+                    <Label className="mb-2 block">Upload Documents</Label>
                     <FileUploader
                       onFileUpload={handleImageUpload}
-                      accept=".jpg,.jpeg,.png,.webp,.tiff,.pdf"
+                      accept=".jpg,.jpeg,.png,.webp,.tiff,.pdf,.doc,.docx,.txt"
                       maxSize={10}
-                      title="Upload Images"
-                      description="Upload images to extract text using OCR"
+                      title="Upload Files"
+                      description="Upload images, PDFs, documents or text files to extract data"
                     />
                   </div>
                   
@@ -345,7 +347,7 @@ const DataExtraction: React.FC = () => {
                         <Label htmlFor="imageQuestion">Ask a specific question (optional)</Label>
                         <Textarea
                           id="imageQuestion"
-                          placeholder="E.g., Extract text from this image. What objects are in this image?"
+                          placeholder="E.g., Extract text from this document. What key information is in this file?"
                           value={imageQuestion}
                           onChange={(e) => setImageQuestion(e.target.value)}
                           className="mt-1.5"
@@ -355,20 +357,27 @@ const DataExtraction: React.FC = () => {
                       {renderExtractionTypeOptions()}
                       
                       <div className="grid grid-cols-2 gap-2">
-                        {images.map((image, index) => (
-                          <div key={index} className="relative group">
-                            <img
-                              src={image.preview}
-                              alt={`Uploaded ${index}`}
-                              className="object-cover w-full h-32 rounded-md border"
-                            />
-                            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
-                              <span className="text-white text-xs">
-                                {image.file.name}
-                              </span>
+                        {images.map((image, index) => {
+                          const fileExt = image.file.name.split('.').pop()?.toLowerCase();
+                          const isDocument = ['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(fileExt || '');
+                          
+                          return (
+                            <div key={index} className="relative group">
+                              <div className={`w-full h-32 rounded-md border flex items-center justify-center ${isDocument ? 'bg-muted' : ''}`}>
+                                <img
+                                  src={image.preview}
+                                  alt={`Uploaded ${index}`}
+                                  className={`${isDocument ? 'w-16 h-16 object-contain' : 'w-full h-full object-cover'} rounded-md`}
+                                />
+                              </div>
+                              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                                <span className="text-white text-xs p-1">
+                                  {image.file.name}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       
                       <div className="flex space-x-2">
@@ -385,7 +394,7 @@ const DataExtraction: React.FC = () => {
                           ) : (
                             <>
                               <Search className="h-4 w-4 mr-2" />
-                              Analyze Images
+                              Analyze Files
                             </>
                           )}
                         </Button>
@@ -507,3 +516,4 @@ const DataExtraction: React.FC = () => {
 };
 
 export default DataExtraction;
+
