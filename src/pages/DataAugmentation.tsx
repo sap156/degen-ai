@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useState } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -34,6 +35,7 @@ import {
   FileJson,
   FileText
 } from 'lucide-react';
+import UserGuideDataAugmentation from '@/components/ui/UserGuideDataAugmentation';
 
 const augmentationMethods = [
   { id: 'noise', label: 'Add Noise', description: 'Add random noise to numeric fields' },
@@ -44,7 +46,7 @@ const augmentationMethods = [
   { id: 'text', label: 'Text Augmentation', description: 'Modify text fields with synonyms, paraphrasing' },
 ];
 
-const DataAugmentationPage: React.FC = () => {
+const DataAugmentation = () => {
   const { apiKey } = useApiKey();
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<string | null>(null);
@@ -87,21 +89,18 @@ const DataAugmentationPage: React.FC = () => {
   const handleFileUpload = (file: File) => {
     setSourceFile(file);
     
-    // Read the actual file content
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         setPreviewData(content);
         
-        // Parse the data
         let parsedData;
         if (file.name.endsWith('.json')) {
-          // Fix: Properly handle JSON parsing with error handling
           try {
             parsedData = JSON.parse(content);
             if (!Array.isArray(parsedData)) {
-              parsedData = [parsedData]; // Convert to array if not already
+              parsedData = [parsedData];
             }
           } catch (jsonError) {
             console.error("Error parsing JSON:", jsonError);
@@ -109,7 +108,6 @@ const DataAugmentationPage: React.FC = () => {
             return;
           }
         } else if (file.name.endsWith('.csv')) {
-          // Simple CSV parsing
           const lines = content.split('\n');
           const headers = lines[0].split(',');
           parsedData = [];
@@ -130,7 +128,6 @@ const DataAugmentationPage: React.FC = () => {
         
         setParsedData(parsedData || []);
         
-        // Update augmentation settings based on detected fields
         if (parsedData && parsedData.length > 0) {
           const sampleItem = parsedData[0];
           const numericFields: string[] = [];
@@ -212,7 +209,6 @@ const DataAugmentationPage: React.FC = () => {
     try {
       let allAugmentedData: any[] = [];
       
-      // Process each selected method sequentially
       for (const method of selectedMethods) {
         try {
           const augmentedData = await applyAugmentation(
@@ -230,7 +226,6 @@ const DataAugmentationPage: React.FC = () => {
         }
       }
       
-      // Format the data for display
       const formattedData = JSON.stringify(allAugmentedData, null, 2);
       setAugmentedData(formattedData);
       setPreviewTab('augmented');
@@ -257,7 +252,6 @@ const DataAugmentationPage: React.FC = () => {
         mimeType = 'application/json';
         fileExtension = 'json';
       } else {
-        // CSV format
         downloadData = formatData(parsedAugmentedData, 'csv');
         mimeType = 'text/csv';
         fileExtension = 'csv';
@@ -279,7 +273,7 @@ const DataAugmentationPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="container mx-auto py-6">
       <div className="space-y-2 mb-8">
         <motion.h1 
           className="text-3xl font-bold tracking-tight"
@@ -384,7 +378,6 @@ const DataAugmentationPage: React.FC = () => {
                           <CardTitle className="text-base">{method.label} Settings</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          {/* Fields multi-select for each method */}
                           {parsedData.length > 0 && (
                             <div className="mb-4">
                               <Label className="mb-2 block">Fields to Augment</Label>
@@ -626,8 +619,10 @@ const DataAugmentationPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      <UserGuideDataAugmentation />
     </div>
   );
 };
 
-export default DataAugmentationPage;
+export default DataAugmentation;

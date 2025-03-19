@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +40,8 @@ import {
   downloadData,
   analyzePiiData
 } from '@/services/piiHandlingService';
+
+import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
 
 const PiiHandling = () => {
   const { toast } = useToast();
@@ -304,7 +307,7 @@ const PiiHandling = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
+    <div className="container mx-auto py-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
         <p className="text-muted-foreground mt-2">
@@ -689,8 +692,11 @@ const PiiHandling = () => {
           </Card>
         </div>
       </div>
+
+      <UserGuidePiiHandling />
     </div>
   );
 };
 
 export default PiiHandling;
+
