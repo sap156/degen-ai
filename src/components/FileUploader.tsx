@@ -1,9 +1,9 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, FileText, Check, Download, File, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface FileUploaderProps {
   onFileUpload: (file: File) => void;
@@ -13,6 +13,7 @@ interface FileUploaderProps {
   description?: string;
   downloadUrl?: string;
   downloadFileName?: string;
+  error?: string;
 }
 
 const FileUploader: React.FC<FileUploaderProps> = ({
@@ -23,6 +24,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   description = 'Drag and drop your file here or click to browse',
   downloadUrl,
   downloadFileName,
+  error
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -71,20 +73,25 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   const validateAndUploadFile = (file: File) => {
-    // Check file size
     const fileSizeInMB = file.size / (1024 * 1024);
     if (fileSizeInMB > maxSize) {
       toast.error(`File is too large. Maximum size is ${maxSize}MB.`);
       return;
     }
 
-    // Check file type
     const fileType = file.name.split('.').pop()?.toLowerCase();
     const acceptedTypes = accept.split(',').map(type => 
       type.trim().replace('.', '').toLowerCase()
     );
     
-    if (fileType && !acceptedTypes.includes(fileType)) {
+    const isAcceptableFile = fileType && (
+      acceptedTypes.includes(fileType) || 
+      acceptedTypes.includes('*') ||
+      (acceptedTypes.includes('pdf') && fileType === 'pdf') ||
+      (acceptedTypes.includes('image') && file.type.startsWith('image/'))
+    );
+    
+    if (!isAcceptableFile) {
       toast.error(`Invalid file type. Accepted formats: ${accept}`);
       return;
     }
@@ -92,17 +99,15 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     setFile(file);
     setIsUploading(true);
     
-    // Simulate upload delay for UI feedback
     setTimeout(() => {
       onFileUpload(file);
       setIsUploading(false);
       setUploadSuccess(true);
       
-      // Reset success state after some time
       setTimeout(() => {
         setUploadSuccess(false);
       }, 3000);
-    }, 1500);
+    }, 800);
   };
 
   const handleRemoveFile = () => {
@@ -126,6 +131,13 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   return (
     <div className="w-full">
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
       {!file ? (
         <div
           onDragOver={handleDragOver}

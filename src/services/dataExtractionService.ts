@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 import { FileProcessingResult, extractTextFromFile } from "../utils/fileUploadUtils";
@@ -167,9 +168,7 @@ export const extractDataFromDocument = async (
       { role: 'user', content: userMessage }
     ];
 
-    // Use the appropriate model based on the document type and size
-    const model = 'gpt-4o-mini'; // Default to gpt-4o-mini for document analysis
-    
+    const model = 'gpt-4o-mini';
     const response = await getCompletion(apiKey, messages, { model });
     
     try {
@@ -184,10 +183,24 @@ export const extractDataFromDocument = async (
     } catch (error) {
       // If parsing fails, return as text
       console.warn('Failed to parse response as JSON:', error);
-      return {
-        raw: response,
-        format: 'text'
-      };
+      
+      // Try to clean the response in case it has markdown code blocks
+      const cleanedResponse = cleanJsonResponse(response);
+      try {
+        const jsonData = JSON.parse(cleanedResponse);
+        return {
+          raw: cleanedResponse,
+          format: 'json',
+          structured: jsonData,
+          summary: jsonData.summary || 'Data extracted successfully'
+        };
+      } catch (nestedError) {
+        // If still fails, return as text
+        return {
+          raw: response,
+          format: 'text'
+        };
+      }
     }
   } catch (error) {
     console.error('Error extracting data from document:', error);
@@ -268,7 +281,7 @@ export const extractDataFromImage = async (
     ];
 
     // Use the model that supports image processing
-    const model = 'gpt-4o'; // Using gpt-4o as it supports vision
+    const model = 'gpt-4o';
     
     const response = await getCompletion(apiKey, messages, { model });
     
@@ -282,17 +295,52 @@ export const extractDataFromImage = async (
         summary: jsonData.summary || 'Data extracted successfully'
       };
     } catch (error) {
-      // If parsing fails, return as text
+      // If parsing fails, try to clean the response
       console.warn('Failed to parse response as JSON:', error);
-      return {
-        raw: response,
-        format: 'text'
-      };
+      
+      // Try to clean the response in case it has markdown code blocks
+      const cleanedResponse = cleanJsonResponse(response);
+      try {
+        const jsonData = JSON.parse(cleanedResponse);
+        return {
+          raw: cleanedResponse,
+          format: 'json',
+          structured: jsonData,
+          summary: jsonData.summary || 'Data extracted successfully'
+        };
+      } catch (nestedError) {
+        // If still fails, return as text
+        return {
+          raw: response,
+          format: 'text'
+        };
+      }
     }
   } catch (error) {
     console.error('Error extracting data from image:', error);
     throw error;
   }
+};
+
+/**
+ * Clean a JSON response that might contain markdown code blocks
+ */
+const cleanJsonResponse = (response: string): string => {
+  // Remove markdown code blocks if present
+  const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonMatch && jsonMatch[1]) {
+    return jsonMatch[1].trim();
+  }
+  
+  // Remove any text before the first { and after the last }
+  const firstBrace = response.indexOf('{');
+  const lastBrace = response.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return response.substring(firstBrace, lastBrace + 1);
+  }
+  
+  return response;
 };
 
 /**
