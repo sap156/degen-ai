@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Scale, RefreshCw, FileText, Brain } from 'lucide-react';
+import { Scale, RefreshCw, FileText, Brain, BarChart, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 
 const UserGuideImbalancedData = () => {
   return (
@@ -18,11 +18,12 @@ const UserGuideImbalancedData = () => {
       </CardHeader>
       <CardContent className="pt-2">
         <Tabs defaultValue="overview">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="upload">Data Upload</TabsTrigger>
             <TabsTrigger value="analysis">Analysis</TabsTrigger>
             <TabsTrigger value="balancing">Balancing</TabsTrigger>
+            <TabsTrigger value="tips">Tips</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="space-y-4 mt-4">
@@ -187,6 +188,41 @@ const UserGuideImbalancedData = () => {
                 <li>Validate performance on both balanced and imbalanced test sets</li>
                 <li>For critical applications, try multiple balancing approaches and compare results</li>
                 <li>Use appropriate evaluation metrics (F1-score, precision-recall AUC) with imbalanced data</li>
+              </ul>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="tips" className="space-y-4 mt-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Data Preparation Tips</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li>Handle missing values before addressing class imbalance</li>
+                <li>Remove outliers that might skew your balancing efforts</li>
+                <li>Normalize or standardize features for better synthetic data generation</li>
+                <li>Consider domain-specific constraints when balancing (e.g., medical data safety)</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Model Evaluation with Imbalanced Data</h3>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li>Don't rely solely on accuracy—use precision, recall, F1-score, or AUC</li>
+                <li>Consider class-specific metrics (especially for minority classes)</li>
+                <li>Use stratified cross-validation to maintain class proportions</li>
+                <li>Set appropriate classification thresholds based on your specific needs</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Alternative Approaches</h3>
+              <p className="text-sm text-muted-foreground">
+                Beyond data balancing, consider these complementary techniques:
+              </p>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                <li>Cost-sensitive learning (assign higher misclassification cost to minority classes)</li>
+                <li>Ensemble methods (combine multiple models for better performance)</li>
+                <li>Anomaly detection approaches (for extreme imbalance)</li>
+                <li>Custom loss functions that penalize minority class errors more heavily</li>
               </ul>
             </div>
           </TabsContent>
