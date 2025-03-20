@@ -96,11 +96,15 @@ function SyntheticData() {
       return;
     }
     
-    const hasIncludedFields = dataFields.some(field => field.included);
-    if (!hasIncludedFields) {
-      toast.error("Please select at least one field to include in your data");
-      return;
-    }
+    
+    // For predefined data types, check if fields are selected
+    if (values.dataType !== 'custom') {
+      const hasIncludedFields = dataFields.some(field => field.included);
+      if (!hasIncludedFields) {
+        toast.error("Please select at least one field to include in your data");
+        return;
+      }
+   }
     
     setIsGenerating(true);
     setGenerationProgress(0);
