@@ -107,8 +107,7 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       if (allKeys && allKeys.length > 0) {
         // Set the first key as active
-        const keyToActivate = allKeys[0];
-        await setActiveKeyId(keyToActivate.id);
+        await setActiveKeyId(allKeys[0].id);
         return true;
       }
       
