@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -119,13 +118,10 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
     }
     
     // Optional: validate API key before saving
-    // Uncomment this section to enable validation
-    /*
     const isValid = await validateApiKey(inputKey.trim());
     if (!isValid) {
       return;
     }
-    */
     
     // Save API key to localStorage
     setApiKey(inputKey.trim());
@@ -173,6 +169,30 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
     toast.success('API key removed');
     setValidationError(null);
     onOpenChange(false);
+  };
+
+  const fetchData = async () => {
+    if (!user) {
+      throw new Error("User must be authenticated to make API requests");
+    }
+
+    if (!apiKey) {
+      throw new Error("API key is not set");
+    }
+
+    // Make your API request here using the apiKey
+    const response = await fetch('https://api.example.com/data', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch data");
+    }
+
+    const data = await response.json();
+    return data;
   };
 
   return (

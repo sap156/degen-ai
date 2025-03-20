@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -167,6 +166,11 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setApiKey = (key: string, keyId?: string) => {
+    if (!user) {
+      console.error("User must be authenticated to set an API key");
+      return;
+    }
+    
     localStorage.setItem('openai-api-key', key);
     setApiKeyState(key);
     
