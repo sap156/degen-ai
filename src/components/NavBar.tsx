@@ -1,11 +1,11 @@
-
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug, User, LogOut, KeyRound } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
+import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -18,6 +18,7 @@ const NavBar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { isKeySet } = useApiKey();
   
   const navItems = [{
     path: '/',
@@ -63,6 +64,11 @@ const NavBar = () => {
   
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsMobileMenuOpen(false);
   };
   
   return (
@@ -125,11 +131,11 @@ const NavBar = () => {
                   <DropdownMenuItem asChild>
                     <Link to="/api-keys" className="flex items-center cursor-pointer">
                       <KeyRound className="mr-2 h-4 w-4" />
-                      API Keys
+                      API Keys {isKeySet && <span className="ml-2 text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Active</span>}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>
@@ -191,16 +197,14 @@ const NavBar = () => {
                     >
                       <KeyRound className="h-4 w-4" />
                       <span>API Keys</span>
+                      {isKeySet && <span className="ml-auto text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Active</span>}
                     </Link>
                   </li>
                   <li className="col-span-2 mt-1">
                     <Button 
                       variant="outline" 
                       className="w-full text-destructive border-destructive/40"
-                      onClick={() => {
-                        signOut();
-                        setIsMobileMenuOpen(false);
-                      }}
+                      onClick={handleSignOut}
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       Sign out

@@ -3,6 +3,7 @@ import { useEffect, useState, createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useApiKey } from '@/contexts/ApiKeyContext';
 
 type AuthContextType = {
   user: User | null;
@@ -66,6 +67,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    // Remove API key from localStorage
+    localStorage.removeItem('openai-api-key');
+    localStorage.removeItem('openai-model');
+    
     await supabase.auth.signOut();
     navigate('/');
   };

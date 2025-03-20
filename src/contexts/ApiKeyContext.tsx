@@ -33,6 +33,13 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Load API key from localStorage or database on mount and when auth state changes
   useEffect(() => {
     const loadInitialApiKey = async () => {
+      if (!user) {
+        // Clear state if user is not logged in
+        setApiKeyState(null);
+        setActiveKeyIdState(null);
+        return;
+      }
+      
       // First check localStorage (for non-authenticated users)
       try {
         const storedKey = localStorage.getItem('openai-api-key');
