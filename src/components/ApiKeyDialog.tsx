@@ -18,7 +18,7 @@ interface ApiKeyDialogProps {
 
 const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySaved }) => {
   const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
-  const { user } = useAuth();
+  const { user, signIn } = useAuth();
   const [inputKey, setInputKey] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -32,6 +32,11 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
   }, [open]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
+    if (!user) {
+      toast.error("You must be logged in to validate API keys.");
+      return false;
+    }
+
     try {
       setIsValidatingKey(true);
       const response = await fetch('https://api.openai.com/v1/models', {
@@ -112,12 +117,18 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
   };
 
   const handleSave = async () => {
+    if (!user) {
+      toast.error("You must be logged in to save API keys.");
+      //await signIn(email, password);// Redirect user to signin 
+      return;
+    }
+
     if (!inputKey.trim()) {
       setValidationError("Please enter a valid API key");
       return;
     }
     
-    // Optional: validate API key before saving
+    // Validate API key before saving
     const isValid = await validateApiKey(inputKey.trim());
     if (!isValid) {
       return;
