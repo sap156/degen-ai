@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { Plus, Trash2, EyeOff, Eye, KeyRound } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import ApiKeyDialog from '@/components/ApiKeyDialog';
 
 interface ApiKey {
   id: string;
@@ -20,12 +22,14 @@ interface ApiKey {
 
 const ApiKeys = () => {
   const { user } = useAuth();
+  const { loadApiKeyFromDatabase } = useApiKey();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -51,6 +55,7 @@ const ApiKeys = () => {
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -89,6 +94,11 @@ const ApiKeys = () => {
       setNewKeyValue('');
       setIsAdding(false);
       fetchApiKeys();
+      
+      // If this is an OpenAI API key, refresh the context
+      if (newKeyName.toLowerCase().includes('openai')) {
+        loadApiKeyFromDatabase();
+      }
     } catch (error) {
       console.error('Error adding API key:', error);
       toast.error('Failed to add API key');
@@ -124,6 +134,10 @@ const ApiKeys = () => {
     return `${key.slice(0, 4)}...${key.slice(-4)}`;
   };
 
+  const handleKeySaved = () => {
+    fetchApiKeys();
+  };
+
   return (
     <div className="container py-8 max-w-4xl">
       <div className="flex flex-col space-y-6">
@@ -134,7 +148,10 @@ const ApiKeys = () => {
           </p>
         </div>
 
-        <ApiKeyRequirement title="Authentication Required" description="You need to sign in to manage your API keys.">
+        <ApiKeyRequirement 
+          title="Authentication Required" 
+          description="You need to sign in to manage your API keys."
+        >
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div>
@@ -144,10 +161,20 @@ const ApiKeys = () => {
                 </CardDescription>
               </div>
               {!isAdding && (
-                <Button onClick={() => setIsAdding(true)} className="gap-1">
-                  <Plus className="h-4 w-4" />
-                  Add Key
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setApiKeyDialogOpen(true)} 
+                    variant="outline"
+                    className="gap-1"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Set Up OpenAI Key
+                  </Button>
+                  <Button onClick={() => setIsAdding(true)} className="gap-1">
+                    <Plus className="h-4 w-4" />
+                    Add Key
+                  </Button>
+                </div>
               )}
             </CardHeader>
             
@@ -247,6 +274,12 @@ const ApiKeys = () => {
           </Card>
         </ApiKeyRequirement>
       </div>
+      
+      <ApiKeyDialog 
+        open={apiKeyDialogOpen} 
+        onOpenChange={setApiKeyDialogOpen} 
+        onKeySaved={handleKeySaved}
+      />
     </div>
   );
 };
