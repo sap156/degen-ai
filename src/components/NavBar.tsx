@@ -1,14 +1,23 @@
 
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug, User, LogOut, KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from './ThemeToggle';
+import { useAuth } from '@/hooks/useAuth';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 
 const NavBar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
   
   const navItems = [{
     path: '/',
@@ -99,8 +108,38 @@ const NavBar = () => {
             </ul>
           </nav>
           
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                    {user.email}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/api-keys" className="flex items-center cursor-pointer">
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      API Keys
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button size="sm" asChild>
+                <Link to="/auth">Sign in</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -131,6 +170,44 @@ const NavBar = () => {
                   </li>
                 );
               })}
+              {!user && (
+                <li className="col-span-2 mt-2">
+                  <Button 
+                    className="w-full" 
+                    asChild 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link to="/auth">Sign in</Link>
+                  </Button>
+                </li>
+              )}
+              {user && (
+                <>
+                  <li className="col-span-2 mt-2">
+                    <Link
+                      to="/api-keys"
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md bg-secondary/50 hover:bg-secondary transition-all duration-200"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      <span>API Keys</span>
+                    </Link>
+                  </li>
+                  <li className="col-span-2 mt-1">
+                    <Button 
+                      variant="outline" 
+                      className="w-full text-destructive border-destructive/40"
+                      onClick={() => {
+                        signOut();
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign out
+                    </Button>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
         </motion.div>
