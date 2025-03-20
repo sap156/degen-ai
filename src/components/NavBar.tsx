@@ -1,14 +1,24 @@
-
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug } from 'lucide-react';
-import { useState } from 'react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug, User, LogOut, KeyRound } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from './ThemeToggle';
+import { useAuth } from '@/hooks/useAuth';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 
 const NavBar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const { isKeySet } = useApiKey();
   
   const navItems = [{
     path: '/',
@@ -55,6 +65,11 @@ const NavBar = () => {
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsMobileMenuOpen(false);
+  };
   
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -99,8 +114,38 @@ const NavBar = () => {
             </ul>
           </nav>
           
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                    {user.email}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/api-keys" className="flex items-center cursor-pointer">
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      API Keys {isKeySet && <span className="ml-2 text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Active</span>}
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button size="sm" asChild>
+                <Link to="/auth">Sign in</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -131,6 +176,42 @@ const NavBar = () => {
                   </li>
                 );
               })}
+              {!user && (
+                <li className="col-span-2 mt-2">
+                  <Button 
+                    className="w-full" 
+                    asChild 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link to="/auth">Sign in</Link>
+                  </Button>
+                </li>
+              )}
+              {user && (
+                <>
+                  <li className="col-span-2 mt-2">
+                    <Link
+                      to="/api-keys"
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md bg-secondary/50 hover:bg-secondary transition-all duration-200"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      <span>API Keys</span>
+                      {isKeySet && <span className="ml-auto text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Active</span>}
+                    </Link>
+                  </li>
+                  <li className="col-span-2 mt-1">
+                    <Button 
+                      variant="outline" 
+                      className="w-full text-destructive border-destructive/40"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign out
+                    </Button>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
         </motion.div>

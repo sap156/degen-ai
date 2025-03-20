@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { KeyRound, AlertTriangle } from 'lucide-react';
 import ApiKeyDialog from './ApiKeyDialog';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ApiKeyRequirementProps {
   title?: string;
   description?: string;
-  children?: React.ReactNode; // Add children prop
+  children?: React.ReactNode;
 }
 
 const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
@@ -17,8 +18,16 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
   description = "To use AI-powered features, please set up your OpenAI API key.",
   children
 }) => {
-  const { isKeySet } = useApiKey();
+  const { isKeySet, loadApiKeyFromDatabase } = useApiKey();
+  const { user } = useAuth();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  
+  const handleKeySaved = async () => {
+    if (user) {
+      // Reload API keys from database after saving
+      await loadApiKeyFromDatabase();
+    }
+  };
   
   if (isKeySet) return <>{children}</>; // Return children directly if key is set
   
@@ -49,7 +58,11 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
       {/* Render children even if key is not set, so user can see UI */}
       {children}
       
-      <ApiKeyDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} />
+      <ApiKeyDialog 
+        open={apiKeyDialogOpen} 
+        onOpenChange={setApiKeyDialogOpen} 
+        onKeySaved={handleKeySaved}
+      />
     </>
   );
 };

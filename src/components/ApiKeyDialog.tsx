@@ -8,17 +8,22 @@ import { KeyRound, X, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import ModelSelector from '@/components/ModelSelector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ApiKeyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onKeySaved?: () => void;
 }
 
-const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
+const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySaved }) => {
   const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
+  const { user } = useAuth();
   const [inputKey, setInputKey] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Clear validation error when dialog opens/closes
   useEffect(() => {
@@ -57,6 +62,56 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
     }
   };
 
+  const saveApiKeyToDatabase = async (key: string) => {
+    if (!user) {
+      toast.error("You must be logged in to save API keys");
+      return false;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // First, deactivate all existing keys
+      const { error: updateError } = await supabase
+        .from('api_keys')
+        .update({ is_active: false })
+        .eq('user_id', user.id);
+        
+      if (updateError) {
+        console.error("Error deactivating existing API keys:", updateError);
+      }
+      
+      // Then insert the new key as active
+      const { data, error } = await supabase
+        .from('api_keys')
+        .insert([
+          { 
+            user_id: user.id, 
+            key_name: 'OpenAI API Key', 
+            key_value: key,
+            is_active: true
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error saving API key to database:", error);
+        toast.error("Failed to save API key to database");
+        return false;
+      }
+
+      // Return both success status and the key ID
+      return { success: true, keyId: data.id };
+    } catch (error) {
+      console.error("Error saving API key to database:", error);
+      toast.error("Failed to save API key to database");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!inputKey.trim()) {
       setValidationError("Please enter a valid API key");
@@ -72,15 +127,49 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
     }
     */
     
+    // Save API key to localStorage
     setApiKey(inputKey.trim());
-    toast.success('API key saved successfully');
+    
+    // Save API key to database if user is logged in
+    if (user) {
+      const result = await saveApiKeyToDatabase(inputKey.trim());
+      if (result && typeof result === 'object' && result.success) {
+        toast.success('API key saved and set as active');
+        // Update the apiKey with the new key ID
+        setApiKey(inputKey.trim(), result.keyId);
+        if (onKeySaved) onKeySaved();
+      }
+    } else {
+      toast.success('API key saved locally');
+    }
+    
     setInputKey('');
     setValidationError(null);
     onOpenChange(false);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     clearApiKey();
+    
+    if (user && apiKey) {
+      try {
+        // Find and delete the API key from the database
+        const { error } = await supabase
+          .from('api_keys')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('key_name', 'OpenAI API Key');
+        
+        if (error) {
+          console.error("Error removing API key from database:", error);
+        } else {
+          if (onKeySaved) onKeySaved();
+        }
+      } catch (error) {
+        console.error("Error removing API key from database:", error);
+      }
+    }
+    
     toast.success('API key removed');
     setValidationError(null);
     onOpenChange(false);
@@ -140,7 +229,7 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
           <ModelSelector />
           
           <div className="text-xs text-muted-foreground">
-            <p>Your API key is stored locally in your browser and never sent to our servers.</p>
+            <p>Your API key is stored securely and can only be accessed by you.</p>
             <p className="mt-1">
               Don't have an API key?{' '}
               <a 
@@ -160,9 +249,9 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange }) => {
             <Button 
               onClick={handleSave} 
               className="w-full sm:w-auto"
-              disabled={isValidatingKey || !inputKey.trim()}
+              disabled={isValidatingKey || isSaving || !inputKey.trim()}
             >
-              {isValidatingKey ? 'Validating...' : 'Save API Key'}
+              {isValidatingKey ? 'Validating...' : isSaving ? 'Saving...' : 'Save API Key'}
             </Button>
           </DialogFooter>
         )}
