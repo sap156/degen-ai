@@ -71,15 +71,29 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
     try {
       setIsSaving(true);
       
-      const { error } = await supabase
+      // First, deactivate all existing keys
+      const { error: updateError } = await supabase
+        .from('api_keys')
+        .update({ is_active: false })
+        .eq('user_id', user.id);
+        
+      if (updateError) {
+        console.error("Error deactivating existing API keys:", updateError);
+      }
+      
+      // Then insert the new key as active
+      const { data, error } = await supabase
         .from('api_keys')
         .insert([
           { 
             user_id: user.id, 
             key_name: 'OpenAI API Key', 
-            key_value: key 
+            key_value: key,
+            is_active: true
           }
-        ]);
+        ])
+        .select()
+        .single();
 
       if (error) {
         console.error("Error saving API key to database:", error);
@@ -87,7 +101,8 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
         return false;
       }
 
-      return true;
+      // Return both success status and the key ID
+      return { success: true, keyId: data.id };
     } catch (error) {
       console.error("Error saving API key to database:", error);
       toast.error("Failed to save API key to database");
@@ -117,9 +132,11 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
     
     // Save API key to database if user is logged in
     if (user) {
-      const savedToDb = await saveApiKeyToDatabase(inputKey.trim());
-      if (savedToDb) {
-        toast.success('API key saved to your account');
+      const result = await saveApiKeyToDatabase(inputKey.trim());
+      if (result && typeof result === 'object' && result.success) {
+        toast.success('API key saved and set as active');
+        // Update the apiKey with the new key ID
+        setApiKey(inputKey.trim(), result.keyId);
         if (onKeySaved) onKeySaved();
       }
     } else {

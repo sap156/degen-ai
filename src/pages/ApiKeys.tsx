@@ -7,22 +7,24 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Plus, Trash2, EyeOff, Eye, KeyRound } from 'lucide-react';
+import { Plus, Trash2, EyeOff, Eye, KeyRound, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
+import { Badge } from '@/components/ui/badge';
 
 interface ApiKey {
   id: string;
   key_name: string;
   key_value: string;
   created_at: string;
+  is_active?: boolean;
 }
 
 const ApiKeys = () => {
   const { user } = useAuth();
-  const { loadApiKeyFromDatabase } = useApiKey();
+  const { loadApiKeyFromDatabase, activeKeyId, setActiveKeyId } = useApiKey();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
@@ -30,6 +32,7 @@ const ApiKeys = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [isActivating, setIsActivating] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -83,9 +86,28 @@ const ApiKeys = () => {
 
     try {
       setIsLoading(true);
+      
+      // First deactivate all keys if this is the first key
+      if (apiKeys.length === 0) {
+        const { error: updateError } = await supabase
+          .from('api_keys')
+          .update({ is_active: false })
+          .eq('user_id', user?.id);
+          
+        if (updateError) {
+          console.error("Error deactivating existing API keys:", updateError);
+        }
+      }
+      
+      // Then insert the new key, making it active if it's the first key
       const { error } = await supabase
         .from('api_keys')
-        .insert([{ key_name: newKeyName, key_value: newKeyValue, user_id: user?.id }]);
+        .insert([{ 
+          key_name: newKeyName, 
+          key_value: newKeyValue, 
+          user_id: user?.id,
+          is_active: apiKeys.length === 0 // Make active if it's the first key
+        }]);
 
       if (error) throw error;
       
@@ -95,8 +117,8 @@ const ApiKeys = () => {
       setIsAdding(false);
       fetchApiKeys();
       
-      // If this is an OpenAI API key, refresh the context
-      if (newKeyName.toLowerCase().includes('openai')) {
+      // If this is the first OpenAI API key or if there are no active keys, refresh the context
+      if (newKeyName.toLowerCase().includes('openai') || apiKeys.every(key => !key.is_active)) {
         loadApiKeyFromDatabase();
       }
     } catch (error) {
@@ -110,6 +132,11 @@ const ApiKeys = () => {
   const deleteApiKey = async (id: string) => {
     try {
       setIsLoading(true);
+      
+      // Check if deleting the active key
+      const keyToDelete = apiKeys.find(key => key.id === id);
+      const isActiveKey = keyToDelete?.is_active;
+      
       const { error } = await supabase
         .from('api_keys')
         .delete()
@@ -118,12 +145,49 @@ const ApiKeys = () => {
       if (error) throw error;
       
       toast.success('API key deleted successfully');
+      
+      // If we deleted the active key, we need to activate another key if available
+      if (isActiveKey) {
+        // Fetch remaining keys
+        const { data: remainingKeys, error: fetchError } = await supabase
+          .from('api_keys')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (!fetchError && remainingKeys && remainingKeys.length > 0) {
+          // Set first remaining key as active
+          await setActiveKeyId(remainingKeys[0].id);
+          toast.success(`Set "${remainingKeys[0].key_name}" as the active key`);
+        }
+      }
+      
       fetchApiKeys();
     } catch (error) {
       console.error('Error deleting API key:', error);
       toast.error('Failed to delete API key');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const activateKey = async (id: string) => {
+    try {
+      setIsActivating(id);
+      const success = await setActiveKeyId(id);
+      
+      if (success) {
+        toast.success('API key activated successfully');
+        fetchApiKeys();
+      } else {
+        toast.error('Failed to activate API key');
+      }
+    } catch (error) {
+      console.error('Error activating API key:', error);
+      toast.error('Failed to activate API key');
+    } finally {
+      setIsActivating(null);
     }
   };
 
@@ -157,7 +221,7 @@ const ApiKeys = () => {
               <div>
                 <CardTitle className="text-xl">Your API Keys</CardTitle>
                 <CardDescription>
-                  These keys are stored securely in your account.
+                  Only one API key can be active at a time. The active key will be used for all API requests.
                 </CardDescription>
               </div>
               {!isAdding && (
@@ -235,10 +299,21 @@ const ApiKeys = () => {
                   {apiKeys.map((apiKey) => (
                     <div 
                       key={apiKey.id} 
-                      className="flex items-center justify-between p-3 bg-secondary/10 rounded-md"
+                      className={`flex items-center justify-between p-3 rounded-md ${
+                        apiKey.is_active 
+                          ? 'bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800/30' 
+                          : 'bg-secondary/10'
+                      }`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{apiKey.key_name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{apiKey.key_name}</p>
+                          {apiKey.is_active && (
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-400 dark:border-green-800">
+                              Active
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground truncate">
                           {hiddenKeys.has(apiKey.id) ? maskKey(apiKey.key_value) : apiKey.key_value}
                         </p>
@@ -256,6 +331,18 @@ const ApiKeys = () => {
                             <EyeOff className="h-4 w-4" />
                           )}
                         </Button>
+                        {!apiKey.is_active && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/30"
+                            onClick={() => activateKey(apiKey.id)}
+                            disabled={isActivating === apiKey.id}
+                            title="Set as active key"
+                          >
+                            {isActivating === apiKey.id ? 'Activating...' : 'Set Active'}
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
