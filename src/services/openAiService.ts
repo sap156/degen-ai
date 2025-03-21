@@ -29,7 +29,7 @@ export const getCompletion = async (
         model: options.model ?? 'gpt-4o',
         messages,
         temperature: options.temperature ?? 0.3,
-        max_tokens: options.max_tokens ?? 30000
+        max_tokens: options.max_tokens ?? 16384
       })
     });
 
@@ -101,7 +101,7 @@ export const analyzePiiWithAI = async (
 
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
 
@@ -163,7 +163,7 @@ Return ONLY a JSON array with the masked records. Do not include any explanation
 
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
 
@@ -225,7 +225,7 @@ export const analyzeImbalancedDataset = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     
@@ -288,7 +288,7 @@ export const generateSyntheticSamplesForImbalance = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: diversityFactors[diversity] + 0.2,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     
@@ -339,7 +339,7 @@ export const getFeatureEngineeringSuggestions = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     
@@ -399,7 +399,7 @@ export const generateSyntheticDataWithAI = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: realismFactor + 0.2,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     

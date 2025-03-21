@@ -51,7 +51,7 @@ export const augmentDataWithAI = async (
     // Call OpenAI API
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     

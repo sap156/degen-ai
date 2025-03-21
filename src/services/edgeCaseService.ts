@@ -72,7 +72,7 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 30000,
+        max_tokens: 16384,
         model: 'gpt-4o'
       });
       
@@ -148,7 +148,7 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 30000,
+        max_tokens: 16384,
         model: 'gpt-4o'
       });
       
@@ -239,7 +239,7 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 30000,
+        max_tokens: 16384,
         model: 'gpt-4o'
       });
       console.log("Received test model response:", responseText);
@@ -318,7 +318,7 @@ export const edgeCaseService = {
       
       return await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 30000,
+        max_tokens: 16384,
         model: 'gpt-4o'
       });
 
@@ -362,7 +362,7 @@ export const edgeCaseService = {
       
       return await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 30000,
+        max_tokens: 16384,
         model: 'gpt-4o'
       });
       

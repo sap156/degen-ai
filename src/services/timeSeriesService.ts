@@ -423,7 +423,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     const response = await getCompletion(apiKey, messages, {
       model: 'gpt-4o',
       temperature: 0.3,
-      max_tokens: 30000
+      max_tokens: 16384
     });
     
     onProgressUpdate?.(75);
@@ -662,7 +662,7 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     const response = await getCompletion(apiKey, messages, {
       model: 'gpt-4o',
       temperature: 0.3,
-      max_tokens: 30000
+      max_tokens: 16384
     });
     
     onProgressUpdate?.(75);

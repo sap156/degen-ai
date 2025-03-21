@@ -82,7 +82,7 @@ export const extractDataFromUrl = async (
     //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     
@@ -179,7 +179,7 @@ export const extractDataFromImage = async (
     //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     
@@ -253,7 +253,7 @@ export const processExtractedData = async (
     //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 30000,
+      max_tokens: 16384,
       model: 'gpt-4o'
     });
     

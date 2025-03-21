@@ -35,7 +35,7 @@ export const processQueryWithAI = async (
     const response = await getCompletion(apiKey, messages, {
       model: 'gpt-4o',
       temperature: 0.3,
-      max_tokens: 30000
+      max_tokens: 16384
     });
     
     // Parse the response (expecting JSON format)
