@@ -50,9 +50,9 @@ export const augmentDataWithAI = async (
     
     // Call OpenAI API
     const response = await getCompletion(apiKey, messages, {
-      temperature: 0.7,
-      max_tokens: 2500,
-      model: 'gpt-4o' // Explicitly setting the model
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     console.log("Raw AI response:", response.substring(0, 200) + "...");

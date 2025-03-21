@@ -79,7 +79,7 @@ function SyntheticData() {
       nullPercentage: 10,
       outputFormat: "json",
       customSchema: "",
-      aiPrompt: "Generate a dataset of fictional users with realistic names, emails, addresses, and numerical attributes"
+      aiPrompt: "Generate a dataset of sales transactions with customer names, product details, and purchase amounts for a retail store chain. The data should be unique, realistic, and suitable for testing a sales analytics tool.",
     },
   });
   

@@ -29,28 +29,30 @@ const modelInfo: Record<string, {
       'Supports vision and has a large context window.'
     ]
   },
+  
   'gpt-4-turbo': {
-    name: 'GPT-4 Turbo',
+    name: 'GPT-4 Turbo (Next Best)',
     limitations: [
       'Slightly reduced context window and token limits compared to GPT-4.',
       'Occasionally sacrifices minor accuracy in complex reasoning tasks for speed.',
       'Best balance of cost, performance, and accuracy.'
     ]
   },
-  'gpt-4': {
-    name: 'GPT-4',
-    limitations: [
-      'Highest cost per token among available models.',
-      'Slower response time due to computational complexity.',
-      'May exceed resource quotas quickly, especially with large tasks.'
-    ]
-  },
   'gpt-3.5-turbo': {
-    name: 'GPT-3.5 Turbo',
+    name: 'GPT-3.5 Turbo (Cheapest Option)',
     limitations: [
       'Less accurate on complex reasoning or detailed instructions compared to GPT-4 models.',
       'Smaller context window, potentially limiting detailed tasks.',
       'Occasionally requires additional prompt-engineering effort to reach desired output quality.'
+    ]
+  },
+
+  'gpt-4': {
+    name: 'GPT-4 (Not Recommended)',
+    limitations: [
+      'Highest cost per token among available models.',
+      'Slower response time due to computational complexity.',
+      'May exceed resource quotas quickly, especially with large tasks.'
     ]
   },
   'fallback': {

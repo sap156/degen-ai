@@ -68,8 +68,13 @@ export const processTextWithAI = async (
   ];
 
   try {
-    const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
-    const response = await getCompletion(apiKey, messages, { model });
+    //const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
+    //const response = await getCompletion(apiKey, messages, { model });
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
+    });
     
     if (outputFormat === 'json') {
       try {

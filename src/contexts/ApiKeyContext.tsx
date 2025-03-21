@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-export type OpenAIModel = 'gpt-4o' | 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo';
+export type OpenAIModel = 'gpt-4o' | 'gpt-4' | 'gpt-4-turbo' | 'gpt-3.5-turbo';
 
 interface ApiKeyContextType {
   apiKey: string | null;
@@ -18,7 +18,7 @@ interface ApiKeyContextType {
 }
 
 const DEFAULT_MODEL: OpenAIModel = 'gpt-4o';
-const AVAILABLE_MODELS: OpenAIModel[] = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
+const AVAILABLE_MODELS: OpenAIModel[] = ['gpt-4o', 'gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'];
 
 export const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
 

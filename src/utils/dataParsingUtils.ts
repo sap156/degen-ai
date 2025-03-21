@@ -480,7 +480,10 @@ export const cleanDataWithAI = async (
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage }
       ],
-      { model: 'gpt-4o-mini' }
+      { model: localStorage.getItem('openai-model') || 'gpt-4o',
+        temperature : 0.3,
+        max_tokens : 30000,
+       }
     );
     
     try {
@@ -543,7 +546,10 @@ export const extractEntities = async (
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage }
       ],
-      { model: 'gpt-4o-mini' }
+      { model: localStorage.getItem('openai-model') || 'gpt-4o',
+        temperature : 0.3,
+        max_tokens : 30000,
+       }
     );
     
     try {
@@ -596,7 +602,10 @@ export const analyzeSentiment = async (
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage }
       ],
-      { model: 'gpt-4o-mini' }
+      { model: localStorage.getItem('openai-model') || 'gpt-4o',
+        temperature : 0.3,
+        max_tokens : 30000,
+       }
     );
     
     try {
@@ -660,7 +669,11 @@ export const generateTags = async (
         { role: 'system', content: systemMessage },
         { role: 'user', content: userMessage }
       ],
-      { model: 'gpt-4o-mini' }
+            
+      { model: localStorage.getItem('openai-model') || 'gpt-4o',
+        temperature : 0.3,
+        max_tokens : 30000,
+       }
     );
     
     try {

@@ -69,7 +69,12 @@ export const edgeCaseService = {
         }
       ];
       
-      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      const responseText = await getCompletion(apiKey, messages, {
+        temperature: 0.3,
+        max_tokens: 30000,
+        model: localStorage.getItem('openai-model') || 'gpt-4o'
+      });
       
       if (!responseText) {
         throw new Error("Invalid response from OpenAI");
@@ -140,7 +145,12 @@ export const edgeCaseService = {
         }
       ];
       
-      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      const responseText = await getCompletion(apiKey, messages, {
+        temperature: 0.3,
+        max_tokens: 30000,
+        model: localStorage.getItem('openai-model') || 'gpt-4o'
+      });
       
       if (!responseText) {
         throw new Error("Invalid response from OpenAI");
@@ -226,7 +236,12 @@ export const edgeCaseService = {
       ];
       
       console.log("Sending test model request to OpenAI...");
-      const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      const responseText = await getCompletion(apiKey, messages, {
+        temperature: 0.3,
+        max_tokens: 30000,
+        model: localStorage.getItem('openai-model') || 'gpt-4o'
+      });
       console.log("Received test model response:", responseText);
       
       if (!responseText) {
@@ -301,7 +316,12 @@ export const edgeCaseService = {
         }
       ];
       
-      return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      return await getCompletion(apiKey, messages, {
+        temperature: 0.3,
+        max_tokens: 30000,
+        model: localStorage.getItem('openai-model') || 'gpt-4o'
+      });
+
     } catch (error) {
       console.error("Error generating detailed report:", error);
       toast.error("Failed to generate detailed report. Please try again.");
@@ -340,7 +360,12 @@ export const edgeCaseService = {
         }
       ];
       
-      return await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
+      return await getCompletion(apiKey, messages, {
+        temperature: 0.3,
+        max_tokens: 30000,
+        model: localStorage.getItem('openai-model') || 'gpt-4o'
+      });
+      
     } catch (error) {
       console.error("Error generating recommendations implementation:", error);
       toast.error("Failed to generate implementation steps. Please try again.");

@@ -28,8 +28,8 @@ export const getCompletion = async (
       body: JSON.stringify({
         model: options.model ?? 'gpt-4o',
         messages,
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.max_tokens ?? 2000
+        temperature: options.temperature ?? 0.3,
+        max_tokens: options.max_tokens ?? 30000
       })
     });
 
@@ -101,7 +101,8 @@ export const analyzePiiWithAI = async (
 
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 1000
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
 
     // Clean and parse the response
@@ -162,7 +163,8 @@ Return ONLY a JSON array with the masked records. Do not include any explanation
 
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 2000
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
 
     // Clean and parse the response
@@ -222,9 +224,9 @@ export const analyzeImbalancedDataset = async (
     ];
     
     const response = await getCompletion(apiKey, messages, {
-      temperature: 0.4,
-      max_tokens: 2000,
-      model: 'gpt-4o'
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     const cleanedResponse = cleanJsonResponse(response);
@@ -286,8 +288,8 @@ export const generateSyntheticSamplesForImbalance = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: diversityFactors[diversity] + 0.2,
-      max_tokens: 2000,
-      model: 'gpt-4o'
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     const cleanedResponse = cleanJsonResponse(response);
@@ -336,9 +338,9 @@ export const getFeatureEngineeringSuggestions = async (
     ];
     
     const response = await getCompletion(apiKey, messages, {
-      temperature: 0.4,
-      max_tokens: 2000,
-      model: 'gpt-4o'
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     const cleanedResponse = cleanJsonResponse(response);
@@ -397,8 +399,8 @@ export const generateSyntheticDataWithAI = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: realismFactor + 0.2,
-      max_tokens: 2000,
-      model: 'gpt-4o'
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     const cleanedResponse = cleanJsonResponse(response);

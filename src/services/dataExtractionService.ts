@@ -78,8 +78,13 @@ export const extractDataFromUrl = async (
   ];
 
   try {
-    const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
-    const response = await getCompletion(apiKey, messages, { model });
+    const model = localStorage.getItem('openai-model') || 'gpt-4o';
+    //const response = await getCompletion(apiKey, messages, { model });
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
+    });
     
     try {
       // Try to parse as JSON
@@ -171,7 +176,12 @@ export const extractDataFromImage = async (
     // Use the model that supports image processing
     const model = 'gpt-4o'; // Using gpt-4o as it supports vision
     
-    const response = await getCompletion(apiKey, messages, { model });
+    //const response = await getCompletion(apiKey, messages, { model });
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
+    });
     
     try {
       // Try to parse as JSON
@@ -240,7 +250,12 @@ export const processExtractedData = async (
 
   try {
     const model = localStorage.getItem('openai-model') || 'gpt-3.5-turbo';
-    const response = await getCompletion(apiKey, messages, { model });
+    //const response = await getCompletion(apiKey, messages, { model });
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 30000,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
+    });
     
     try {
       // Try to parse as JSON
