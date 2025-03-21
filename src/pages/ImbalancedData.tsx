@@ -230,7 +230,7 @@ const ImbalancedData = () => {
        
       const recommendations = await getCompletion(apiKey, messages, {
          temperature: 0.3,
-         max_tokens: 16,385,
+         max_tokens: 16385,
          model: localStorage.getItem('openai-model') || 'gpt-4o'
 
        });
