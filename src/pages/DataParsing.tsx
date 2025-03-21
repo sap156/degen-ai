@@ -46,6 +46,21 @@ const DataParsing = () => {
   const [isConverting, setIsConverting] = useState(false);
   const { toast } = useToast();
 
+  if (!user) {
+    return (
+      <div className="container mx-auto py-6 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Data Parsing</h1>
+          <p className="text-muted-foreground mt-2">
+            Convert and transform data between different formats
+          </p>
+        </div>
+        
+        <AuthRequirement showUserGuide={<UserGuideDataParsing />} />
+      </div>
+    );
+  }
+
   const handleFileChange = async (file: File) => {
     setFile(file);
     setFileType(file.name.split('.').pop()?.toLowerCase() as 'csv' | 'json' | 'text');
@@ -78,7 +93,6 @@ const DataParsing = () => {
             data = parseJSON(content);
             break;
           case 'text':
-            // Implement text parsing logic here based on pattern
             data = [{ text: content }];
             break;
           default:
@@ -150,21 +164,6 @@ const DataParsing = () => {
       setIsConverting(false);
     }
   };
-
-  if (!user) {
-    return (
-      <div className="container mx-auto py-6 space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Data Parsing</h1>
-          <p className="text-muted-foreground mt-2">
-            Convert and transform data between different formats
-          </p>
-        </div>
-        
-        <AuthRequirement showUserGuide={<UserGuideDataParsing />} />
-      </div>
-    );
-  }
 
   return (
     <motion.div 
@@ -375,7 +374,6 @@ const DataParsing = () => {
         </Card>
       )}
       
-      {/* Add the user guide at the bottom */}
       <UserGuideDataParsing />
     </motion.div>
   );

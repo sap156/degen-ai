@@ -22,9 +22,12 @@ import ModelTester from '@/components/ModelTester';
 import EdgeCaseReport from '@/components/EdgeCaseReport';
 import { edgeCaseService } from '@/services/edgeCaseService';
 import UserGuideEdgeCases from '@/components/ui/UserGuideEdgeCases';
+import { useAuth } from '@/hooks/useAuth';
+import AuthRequirement from '@/components/AuthRequirement';
 
 const EdgeCases = () => {
   const { apiKey } = useApiKey();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('detect');
   const [dataset, setDataset] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +45,19 @@ const EdgeCases = () => {
   const [modelTestResults, setModelTestResults] = useState<any | null>(null);
   const [complexityLevel, setComplexityLevel] = useState<number>(50);
   const [analysisStarted, setAnalysisStarted] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="container px-4 py-6 mx-auto max-w-7xl">
+        <div className="flex items-center gap-2 mb-6">
+          <Bug className="w-6 h-6 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight">Edge Cases</h1>
+        </div>
+        
+        <AuthRequirement showUserGuide={<UserGuideEdgeCases />} />
+      </div>
+    );
+  }
 
   const handleFileUpload = async (file: File) => {
     try {

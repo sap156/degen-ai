@@ -1,52 +1,9 @@
 import React from 'react';
-import { useState } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import FileUploader from '@/components/FileUploader';
-import { useApiKey } from '@/contexts/ApiKeyContext';
-import { applyAugmentation } from '@/services/dataAugmentationService';
-import { formatData } from '@/utils/fileUploadUtils';
-import { 
-  ArrowRight, 
-  BarChart3, 
-  Download, 
-  Upload, 
-  PlusCircle, 
-  Trash2, 
-  AlertCircle,
-  Sparkles,
-  FileJson,
-  FileText
-} from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import AuthRequirement from '@/components/AuthRequirement';
 import UserGuideDataAugmentation from '@/components/ui/UserGuideDataAugmentation';
 
-const augmentationMethods = [
-  { id: 'noise', label: 'Add Noise', description: 'Add random noise to numeric fields' },
-  { id: 'scaling', label: 'Scaling', description: 'Scale numeric values by a factor' },
-  { id: 'outliers', label: 'Generate Outliers', description: 'Add outlier data points' },
-  { id: 'missing', label: 'Simulate Missing Data', description: 'Randomly remove values' },
-  { id: 'categorical', label: 'Categorical Oversampling', description: 'Oversample certain categories' },
-  { id: 'text', label: 'Text Augmentation', description: 'Modify text fields with synonyms, paraphrasing' },
-];
-
-const DataAugmentation = () => {
+const DataAugmentationContent = () => {
   const { apiKey } = useApiKey();
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<string | null>(null);
@@ -623,6 +580,21 @@ const DataAugmentation = () => {
       <UserGuideDataAugmentation />
     </div>
   );
+};
+
+const DataAugmentation = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <h1 className="text-3xl font-bold tracking-tight mb-6">Data Augmentation</h1>
+        <AuthRequirement showUserGuide={<UserGuideDataAugmentation />} />
+      </div>
+    );
+  }
+
+  return <DataAugmentationContent />;
 };
 
 export default DataAugmentation;
