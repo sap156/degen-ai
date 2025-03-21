@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileUploader } from '@/components/FileUploader';
+import FileUploader from '@/components/FileUploader';
 import { toast } from 'sonner';
 import { AlertTriangle, AlertCircle, Sparkles, GitBranch, GitFork, Bug, Beaker } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import UserGuideEdgeCases from '@/components/ui/UserGuideEdgeCases';
 import EdgeCaseDetector from '@/components/EdgeCaseDetector';
 import EdgeCaseGenerator from '@/components/EdgeCaseGenerator';
@@ -28,7 +28,6 @@ const edgeCaseTypes = [
 ];
 
 const EdgeCases = () => {
-  // State for file upload
   const [dataset, setDataset] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [targetColumn, setTargetColumn] = useState('');
@@ -36,25 +35,20 @@ const EdgeCases = () => {
   const [generationMethod, setGenerationMethod] = useState('ai');
   const [complexityLevel, setComplexityLevel] = useState(50);
   
-  // State for detection results
   const [detectionLoading, setDetectionLoading] = useState(false);
   const [detectedEdgeCases, setDetectedEdgeCases] = useState<any[]>([]);
   
-  // State for generation results
   const [generationLoading, setGenerationLoading] = useState(false);
   const [generatedEdgeCases, setGeneratedEdgeCases] = useState<any[]>([]);
   
-  // State for test results
   const [testResults, setTestResults] = useState<any>(null);
   const [testingLoading, setTestingLoading] = useState(false);
   
-  // State for report
   const [reportContent, setReportContent] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [implementationContent, setImplementationContent] = useState<string | null>(null);
   const [implementationLoading, setImplementationLoading] = useState(false);
   
-  // Handle file upload
   const handleFileUpload = (data: any[]) => {
     setDataset(data);
     if (data.length > 0) {
@@ -65,7 +59,6 @@ const EdgeCases = () => {
     }
   };
   
-  // Handle edge case detection
   const handleDetectEdgeCases = async () => {
     if (dataset.length === 0) {
       toast.error('Please upload a dataset first');
@@ -102,7 +95,6 @@ const EdgeCases = () => {
     }
   };
   
-  // Handle synthetic case generation
   const handleGenerateSyntheticCases = async () => {
     if (dataset.length === 0) {
       toast.error('Please upload a dataset first');
@@ -139,7 +131,6 @@ const EdgeCases = () => {
     }
   };
   
-  // Handle model testing
   const handleTestModel = async () => {
     if (detectedEdgeCases.length === 0 && generatedEdgeCases.length === 0) {
       toast.error('Please detect or generate edge cases first');
@@ -165,7 +156,6 @@ const EdgeCases = () => {
     }
   };
   
-  // Handle generating detailed report
   const handleGenerateReport = async () => {
     if (!testResults) {
       toast.error('Please run model testing first');
@@ -191,7 +181,6 @@ const EdgeCases = () => {
     }
   };
   
-  // Handle generating implementation recommendations
   const handleGenerateImplementation = async () => {
     if (!testResults || !testResults.recommendations) {
       toast.error('Please run model testing first');
@@ -496,7 +485,7 @@ const EdgeCases = () => {
                       
                       <ModelTester 
                         loading={testingLoading}
-                        results={testResults}
+                        data={testResults}
                       />
                     </div>
                   </div>
@@ -506,10 +495,10 @@ const EdgeCases = () => {
             
             <TabsContent value="report" className="space-y-6">
               <EdgeCaseReport 
-                reportContent={reportContent}
-                implementationContent={implementationContent}
-                reportLoading={reportLoading}
-                implementationLoading={implementationLoading}
+                data={reportContent}
+                implementationData={implementationContent}
+                isLoading={reportLoading}
+                isImplementationLoading={implementationLoading}
                 onGenerateReport={handleGenerateReport}
                 onGenerateImplementation={handleGenerateImplementation}
                 hasTestResults={!!testResults}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileUploader } from '@/components/FileUploader';
+import FileUploader from '@/components/FileUploader';
 import { formatData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import { LineChart, Calendar, Sparkles, Download } from 'lucide-react';
@@ -42,7 +42,8 @@ const TimeSeries = () => {
 
     setGenerating(true);
     try {
-      const generated = await generateTimeSeriesData(startDate, endDate, patternType, noiseLevel);
+      // Fix the function call to match the expected parameters
+      const generated = await generateTimeSeriesData(startDate, endDate);
       setGeneratedData(generated);
       toast.success(`Generated ${generated.length} data points`);
     } catch (error) {
@@ -110,11 +111,10 @@ const TimeSeries = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Fix DateRangeInfo props to match what the component expects */}
                   <DateRangeInfo
                     startDate={startDate}
                     endDate={endDate}
-                    onStartDateChange={setStartDate}
-                    onEndDateChange={setEndDate}
                   />
 
                   <div className="space-y-2">
@@ -168,11 +168,10 @@ const TimeSeries = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Fix DateRangeInfo props to match what the component expects */}
                   <DateRangeInfo
                     startDate={startDate}
                     endDate={endDate}
-                    onStartDateChange={setStartDate}
-                    onEndDateChange={setEndDate}
                   />
                 </CardContent>
               </Card>

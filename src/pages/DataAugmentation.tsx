@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileUploader } from '@/components/FileUploader';
+import FileUploader from '@/components/FileUploader';
 import { formatData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import { PlusCircle, FileInput, Download, Clock, Wand2 } from 'lucide-react';
@@ -55,14 +55,12 @@ const DataAugmentation = () => {
     outlierPercentage: 5
   });
 
-  // Handle file upload
   const handleFileUpload = (data: any[]) => {
+    setUploadedData(data);
     if (data.length > 0) {
-      setUploadedData(data);
       const cols = Object.keys(data[0]);
       setColumns(cols);
       
-      // Initialize field selections with numeric fields for noise and scaling
       const numericFields = cols.filter(col => 
         typeof data[0][col] === 'number' || !isNaN(Number(data[0][col]))
       );
@@ -84,7 +82,6 @@ const DataAugmentation = () => {
     }
   };
 
-  // Handle augmentation
   const handleAugment = async (method: string) => {
     if (uploadedData.length === 0) {
       toast.error("Please upload data first");
@@ -98,7 +95,6 @@ const DataAugmentation = () => {
       let result: any[] = [];
       
       if (method === 'timeseries') {
-        // For time series, use the specialized time series augmentation
         result = await applyAugmentation(
           apiKey,
           uploadedData,
@@ -108,7 +104,6 @@ const DataAugmentation = () => {
           timeSeriesSettings.interval
         );
       } else {
-        // For other methods, use the standard augmentation
         result = await applyAugmentation(
           apiKey,
           uploadedData,
@@ -127,7 +122,6 @@ const DataAugmentation = () => {
     }
   };
 
-  // Handle export
   const handleExport = () => {
     if (augmentedData.length === 0) {
       toast.error("No augmented data to export");
@@ -151,7 +145,6 @@ const DataAugmentation = () => {
     }, 500);
   };
 
-  // Handle settings change
   const handleSettingsChange = (category: string, field: string, value: any) => {
     setSettings(prev => ({
       ...prev,
@@ -162,7 +155,6 @@ const DataAugmentation = () => {
     }));
   };
 
-  // Handle field selection change
   const handleFieldSelectionChange = (category: string, selectedFields: string[]) => {
     setSettings(prev => ({
       ...prev,
@@ -173,7 +165,6 @@ const DataAugmentation = () => {
     }));
   };
 
-  // Handle time series settings change
   const handleTimeSeriesSettingChange = (field: string, value: any) => {
     setTimeSeriesSettings(prev => ({
       ...prev,
@@ -275,10 +266,8 @@ const DataAugmentation = () => {
               </div>
               
               <DataGenerationOptions 
-                uploadedData={uploadedData}
-                columns={columns}
                 onAugment={handleAugment}
-                loading={loading}
+                isLoading={loading}
               />
             </TabsContent>
             
@@ -425,21 +414,17 @@ const DataAugmentation = () => {
             
             <TabsContent value="timeseries" className="space-y-6">
               <TimeSeriesAugmentor 
-                settings={timeSeriesSettings}
-                onSettingChange={handleTimeSeriesSettingChange}
                 onAugment={() => handleAugment('timeseries')}
-                loading={loading}
-                uploadedData={uploadedData}
+                isLoading={loading}
               />
             </TabsContent>
             
             <TabsContent value="results" className="space-y-6">
               <SyntheticDataGenerator 
-                originalData={uploadedData}
-                augmentedData={augmentedData}
-                loading={loading}
+                data={augmentedData}
+                isLoading={loading}
                 onExport={handleExport}
-                exporting={exporting}
+                isExporting={exporting}
               />
             </TabsContent>
           </Tabs>

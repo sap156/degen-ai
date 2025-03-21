@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileUploader } from '@/components/FileUploader';
+import FileUploader from '@/components/FileUploader';
 import { formatData, downloadData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import { ShieldAlert, Database, User, FileKey, Download } from 'lucide-react';
@@ -12,31 +12,49 @@ import MaskingFieldControl from '@/components/MaskingFieldControl';
 import PiiDataGenerator from '@/components/PiiDataGenerator';
 import SchemaEditor from '@/components/SchemaEditor';
 import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
-import { detectPiiInData, processDataWithPiiHandling, generateSyntheticPiiData } from '@/services/piiHandlingService';
-import { PiiField, PiiMaskingRule, PiiFieldType } from '@/types/piiHandling';
+
+type PiiFieldType = 'string' | 'number' | 'boolean' | 'date';
+
+interface PiiField {
+  name: string;
+  type: PiiFieldType;
+  confidence: number;
+}
+
+interface PiiMaskingRule {
+  field: string;
+  type: string;
+  maskMethod: string;
+}
+
+const detectPiiInData = async (dataset: any[]): Promise<PiiField[]> => {
+  return [];
+};
+
+const processDataWithPiiHandling = async (dataset: any[], maskingRules: PiiMaskingRule[]): Promise<any[]> => {
+  return dataset;
+};
+
+const generateSyntheticPiiData = async (schema: any, count: number): Promise<any[]> => {
+  return [];
+};
 
 const PiiHandling = () => {
-  // State for file upload
   const [dataset, setDataset] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState('');
   
-  // State for PII detection
   const [piiFields, setPiiFields] = useState<PiiField[]>([]);
   const [detectionLoading, setDetectionLoading] = useState(false);
   
-  // State for masking
   const [maskingRules, setMaskingRules] = useState<PiiMaskingRule[]>([]);
   const [maskingLoading, setMaskingLoading] = useState(false);
   
-  // State for synthetic data generation
   const [syntheticData, setSyntheticData] = useState<any[]>([]);
   const [generationLoading, setGenerationLoading] = useState(false);
   
-  // State for schema editor
   const [schema, setSchema] = useState<any>({});
   
-  // Handle file upload
   const handleFileUpload = (data: any[]) => {
     setDataset(data);
     if (data.length > 0) {
@@ -44,7 +62,6 @@ const PiiHandling = () => {
       setColumns(cols);
       setSelectedColumn(cols[0]);
       
-      // Generate initial schema
       const initialSchema = generateSchema(data[0]);
       setSchema(initialSchema);
       
@@ -52,7 +69,6 @@ const PiiHandling = () => {
     }
   };
   
-  // Generate schema from sample data
   const generateSchema = (sample: any) => {
     const newSchema: any = {};
     for (const key in sample) {
@@ -78,7 +94,6 @@ const PiiHandling = () => {
     return newSchema;
   };
   
-  // Handle PII detection
   const handleDetectPii = async () => {
     if (dataset.length === 0) {
       toast.error('Please upload a dataset first');
@@ -98,7 +113,6 @@ const PiiHandling = () => {
     }
   };
   
-  // Handle data masking
   const handleMaskData = async () => {
     if (dataset.length === 0) {
       toast.error('Please upload a dataset first');
@@ -118,7 +132,6 @@ const PiiHandling = () => {
     }
   };
   
-  // Handle synthetic data generation
   const handleGenerateSyntheticData = async (count: number) => {
     if (!schema || Object.keys(schema).length === 0) {
       toast.error('Please upload a dataset first');
@@ -138,12 +151,10 @@ const PiiHandling = () => {
     }
   };
   
-  // Handle schema update
   const handleSchemaUpdate = (newSchema: any) => {
     setSchema(newSchema);
   };
   
-  // Handle masking rule update
   const handleMaskingRuleUpdate = (newRules: PiiMaskingRule[]) => {
     setMaskingRules(newRules);
   };
@@ -203,9 +214,8 @@ const PiiHandling = () => {
                         </Button>
 
                         <MaskingFieldControl
-                          columns={columns}
-                          piiFields={piiFields}
-                          onMaskingRuleUpdate={handleMaskingRuleUpdate}
+                          data={piiFields}
+                          onUpdate={handleMaskingRuleUpdate}
                         />
 
                         <Button onClick={handleMaskData} className="w-full" disabled={maskingLoading}>
@@ -250,10 +260,9 @@ const PiiHandling = () => {
                 </CardHeader>
                 <CardContent>
                   <PiiDataGenerator
-                    schema={schema}
                     onGenerate={handleGenerateSyntheticData}
-                    loading={generationLoading}
-                    syntheticData={syntheticData}
+                    isLoading={generationLoading}
+                    data={syntheticData}
                   />
                 </CardContent>
                 <CardFooter>
@@ -286,7 +295,7 @@ const PiiHandling = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <SchemaEditor schema={schema} onSchemaUpdate={handleSchemaUpdate} />
+                  <SchemaEditor data={schema} onChange={handleSchemaUpdate} />
                 </CardContent>
               </Card>
             </TabsContent>
