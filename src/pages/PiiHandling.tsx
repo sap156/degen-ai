@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import PiiDataGenerator from '@/components/PiiDataGenerator';
 import SchemaEditor from '@/components/SchemaEditor';
 import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
 
+// Define types if they were missing
 type PiiFieldType = 'string' | 'number' | 'boolean' | 'date';
 
 interface PiiField {
@@ -27,6 +29,7 @@ interface PiiMaskingRule {
   maskMethod: string;
 }
 
+// Mock implementation functions until the actual services are created
 const detectPiiInData = async (dataset: any[]): Promise<PiiField[]> => {
   return [];
 };
@@ -204,7 +207,7 @@ const PiiHandling = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <FileUploader onFileLoaded={handleFileUpload} accept=".csv,.json" />
+                      <FileUploader onFileUpload={handleFileUpload} accept=".csv,.json" />
                     </div>
 
                     {columns.length > 0 && (
@@ -214,8 +217,8 @@ const PiiHandling = () => {
                         </Button>
 
                         <MaskingFieldControl
-                          data={piiFields}
-                          onUpdate={handleMaskingRuleUpdate}
+                          fields={piiFields}
+                          onMaskingRuleUpdate={handleMaskingRuleUpdate}
                         />
 
                         <Button onClick={handleMaskData} className="w-full" disabled={maskingLoading}>
@@ -260,9 +263,9 @@ const PiiHandling = () => {
                 </CardHeader>
                 <CardContent>
                   <PiiDataGenerator
-                    onGenerate={handleGenerateSyntheticData}
+                    handleGenerate={handleGenerateSyntheticData}
                     isLoading={generationLoading}
-                    data={syntheticData}
+                    syntheticData={syntheticData}
                   />
                 </CardContent>
                 <CardFooter>
@@ -295,7 +298,7 @@ const PiiHandling = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <SchemaEditor data={schema} onChange={handleSchemaUpdate} />
+                  <SchemaEditor schema={schema} onSchemaUpdate={handleSchemaUpdate} />
                 </CardContent>
               </Card>
             </TabsContent>

@@ -43,7 +43,7 @@ const TimeSeries = () => {
     setGenerating(true);
     try {
       // Fix the function call to match the expected parameters
-      const generated = await generateTimeSeriesData(startDate, endDate);
+      const generated = await generateTimeSeriesData(startDate);
       setGeneratedData(generated);
       toast.success(`Generated ${generated.length} data points`);
     } catch (error) {
@@ -74,6 +74,15 @@ const TimeSeries = () => {
         toast.success('Time series data exported successfully');
       }, 800);
     }
+  };
+
+  // Calculate estimated number of data points
+  const calculateDataPoints = (): number => {
+    if (!startDate || !endDate) return 0;
+    
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
   return (
@@ -113,8 +122,10 @@ const TimeSeries = () => {
                 <CardContent className="space-y-4">
                   {/* Fix DateRangeInfo props to match what the component expects */}
                   <DateRangeInfo
-                    startDate={startDate}
-                    endDate={endDate}
+                    startDate={startDate || new Date()}
+                    endDate={endDate || new Date()}
+                    interval="daily"
+                    dataPoints={calculateDataPoints()}
                   />
 
                   <div className="space-y-2">
@@ -170,8 +181,10 @@ const TimeSeries = () => {
                 <CardContent className="space-y-4">
                   {/* Fix DateRangeInfo props to match what the component expects */}
                   <DateRangeInfo
-                    startDate={startDate}
-                    endDate={endDate}
+                    startDate={startDate || new Date()}
+                    endDate={endDate || new Date()}
+                    interval="daily"
+                    dataPoints={calculateDataPoints()}
                   />
                 </CardContent>
               </Card>

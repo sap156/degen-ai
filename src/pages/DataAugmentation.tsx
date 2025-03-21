@@ -218,7 +218,7 @@ const DataAugmentation = () => {
                   </CardHeader>
                   <CardContent>
                     <FileUploader 
-                      onFileLoaded={handleFileUpload} 
+                      onFileUpload={handleFileUpload} 
                       accept=".csv,.json"
                     />
                     
@@ -266,8 +266,8 @@ const DataAugmentation = () => {
               </div>
               
               <DataGenerationOptions 
-                onAugment={handleAugment}
                 isLoading={loading}
+                handleAugment={(method: string) => handleAugment(method)}
               />
             </TabsContent>
             
@@ -414,16 +414,18 @@ const DataAugmentation = () => {
             
             <TabsContent value="timeseries" className="space-y-6">
               <TimeSeriesAugmentor 
-                onAugment={() => handleAugment('timeseries')}
                 isLoading={loading}
+                handleAugment={() => handleAugment('timeseries')}
+                timeSeriesSettings={timeSeriesSettings}
+                handleSettingChange={handleTimeSeriesSettingChange}
               />
             </TabsContent>
             
             <TabsContent value="results" className="space-y-6">
               <SyntheticDataGenerator 
-                data={augmentedData}
+                generatedData={augmentedData}
                 isLoading={loading}
-                onExport={handleExport}
+                handleExport={handleExport}
                 isExporting={exporting}
               />
             </TabsContent>

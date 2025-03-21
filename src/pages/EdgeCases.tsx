@@ -250,7 +250,7 @@ const EdgeCases = () => {
                   <CardContent className="space-y-4">
                     <div>
                       <Label htmlFor="file-upload">Upload Dataset</Label>
-                      <FileUploader onFileLoaded={handleFileUpload} accept=".csv,.json" />
+                      <FileUploader onFileUpload={handleFileUpload} accept=".csv,.json" />
                     </div>
                     
                     {columns.length > 0 && (
@@ -323,8 +323,8 @@ const EdgeCases = () => {
                 
                 <div className="md:col-span-2">
                   <EdgeCaseDetector 
-                    loading={detectionLoading}
-                    detectedEdgeCases={detectedEdgeCases}
+                    isLoading={detectionLoading}
+                    edgeCases={detectedEdgeCases}
                     targetColumn={targetColumn}
                   />
                 </div>
@@ -344,12 +344,10 @@ const EdgeCases = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {columns.length === 0 && (
-                      <div>
-                        <Label htmlFor="file-upload">Upload Dataset</Label>
-                        <FileUploader onFileLoaded={handleFileUpload} accept=".csv,.json" />
-                      </div>
-                    )}
+                    <div>
+                      <Label htmlFor="generation-file-upload">Upload Dataset</Label>
+                      <FileUploader onFileUpload={handleFileUpload} accept=".csv,.json" />
+                    </div>
                     
                     {columns.length > 0 && (
                       <div className="space-y-4">
@@ -445,13 +443,13 @@ const EdgeCases = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <Beaker className="mr-2 h-5 w-5 text-blue-500" />
-                    Model Testing
+                    Test Model on Edge Cases
                   </CardTitle>
                   <CardDescription>
-                    Test how a model would perform on the detected and generated edge cases
+                    Evaluate model performance on detected and generated edge cases
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -485,20 +483,33 @@ const EdgeCases = () => {
                       
                       <ModelTester 
                         loading={testingLoading}
-                        data={testResults}
+                        testResults={testResults}
+                        targetColumn={targetColumn}
                       />
                     </div>
                   </div>
                 </CardContent>
+                <CardFooter>
+                  <div className="grid grid-cols-2 gap-2 w-full">
+                    <Badge variant="outline" className="justify-center">
+                      <AlertTriangle className="mr-1 h-3 w-3" />
+                      {detectedEdgeCases.length} Detected Cases
+                    </Badge>
+                    <Badge variant="outline" className="justify-center">
+                      <GitFork className="mr-1 h-3 w-3" />
+                      {generatedEdgeCases.length} Generated Cases
+                    </Badge>
+                  </div>
+                </CardFooter>
               </Card>
             </TabsContent>
             
             <TabsContent value="report" className="space-y-6">
               <EdgeCaseReport 
-                data={reportContent}
-                implementationData={implementationContent}
-                isLoading={reportLoading}
-                isImplementationLoading={implementationLoading}
+                reportContent={reportContent}
+                implementationContent={implementationContent}
+                reportLoading={reportLoading}
+                implementationLoading={implementationLoading}
                 onGenerateReport={handleGenerateReport}
                 onGenerateImplementation={handleGenerateImplementation}
                 hasTestResults={!!testResults}

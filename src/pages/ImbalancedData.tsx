@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +47,7 @@ const ImbalancedData = () => {
     
     setAnalysisLoading(true);
     try {
+      // For now, mock the results
       const results = { 
         classDistribution: {},
         imbalanceMetrics: {},
@@ -118,7 +120,7 @@ const ImbalancedData = () => {
                   <CardContent className="space-y-4">
                     <div>
                       <Label htmlFor="file-upload">Upload Dataset</Label>
-                      <FileUploader onFileLoaded={handleFileUpload} accept=".csv,.json" />
+                      <FileUploader onFileUpload={handleFileUpload} accept=".csv,.json" />
                     </div>
                     
                     {columns.length > 0 && (
@@ -151,7 +153,7 @@ const ImbalancedData = () => {
                 
                 <AIDatasetAnalysis 
                   isLoading={analysisLoading}
-                  data={analysisResults}
+                  datasetAnalysis={analysisResults}
                 />
               </div>
             </TabsContent>
@@ -177,13 +179,12 @@ const ImbalancedData = () => {
                       </div>
                     ) : (
                       <DataBalancingControls 
-                        analysisResults={analysisResults}
-                        balancingMethod={balancingMethod}
-                        imbalanceRatio={imbalanceRatio}
-                        onBalancingMethodChange={setBalancingMethod}
-                        onImbalanceRatioChange={setImbalanceRatio}
+                        originalDataset={analysisResults}
+                        parsedData={dataset}
                         onBalanceDataset={handleBalanceDataset}
-                        balancingLoading={balancingLoading}
+                        onDownloadBalanced={(format) => {/* implement download logic */}}
+                        hasBalancedData={!!balancingResults}
+                        aiRecommendationsAvailable={true}
                       />
                     )}
                   </CardContent>
