@@ -1,436 +1,702 @@
-
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import React from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatData, downloadData } from '@/utils/fileUploadUtils';
-import { toast } from 'sonner';
-import { ShieldAlert, Database, User, FileKey, Download } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  Clipboard, 
+  Download, 
+  RefreshCw, 
+  Sparkles,
+  Play,
+  Info
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useApiKey } from '@/contexts/ApiKeyContext';
+import FileUploader from '@/components/FileUploader';
+import { parseCSV, parseJSON, readFileContent } from '@/utils/fileUploadUtils';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import ProcessingTypesGuide from '@/components/ProcessingTypesGuide';
 import MaskingFieldControl from '@/components/MaskingFieldControl';
-import PiiDataGenerator from '@/components/PiiDataGenerator';
-import SchemaEditor from '@/components/SchemaEditor';
+import { PerFieldMaskingOptions } from '@/types/piiHandling';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
+
+import { 
+  PiiData, 
+  PiiDataMasked, 
+  generateSamplePiiData, 
+  maskPiiData, 
+  exportAsJson, 
+  exportAsCsv, 
+  downloadData,
+  analyzePiiData
+} from '@/services/piiHandlingService';
+
 import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
-import FileUploaderWrapper from '@/components/FileUploaderWrapper';
-
-// Define types if they were missing
-type PiiFieldType = 'string' | 'number' | 'boolean' | 'date';
-
-interface PiiField {
-  name: string;
-  type: PiiFieldType;
-  confidence: number;
-}
-
-interface PiiMaskingRule {
-  field: string;
-  type: string;
-  maskMethod: string;
-}
-
-// Mock implementation functions until the actual services are created
-const detectPiiInData = async (dataset: any[]): Promise<PiiField[]> => {
-  // Simulating detection of PII fields
-  if (dataset.length === 0) return [];
-  
-  const sampleRow = dataset[0];
-  const potentialPiiFields: PiiField[] = [];
-  
-  for (const key in sampleRow) {
-    const value = sampleRow[key];
-    let type: PiiFieldType = 'string';
-    let confidence = 0.5;
-    
-    if (typeof value === 'number') {
-      type = 'number';
-    } else if (typeof value === 'boolean') {
-      type = 'boolean';
-    } else if (value instanceof Date) {
-      type = 'date';
-    }
-    
-    // Heuristics to identify potential PII
-    if (
-      key.toLowerCase().includes('name') || 
-      key.toLowerCase().includes('email') || 
-      key.toLowerCase().includes('phone') ||
-      key.toLowerCase().includes('address') ||
-      key.toLowerCase().includes('ssn') ||
-      key.toLowerCase().includes('id')
-    ) {
-      confidence = 0.8;
-      potentialPiiFields.push({ name: key, type, confidence });
-    }
-  }
-  
-  return potentialPiiFields;
-};
-
-const processDataWithPiiHandling = async (dataset: any[], maskingRules: PiiMaskingRule[]): Promise<any[]> => {
-  // Mock implementation
-  return dataset;
-};
-
-const generateSyntheticPiiData = async (schema: any, count: number): Promise<any[]> => {
-  // Mock implementation
-  return Array(count).fill({}).map(() => {
-    const record: Record<string, any> = {};
-    for (const key in schema) {
-      const fieldSchema = schema[key];
-      if (fieldSchema.type === 'string') {
-        record[key] = 'Sample text';
-      } else if (fieldSchema.type === 'number') {
-        record[key] = Math.floor(Math.random() * 100);
-      } else if (fieldSchema.type === 'boolean') {
-        record[key] = Math.random() > 0.5;
-      } else if (fieldSchema.type === 'date') {
-        record[key] = new Date().toISOString();
-      }
-    }
-    return record;
-  });
-};
 
 const PiiHandling = () => {
-  const [dataset, setDataset] = useState<any[]>([]);
-  const [columns, setColumns] = useState<string[]>([]);
-  const [selectedColumn, setSelectedColumn] = useState('');
+  const { toast } = useToast();
+  const { apiKey } = useApiKey();
+  const [originalData, setOriginalData] = useState<PiiData[]>([]);
+  const [maskedData, setMaskedData] = useState<PiiDataMasked[]>([]);
+  const [dataCount, setDataCount] = useState<number>(10);
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isMaskingData, setIsMaskingData] = useState(false);
+  const [isAnalyzingData, setIsAnalyzingData] = useState(false);
+  const [piiAnalysisResult, setPiiAnalysisResult] = useState<{identifiedPii: string[], suggestions: string} | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('manual');
+  const [dataReady, setDataReady] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState<string>("");
   
-  const [piiFields, setPiiFields] = useState<PiiField[]>([]);
-  const [detectionLoading, setDetectionLoading] = useState(false);
+  const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({});
   
-  const [maskingRules, setMaskingRules] = useState<PiiMaskingRule[]>([]);
-  const [maskingLoading, setMaskingLoading] = useState(false);
-  
-  const [syntheticData, setSyntheticData] = useState<any[]>([]);
-  const [generationLoading, setGenerationLoading] = useState(false);
-  
-  const [schema, setSchema] = useState<any>({});
-  
-  const handleFileUpload = (data: any[]) => {
-    setDataset(data);
+  const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
+    preserveFormat: true
+  });
+
+  const examplePrompts = [
+    "Mask emails by keeping the domain but replacing the username with asterisks. Replace all digits in credit cards with X except the last 4. For names, keep first initial only.",
+    "Use encryption for SSN (format xxx-xx-xxxx), truncate addresses to only show city, replace all credit card digits with '*' but keep the dashes.",
+    "Replace all names with random synthetic names. Tokenize email addresses. Mask phone numbers as (XXX) XXX-1234 format, keeping last 4 digits only."
+  ];
+
+  useEffect(() => {
+    generateData();
+  }, []);
+
+  const generateData = () => {
+    const data = generateSamplePiiData(dataCount);
+    setOriginalData(data);
+    
+    const newMaskingOptions: PerFieldMaskingOptions = {};
     if (data.length > 0) {
-      const cols = Object.keys(data[0]);
-      setColumns(cols);
-      setSelectedColumn(cols[0]);
-      
-      const initialSchema = generateSchema(data[0]);
-      setSchema(initialSchema);
-      
-      toast.success(`Uploaded dataset with ${data.length} rows and ${cols.length} columns`);
+      Object.keys(data[0])
+        .filter(key => key !== 'id')
+        .forEach(field => {
+          newMaskingOptions[field] = { enabled: true };
+        });
+    }
+    
+    setPerFieldMaskingOptions(newMaskingOptions);
+    setDataReady(true);
+  };
+
+  const applyMasking = async () => {
+    if (!originalData.length) {
+      toast({
+        title: "No data available",
+        description: "Please generate or upload data first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!apiKey) {
+      toast({
+        title: "API key required",
+        description: "Please set up your OpenAI API key to use AI-powered masking",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setIsMaskingData(true);
+      const masked = await maskPiiData(
+        originalData, 
+        perFieldMaskingOptions,
+        {
+          aiPrompt,
+          preserveFormat: globalMaskingPreferences.preserveFormat
+        },
+        apiKey
+      );
+      setMaskedData(masked);
+      toast({
+        title: "Masking complete",
+        description: `All ${masked.length} records have been masked successfully`,
+      });
+    } catch (error) {
+      console.error("Error applying masking:", error);
+      toast({
+        title: "Masking failed",
+        description: "Failed to apply masking to data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsMaskingData(false);
     }
   };
-  
-  const generateSchema = (sample: any) => {
-    const newSchema: any = {};
-    for (const key in sample) {
-      if (sample.hasOwnProperty(key)) {
-        const value = sample[key];
-        let type: PiiFieldType = 'string';
-        
-        if (typeof value === 'number') {
-          type = 'number';
-        } else if (typeof value === 'boolean') {
-          type = 'boolean';
-        } else if (value instanceof Date) {
-          type = 'date';
+
+  const toggleFieldMasking = (field: string) => {
+    setPerFieldMaskingOptions(prev => {
+      const config = prev[field] || { enabled: false };
+      return {
+        ...prev,
+        [field]: {
+          ...config,
+          enabled: !config.enabled
         }
-        
-        newSchema[key] = {
-          type: type,
-          pii: false,
-          masking: 'none'
-        };
+      };
+    });
+  };
+
+  const handleExport = (dataToExport: PiiData[] | PiiDataMasked[]) => {
+    const filename = `pii-data-${exportFormat === 'json' ? 'json' : 'csv'}`;
+    const exportedData = exportFormat === 'json' 
+      ? exportAsJson(dataToExport) 
+      : exportAsCsv(dataToExport);
+    
+    downloadData(exportedData, filename, exportFormat);
+    
+    toast({
+      title: "Data exported",
+      description: `${dataToExport.length} records exported as ${exportFormat.toUpperCase()}`,
+    });
+  };
+
+  const copyToClipboard = (dataToExport: PiiData[] | PiiDataMasked[]) => {
+    const exportedData = exportFormat === 'json' 
+      ? exportAsJson(dataToExport) 
+      : exportAsCsv(dataToExport);
+    
+    navigator.clipboard.writeText(exportedData)
+      .then(() => {
+        toast({
+          title: "Copied to clipboard",
+          description: `${dataToExport.length} records copied to clipboard`,
+        });
+      })
+      .catch(err => {
+        toast({
+          title: "Copy failed",
+          description: "Failed to copy data to clipboard",
+          variant: "destructive"
+        });
+        console.error("Failed to copy data:", err);
+      });
+  };
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setUploadedFile(file);
+      setIsProcessingFile(true);
+      
+      const content = await readFileContent(file);
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      
+      let parsedData;
+      
+      if (fileExt === 'csv') {
+        parsedData = parseCSV(content);
+      } else if (fileExt === 'json') {
+        parsedData = parseJSON(content);
+      } else {
+        throw new Error('Unsupported file format. Please upload CSV or JSON.');
       }
+      
+      setMaskedData([]);
+      
+      const processedData = detectDataFields(parsedData);
+      setOriginalData(processedData);
+      
+      if (processedData && processedData.length > 0) {
+        const newPerFieldOptions: PerFieldMaskingOptions = {};
+        
+        const fields = Object.keys(processedData[0]).filter(k => k !== 'id');
+        
+        fields.forEach(field => {
+          newPerFieldOptions[field] = {
+            enabled: true
+          };
+        });
+        
+        setPerFieldMaskingOptions(newPerFieldOptions);
+      }
+      
+      setActiveTab('manual');
+      setDataReady(true);
+      
+      if (apiKey) {
+        analyzeDataWithAi(processedData);
+      }
+      
+      toast({
+        title: "File processed",
+        description: `${processedData.length} records detected. Configure masking options and click Generate PII Masking`,
+      });
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast({
+        title: "Error processing file",
+        description: (error as Error).message || 'Failed to process file',
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessingFile(false);
     }
-    return newSchema;
   };
-  
-  const handleDetectPii = async () => {
-    if (dataset.length === 0) {
-      toast.error('Please upload a dataset first');
+
+  const analyzeDataWithAi = async (data: PiiData[]) => {
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Set your OpenAI API key to use AI-powered analysis",
+        variant: "destructive"
+      });
       return;
     }
-    
-    setDetectionLoading(true);
+
     try {
-      const results = await detectPiiInData(dataset);
-      setPiiFields(results);
-      toast.success(`Detected ${results.length} potential PII fields`);
+      setIsAnalyzingData(true);
+      const result = await analyzePiiData(data, apiKey);
+      setPiiAnalysisResult(result);
+      
+      toast({
+        title: "PII Analysis Complete",
+        description: `Identified ${result.identifiedPii.length} types of PII data`,
+      });
     } catch (error) {
-      console.error('Error detecting PII:', error);
-      toast.error('Failed to detect PII');
+      console.error("Error analyzing data with AI:", error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze PII data with AI",
+        variant: "destructive"
+      });
     } finally {
-      setDetectionLoading(false);
+      setIsAnalyzingData(false);
     }
   };
-  
-  const handleMaskData = async () => {
-    if (dataset.length === 0) {
-      toast.error('Please upload a dataset first');
-      return;
-    }
-    
-    setMaskingLoading(true);
-    try {
-      const maskedData = await processDataWithPiiHandling(dataset, maskingRules);
-      setDataset(maskedData);
-      toast.success('Data masking completed');
-    } catch (error) {
-      console.error('Error masking data:', error);
-      toast.error('Failed to mask data');
-    } finally {
-      setMaskingLoading(false);
-    }
-  };
-  
-  const handleGenerateSyntheticData = async (count: number) => {
-    if (!schema || Object.keys(schema).length === 0) {
-      toast.error('Please upload a dataset first');
-      return;
+
+  const detectDataFields = (data: any[]): PiiData[] => {
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('Invalid data format. Expected an array of records.');
     }
     
-    setGenerationLoading(true);
-    try {
-      const generatedData = await generateSyntheticPiiData(schema, count);
-      setSyntheticData(generatedData);
-      toast.success(`Generated ${count} synthetic data records`);
-    } catch (error) {
-      console.error('Error generating synthetic data:', error);
-      toast.error('Failed to generate synthetic data');
-    } finally {
-      setGenerationLoading(false);
-    }
+    return data.map((item, index) => {
+      const record: Record<string, string> = {
+        id: item.id || String(index + 1)
+      };
+      
+      Object.entries(item).forEach(([key, value]) => {
+        if (key !== 'id') {
+          record[key] = String(value || '');
+        }
+      });
+      
+      return record as unknown as PiiData;
+    });
   };
-  
-  const handleSchemaUpdate = (newSchema: any) => {
-    setSchema(newSchema);
-  };
-  
-  const handleMaskingRuleUpdate = (newRules: PiiMaskingRule[]) => {
-    setMaskingRules(newRules);
+
+  const handlePreserveFormatToggle = (value: boolean) => {
+    setGlobalMaskingPreferences(prev => ({
+      ...prev,
+      preserveFormat: value
+    }));
   };
 
   return (
-    <div className="container py-8 max-w-7xl">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
-          <p className="text-muted-foreground">
-            Identify, mask, or synthesize personally identifiable information (PII) in your datasets.
-          </p>
-        </div>
+    <div className="container mx-auto py-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
+        <p className="text-muted-foreground mt-2">
+          Securely handle Personally Identifiable Information (PII) with AI-powered masking and anonymization techniques.
+        </p>
+      </div>
 
-        <ApiKeyRequirement showUserGuide={<UserGuidePiiHandling />}>
-          <Tabs defaultValue="mask" className="w-full">
-            <TabsList className="grid grid-cols-4 mb-6">
-              <TabsTrigger value="mask" className="flex items-center gap-1">
-                <ShieldAlert className="h-4 w-4" />
-                <span>Mask</span>
-              </TabsTrigger>
-              <TabsTrigger value="generate" className="flex items-center gap-1">
-                <Database className="h-4 w-4" />
-                <span>Generate</span>
-              </TabsTrigger>
-              <TabsTrigger value="schema" className="flex items-center gap-1">
-                <FileKey className="h-4 w-4" />
-                <span>Schema</span>
-              </TabsTrigger>
-              <TabsTrigger value="guide" className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                <span>Guide</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="mask" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-1">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <ShieldAlert className="mr-2 h-5 w-5 text-blue-500" />
-                      Masking Configuration
-                    </CardTitle>
-                    <CardDescription>
-                      Configure PII masking settings
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <FileUploaderWrapper onFileUpload={handleFileUpload} accept=".csv,.json" />
-                    </div>
-
-                    {columns.length > 0 && (
-                      <div className="space-y-4">
-                        <Button onClick={handleDetectPii} className="w-full" disabled={detectionLoading}>
-                          {detectionLoading ? 'Detecting...' : 'Detect PII'}
-                        </Button>
-
-                        {/* Assuming MaskingFieldControl expects a single field prop and toggle function */}
-                        {piiFields.map(field => (
-                          <MaskingFieldControl
-                            key={field.name}
-                            field={field.name}
-                            enabled={maskingRules.some(rule => rule.field === field.name)}
-                            onToggle={() => {
-                              const exists = maskingRules.some(rule => rule.field === field.name);
-                              if (exists) {
-                                handleMaskingRuleUpdate(maskingRules.filter(rule => rule.field !== field.name));
-                              } else {
-                                handleMaskingRuleUpdate([...maskingRules, { field: field.name, type: "mask", maskMethod: "default" }]);
-                              }
-                            }}
-                          />
-                        ))}
-
-                        <Button onClick={handleMaskData} className="w-full" disabled={maskingLoading}>
-                          {maskingLoading ? 'Masking...' : 'Mask Data'}
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                  <CardFooter>
-                    {dataset.length > 0 && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const formattedData = formatData(dataset, 'json');
-                          downloadData(formattedData, 'masked_data', 'json');
-                          toast.success('Masked data exported successfully');
-                        }}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Export Masked Data
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Controls</CardTitle>
+              <CardDescription>Configure masking options and export settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Tabs defaultValue="manual" value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="manual">Generate</TabsTrigger>
+                  <TabsTrigger value="upload">Upload</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="manual" className="space-y-4">
+                  <div>
+                    <Label htmlFor="record-count">Number of Records</Label>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input
+                        id="record-count"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={dataCount}
+                        onChange={(e) => setDataCount(parseInt(e.target.value) || 10)}
+                      />
+                      <Button onClick={generateData} size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Generate
                       </Button>
-                    )}
-                  </CardFooter>
-                </Card>
-
-                <div className="md:col-span-2">
-                  <ProcessingTypesGuide />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="generate" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Database className="mr-2 h-5 w-5 text-blue-500" />
-                    Synthetic Data Generation
-                  </CardTitle>
-                  <CardDescription>
-                    Generate synthetic PII data based on a schema
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* For PiiDataGenerator, we're using a stub implementation since we don't have access to the actual component */}
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Generate Synthetic Data</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">Number of Records</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="1000"
-                            defaultValue="10"
-                            className="w-full mt-1 p-2 border rounded-md"
-                            onChange={(e) => {}}
-                          />
-                        </div>
-                        <div>
-                          <Button
-                            onClick={() => handleGenerateSyntheticData(10)}
-                            disabled={generationLoading}
-                            className="w-full mt-7"
-                          >
-                            {generationLoading ? 'Generating...' : 'Generate Data'}
-                          </Button>
-                        </div>
-                      </div>
                     </div>
-                    
-                    {syntheticData.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-medium mb-2">Generated Data Preview</h3>
-                        <div className="border rounded-md p-4 max-h-80 overflow-y-auto">
-                          <pre className="text-xs">{JSON.stringify(syntheticData.slice(0, 3), null, 2)}</pre>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                </CardContent>
-                <CardFooter>
-                  {syntheticData.length > 0 && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        const formattedData = formatData(syntheticData, 'json');
-                        downloadData(formattedData, 'synthetic_data', 'json');
-                        toast.success('Synthetic data exported successfully');
-                      }}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Export Synthetic Data
-                    </Button>
+                </TabsContent>
+                
+                <TabsContent value="upload" className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Upload JSON or CSV file</Label>
+                    <FileUploader
+                      onFileUpload={handleFileUpload}
+                      accept=".json,.csv"
+                      maxSize={5}
+                      title="Upload Schema"
+                      description="Upload a JSON or CSV file with sample data"
+                    />
+                  </div>
+                  
+                  {isProcessingFile && (
+                    <div className="flex items-center justify-center space-x-2 py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      <span className="text-sm">Processing file...</span>
+                    </div>
                   )}
-                </CardFooter>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="schema" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <FileKey className="mr-2 h-5 w-5 text-blue-500" />
-                    Schema Editor
-                  </CardTitle>
-                  <CardDescription>
-                    Edit the schema for PII data handling
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Simplified schema editor since we don't have access to the actual component */}
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-lg font-medium mb-2">Schema Definition</h3>
+                  
+                  {uploadedFile && !isProcessingFile && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <p className="font-medium">File: {uploadedFile.name}</p>
+                      <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                      <p>Records: {originalData.length}</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle>Schema Management</CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => analyzeDataWithAi(originalData)}
+                  disabled={!apiKey || isAnalyzingData || originalData.length === 0}
+                >
+                  {isAnalyzingData ? (
+                    <>
+                      <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Analyze PII
+                    </>
+                  )}
+                </Button>
+              </div>
+              <CardDescription>
+                Select fields to mask and provide instructions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {piiAnalysisResult && (
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md text-sm space-y-2 mb-2">
+                  <p className="font-medium text-blue-700 dark:text-blue-300">PII Analysis Results:</p>
+                  <p className="text-sm">Identified: {piiAnalysisResult.identifiedPii.join(', ')}</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    {piiAnalysisResult.suggestions.substring(0, 120)}
+                    {piiAnalysisResult.suggestions.length > 120 ? '...' : ''}
+                  </p>
+                </div>
+              )}
+              
+              <div className="border rounded-md p-3 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">
+                      AI Masking Instructions
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5">
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[300px]" align="end">
+                          <p className="text-xs">
+                            Provide specific instructions for how you want each field masked.
+                            For example: "Mask emails by keeping the domain but replace username with asterisks.
+                            Replace all digits in credit cards except the last 4."
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Textarea 
+                    id="ai-masking-prompt"
+                    placeholder="Describe exactly how you want each field masked. Be specific about techniques and formats."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="min-h-[120px]"
+                  />
+                  
+                  <div className="pt-2">
+                    <Label className="text-xs text-muted-foreground mb-2 block">Example instructions:</Label>
                     <div className="space-y-2">
-                      {Object.keys(schema).map(key => (
-                        <div key={key} className="p-2 border rounded flex justify-between items-center">
-                          <div>
-                            <span className="font-medium">{key}</span>
-                            <span className="text-sm text-muted-foreground ml-2">({schema[key].type})</span>
-                          </div>
-                          <div>
-                            <input
-                              type="checkbox"
-                              checked={schema[key].pii}
-                              onChange={() => {
-                                const newSchema = {...schema};
-                                newSchema[key].pii = !newSchema[key].pii;
-                                handleSchemaUpdate(newSchema);
-                              }}
-                              id={`pii-${key}`}
-                            />
-                            <label htmlFor={`pii-${key}`} className="ml-1 text-sm">PII Field</label>
-                          </div>
+                      {examplePrompts.map((prompt, index) => (
+                        <div 
+                          key={index}
+                          className="text-xs p-2 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors"
+                          onClick={() => setAiPrompt(prompt)}
+                        >
+                          {prompt.substring(0, 100)}...
                         </div>
                       ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </div>
+                
+                <div className="flex items-center justify-between mt-3">
+                  <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
+                  <div className="flex h-8 items-center space-x-2">
+                    <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(false)}>
+                      No
+                    </div>
+                    <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(true)}>
+                      Yes
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {dataReady && (
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={applyMasking}
+                  disabled={isMaskingData || originalData.length === 0 || !apiKey}
+                >
+                  {isMaskingData ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Generate PII Masking
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Export Options</CardTitle>
+              <CardDescription>
+                Export or copy your masked data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between">
+                <Label className="text-sm">Format</Label>
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${exportFormat === 'json' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                    onClick={() => setExportFormat('json')}
+                  >
+                    JSON
+                  </div>
+                  <div
+                    className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${exportFormat === 'csv' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                    onClick={() => setExportFormat('csv')}
+                  >
+                    CSV
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col space-y-2">
+                <Button 
+                  onClick={() => handleExport(maskedData)} 
+                  className="w-full"
+                  disabled={maskedData.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Masked Data
+                </Button>
+                <Button 
+                  onClick={() => copyToClipboard(maskedData)} 
+                  variant="outline" 
+                  className="w-full"
+                  disabled={maskedData.length === 0}
+                >
+                  <Clipboard className="h-4 w-4 mr-2" />
+                  Copy to Clipboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            <TabsContent value="guide" className="space-y-6">
-              <UserGuidePiiHandling />
-            </TabsContent>
-          </Tabs>
-        </ApiKeyRequirement>
+        <div className="lg:col-span-3 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Fields to Mask</CardTitle>
+                {isMaskingData && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                    Applying AI masking...
+                  </div>
+                )}
+              </div>
+              <CardDescription>
+                Select which fields should be masked by the AI
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
+                  <MaskingFieldControl 
+                    key={field}
+                    field={field}
+                    enabled={config.enabled}
+                    onToggle={() => toggleFieldMasking(field)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>PII Data Viewer</CardTitle>
+              <CardDescription>
+                View original and masked PII data side by side (showing first 5 records)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="original">
+                <TabsList>
+                  <TabsTrigger value="original">Original Data</TabsTrigger>
+                  <TabsTrigger value="masked">Masked Data</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="original">
+                  <div className="border rounded-md overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          {originalData.length > 0 && 
+                            Object.keys(originalData[0])
+                              .filter(k => k !== 'id')
+                              .map(field => (
+                                <TableHead key={field}>{field}</TableHead>
+                              ))
+                          }
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {originalData.slice(0, 5).map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.id}</TableCell>
+                            {Object.entries(item)
+                              .filter(([key]) => key !== 'id')
+                              .map(([key, value]) => (
+                                <TableCell key={key} className="max-w-[200px] truncate">
+                                  {value}
+                                </TableCell>
+                              ))
+                            }
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {originalData.length > 5 && (
+                      <div className="p-2 text-center text-sm text-muted-foreground">
+                        Showing 5 of {originalData.length} records
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="masked">
+                  {maskedData.length > 0 ? (
+                    <div className="border rounded-md overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ID</TableHead>
+                            {maskedData.length > 0 && 
+                              Object.keys(maskedData[0])
+                                .filter(k => k !== 'id')
+                                .map(field => (
+                                  <TableHead key={field}>{field}</TableHead>
+                                ))
+                            }
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {maskedData.slice(0, 5).map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell>{item.id}</TableCell>
+                              {Object.entries(item)
+                                .filter(([key]) => key !== 'id')
+                                .map(([key, value]) => (
+                                  <TableCell key={key} className="max-w-[200px] truncate">
+                                    {value}
+                                  </TableCell>
+                                ))
+                              }
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {maskedData.length > 5 && (
+                        <div className="p-2 text-center text-sm text-muted-foreground">
+                          Showing 5 of {maskedData.length} records
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                      <p className="text-muted-foreground mb-2">No masked data available</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={applyMasking}
+                        disabled={isMaskingData || originalData.length === 0 || !apiKey}
+                      >
+                        Generate PII Masking
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <UserGuidePiiHandling />
     </div>
   );
 };
 
 export default PiiHandling;
+
