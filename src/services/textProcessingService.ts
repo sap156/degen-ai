@@ -73,7 +73,7 @@ export const processTextWithAI = async (
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: 'gpt-4o'
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     if (outputFormat === 'json') {

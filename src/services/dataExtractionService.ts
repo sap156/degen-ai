@@ -83,7 +83,7 @@ export const extractDataFromUrl = async (
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: 'gpt-4o'
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     try {
@@ -180,7 +180,7 @@ export const extractDataFromImage = async (
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: 'gpt-4o'
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     try {
@@ -254,7 +254,7 @@ export const processExtractedData = async (
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: 'gpt-4o'
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
     
     try {

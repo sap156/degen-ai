@@ -421,7 +421,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     console.log("Calling OpenAI for time series generation with messages:", JSON.stringify(messages, null, 2));
     
     const response = await getCompletion(apiKey, messages, {
-      model: 'gpt-4o',
+      model: localStorage.getItem('openai-model') || 'gpt-4o',
       temperature: 0.3,
       max_tokens: 16384
     });
@@ -660,7 +660,7 @@ export const addAINoiseToTimeSeries = async (options: AINoiseOptions): Promise<T
     console.log("Calling OpenAI for adding noise with messages:", JSON.stringify(messages, null, 2));
     
     const response = await getCompletion(apiKey, messages, {
-      model: 'gpt-4o',
+      model: localStorage.getItem('openai-model') || 'gpt-4o',
       temperature: 0.3,
       max_tokens: 16384
     });
