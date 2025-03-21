@@ -135,42 +135,56 @@ function SyntheticData() {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (file?: File) => {
     try {
-      setUploadedFile(file);
-      const content = await readFileContent(file);
-      
-      let parsedData: any[] = [];
-      if (file.name.endsWith('.csv')) {
-        parsedData = parseCSV(content);
-      } else if (file.name.endsWith('.json')) {
-        parsedData = parseJSON(content);
-        if (!Array.isArray(parsedData)) {
-          if (parsedData && typeof parsedData === 'object') {
-            parsedData = [parsedData];
-          } else {
-            throw new Error("Invalid JSON format");
+      if (file) {
+        // 🔹 Case 1: User UPLOADED a file
+        setUploadedFile(file);
+        const content = await readFileContent(file);
+  
+        let parsedData: any[] = [];
+        if (file.name.endsWith('.csv')) {
+          parsedData = parseCSV(content);
+        } else if (file.name.endsWith('.json')) {
+          parsedData = parseJSON(content);
+          if (!Array.isArray(parsedData)) {
+            parsedData = parsedData && typeof parsedData === 'object' ? [parsedData] : [];
           }
+        } else {
+          toast.error("Unsupported file format. Please upload CSV or JSON.");
+          return;
         }
+  
+        if (parsedData.length === 0) {
+          toast.error("No data found in file");
+          return;
+        }
+  
+        // 🔹 Detect schema from uploaded file
+        const detectedFields = await detectSchemaFromData(parsedData, apiKey);
+        setDataFields(detectedFields);
+        setUploadedData(parsedData);
+  
+        // 🔹 Set AI prompt for generating similar data
+        form.setValue("dataType", "custom");
+        form.setValue("aiPrompt", `Generate synthetic data that follows the same pattern as the uploaded ${file.name.split('.').pop()} file`);
+  
+        toast.success(`Schema detected with ${detectedFields.length} fields`);
+        setActiveTab("generator");
+  
       } else {
-        toast.error("Unsupported file format. Please upload CSV or JSON.");
-        return;
+        // 🔹 Case 2: User did NOT upload a file
+        setUploadedFile(null);
+        setUploadedData([]); // No uploaded data
+        setDataFields([]); // No schema detected
+  
+        // 🔹 Use AI prompt to generate data freely
+        form.setValue("dataType", "custom");
+        form.setValue("aiPrompt", `Generate realistic synthetic data using diverse values relevant to the requested context. Avoid repetitive or unrealistic patterns.`);
+  
+        toast.success("Generating synthetic data using AI prompt only.");
+        setActiveTab("generator");
       }
-      
-      if (parsedData.length === 0) {
-        toast.error("No data found in file");
-        return;
-      }
-      
-      const detectedFields = detectSchemaFromData(parsedData);
-      setDataFields(detectedFields);
-      setUploadedData(parsedData);
-      
-      form.setValue("dataType", "custom");
-      form.setValue("aiPrompt", `Generate synthetic data that follows the same pattern as the uploaded ${file.name.split('.').pop()} file`);
-      
-      toast.success(`Schema detected with ${detectedFields.length} fields`);
-      setActiveTab("generator");
     } catch (error) {
       console.error("Error processing file:", error);
       toast.error("Error processing file. Please check the format.");

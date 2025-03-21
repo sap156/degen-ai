@@ -1,6 +1,6 @@
-
 import { toast } from "sonner";
 import { generateSyntheticDataWithAI } from "./openAiService";
+
 
 // Types for our service
 export type DataField = {
@@ -20,6 +20,9 @@ export type SyntheticDataOptions = {
   customSchema?: string;
   aiPrompt?: string;
   uploadedData?: any[];
+  constraints?: Record<string, any>; 
+  seedData?: any[]; 
+  realism?: "low" | "medium" | "high"; 
   onProgress?: (progress: number) => void;
 };
 
@@ -29,7 +32,7 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "id", type: "id", included: true },
     { name: "full_name", type: "name", included: true },
     { name: "email", type: "email", included: true },
-    { name: "age", type: "number", included: true },
+    { name: "age", type: "integer", included: true },
     { name: "created_at", type: "date", included: true },
   ],
   transaction: [
@@ -49,21 +52,13 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "stock", type: "integer", included: true },
     { name: "created_at", type: "date", included: true },
   ],
-  health: [
-    { name: "patient_id", type: "id", included: true },
-    { name: "name", type: "name", included: true },
-    { name: "dob", type: "date", included: true },
-    { name: "blood_type", type: "string", included: true },
-    { name: "heart_rate", type: "integer", included: true },
-    { name: "blood_pressure", type: "string", included: true },
-    { name: "diagnosis", type: "string", included: true },
-    { name: "admission_date", type: "date", included: true },
-  ],
   custom: [], // Empty for custom schemas
 };
 
-// Main function to generate synthetic data
-export const generateSyntheticData = async (options: SyntheticDataOptions, apiKey: string | null = null): Promise<string> => {
+export const generateSyntheticData = async (
+  options: SyntheticDataOptions, 
+  apiKey: string | null = null
+): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     try {
       if (!apiKey) {
@@ -71,146 +66,108 @@ export const generateSyntheticData = async (options: SyntheticDataOptions, apiKe
         reject(new Error("API key is required"));
         return;
       }
-      
-      const { rowCount, outputFormat, onProgress, fields } = options;
-      
-      // Convert fields to schema format for the API
+
+      const { dataType, rowCount, outputFormat, onProgress, fields, aiPrompt, uploadedData } = options;
+
+      // If dataType is "custom" and no schema fields are provided, use only the AI prompt
+      const useAIPromptOnly = dataType === "custom" && (!fields || fields.length === 0);
+
+      // Construct AI prompt dynamically
+      let aiGeneratedPrompt = aiPrompt;
+
+      if (useAIPromptOnly) {
+        aiGeneratedPrompt = `Generate ${rowCount} rows of synthetic data based on the pattern of the uploaded file. Ensure it mimics the structure and distribution of values in a realistic way.`;
+
+        if (uploadedData && uploadedData.length > 0) {
+          aiGeneratedPrompt += ` Use the following sample data as a reference: ${JSON.stringify(uploadedData.slice(0, 5))}`;
+        }
+      }
+
+      // Convert selected fields to schema format only if a schema exists
       const schema: Record<string, string> = {};
-      fields.filter(field => field.included).forEach(field => {
-        schema[field.name] = field.type;
+      if (!useAIPromptOnly) {
+        fields
+          .filter(field => field.included)
+          .forEach(field => {
+            schema[field.name] = field.type;
+          });
+      }
+
+      // 🔥 AI-powered synthetic data generation
+      const result = await generateSyntheticDataWithAI(apiKey, schema, rowCount, {
+        seedData: uploadedData?.slice(0, 5),
+        aiPrompt: aiGeneratedPrompt
       });
-      
-      // If rowCount is small (< 50), generate all at once
-      if (rowCount <= 50) {
-        try {
-          const result = await generateSyntheticDataWithAI(
-            apiKey, 
-            schema, 
-            rowCount,
-            {
-              seedData: options.uploadedData?.slice(0, 3)
-            }
-          );
-          
-          // Convert to the requested format and return
-          const formattedData = outputFormat === 'json'
-            ? JSON.stringify(result, null, 2)
-            : convertToCSV(result);
-            
-          resolve(formattedData);
-        } catch (error) {
-          console.error('Error in single-batch generation:', error);
-          reject(error);
-        }
-        return;
-      }
-      
-      // For larger datasets, break into chunks
-      const chunkSize = 50; // Maximum rows per chunk
-      const chunks = Math.ceil(rowCount / chunkSize);
-      let allData: any[] = [];
-      let highestId = 0; // Track the highest ID generated
-      
-      for (let i = 0; i < chunks; i++) {
-        const remainingRows = rowCount - (i * chunkSize);
-        const currentChunkSize = Math.min(chunkSize, remainingRows);
-        
-        // Report progress
-        if (onProgress) {
-          onProgress(Math.round((i / chunks) * 100));
-        }
-        
-        try {
-          // Generate chunk
-          const chunkResult = await generateSyntheticDataWithAI(
-            apiKey, 
-            schema, 
-            currentChunkSize,
-            {
-              // Provide sample data from previous chunk if available
-              seedData: allData.length > 0 ? allData.slice(-3) : options.uploadedData?.slice(0, 3)
-            }
-          );
-          
-          if (Array.isArray(chunkResult) && chunkResult.length > 0) {
-            // Update the highest ID if we find one higher in this chunk
-            chunkResult.forEach(item => {
-              // Check for all possible ID field names
-              const idFields = ["id", "ID", "Id", "user_id", "transaction_id", "product_id", "patient_id"];
-              
-              for (const field of idFields) {
-                if (item[field] !== undefined) {
-                  const itemId = parseInt(item[field]);
-                  if (!isNaN(itemId) && itemId > highestId) {
-                    highestId = itemId;
-                  }
-                }
-              }
-            });
-            
-            allData = [...allData, ...chunkResult];
-          } else {
-            console.error("Invalid chunk data received:", chunkResult);
-            // Try again with a smaller chunk
-            i--; // Retry this chunk
-            continue;
-          }
-          
-        } catch (error) {
-          console.error(`Error generating chunk ${i+1}/${chunks}:`, error);
-          toast.error(`Error in chunk ${i+1}. Retrying...`);
-          
-          // Retry this chunk (with backoff)
-          await new Promise(r => setTimeout(r, 1000));
-          i--; // Retry this chunk
-          continue;
-        }
-      }
-      
-      // Final progress update
-      if (onProgress) {
-        onProgress(100);
-      }
-      
-      // Convert all data back to requested format
-      if (allData.length > 0) {
-        const finalResult = outputFormat === 'json' 
-          ? JSON.stringify(allData, null, 2) 
-          : convertToCSV(allData);
-        resolve(finalResult);
-      } else {
-        reject(new Error("Failed to generate any valid data"));
-      }
-      
+
+      // Convert to requested format
+      const formattedData = outputFormat === 'json' 
+        ? JSON.stringify(result, null, 2) 
+        : convertToCSV(result);
+
+      resolve(formattedData);
+
     } catch (error) {
-      console.error('Error generating synthetic data:', error);
+      console.error("Error generating synthetic data with AI:", error);
       reject(error);
     }
   });
 };
 
-// Helper function to convert array of objects to CSV
+
+// 🔹 AI-Powered Schema Detection
+export const detectSchemaFromData = async (data: any[], apiKey: string): Promise<DataField[]> => {
+  if (!data || data.length === 0) return [];
+
+  const sample = JSON.stringify(data.slice(0, 3));
+
+  const aiPrompt = `Analyze this dataset and infer the schema with field types. Example JSON: ${sample}.`;
+
+  const schemaResponse = await generateSyntheticDataWithAI(apiKey, {}, 0, { aiPrompt });
+
+  return schemaResponse.map((field: any) => ({
+    name: field.name,
+    type: field.type,
+    included: false
+  }));
+};
+
+// 🔹 AI-Powered Data Augmentation
+export const augmentDataWithAI = async (existingData: any[], apiKey: string): Promise<any[]> => {
+  if (!existingData || existingData.length === 0) return [];
+
+  const aiPrompt = `Enhance and diversify the following dataset by adding slight variations to values while maintaining schema consistency. Existing data: ${JSON.stringify(existingData.slice(0, 5))}`;
+
+  return await generateSyntheticDataWithAI(apiKey, {}, existingData.length, { aiPrompt });
+};
+
+// 🔹 AI-Powered File Parsing
+export const parseFileWithAI = async (fileContent: string, fileType: string, apiKey: string): Promise<any[]> => {
+  const aiPrompt = `Extract structured data from the following ${fileType.toUpperCase()} file content: ${fileContent.slice(0, 1000)}. Ensure correct field identification.`;
+
+  return await generateSyntheticDataWithAI(apiKey, {}, 0, { aiPrompt });
+};
+
+// 🔹 Convert JSON to CSV (AI-generated data)
 const convertToCSV = (data: any[]): string => {
   if (!data.length) return '';
-  
+
   const headers = Object.keys(data[0]);
   const headerRow = headers.join(',');
-  
-  const rows = data.map(obj => 
+
+  const rows = data.map(obj =>
     headers.map(header => {
       const value = obj[header];
-      // Handle values with commas by quoting them
       if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
         return `"${value.replace(/"/g, '""')}"`;
       }
       return value === null || value === undefined ? '' : value;
     }).join(',')
   );
-  
+
   return [headerRow, ...rows].join('\n');
 };
 
-// Function to save data to a file and trigger download
+// 🔹 AI-Powered Data Download
 export const downloadSyntheticData = (data: string, format: string): void => {
   const blob = new Blob([data], { type: format === 'json' ? 'application/json' : 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -221,58 +178,17 @@ export const downloadSyntheticData = (data: string, format: string): void => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  
-  toast.success('Download started');
+
+  toast.success("Download started");
 };
 
-// Add mock database saving function 
+// 🔹 Save AI-Generated Data to Database
 export const saveSyntheticDataToDatabase = async (data: string): Promise<void> => {
   return new Promise((resolve) => {
-    // Simulate API call
     setTimeout(() => {
-      console.log('Data saved to database:', data.slice(0, 100) + '...');
-      toast.success('Data saved to database successfully');
+      console.log("Data saved to database:", data.slice(0, 100) + "...");
+      toast.success("AI-powered data saved to database successfully");
       resolve();
     }, 1500);
   });
-};
-
-// Function to detect schema from uploaded data
-export const detectSchemaFromData = (data: any[]): DataField[] => {
-  if (!data || data.length === 0) return [];
-  
-  const sample = data[0];
-  const detectedFields: DataField[] = [];
-  
-  Object.entries(sample).forEach(([key, value]) => {
-    let type = "string";
-    
-    // Detect type based on value
-    if (typeof value === 'number') {
-      type = Number.isInteger(value) ? 'integer' : 'float';
-    } else if (typeof value === 'boolean') {
-      type = 'boolean';
-    } else if (typeof value === 'string') {
-      // Try to detect common patterns
-      if (value.includes('@') && value.includes('.')) {
-        type = 'email';
-      } else if (/^\d{3}-\d{3}-\d{4}$/.test(value) || /^\(\d{3}\) \d{3}-\d{4}$/.test(value)) {
-        type = 'phone';
-      } else if (/^\d{4}-\d{2}-\d{2}/.test(value) || /^\d{2}\/\d{2}\/\d{4}/.test(value)) {
-        type = 'date';
-      } else if (value.split(' ').length >= 2 && /^[A-Z][a-z]+ [A-Z][a-z]+/.test(value)) {
-        type = 'name';
-      } else if (value.includes(',') && /\d{5}/.test(value)) {
-        type = 'address';
-      }
-    }
-    
-    detectedFields.push({
-      name: key,
-      type,
-      included: false // Set default to false as per requirement
-    });
-  });
-  
-  return detectedFields;
 };

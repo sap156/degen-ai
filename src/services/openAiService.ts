@@ -367,6 +367,7 @@ export const generateSyntheticDataWithAI = async (
     constraints?: Record<string, any>;
     seedData?: any[];
     realism?: 'low' | 'medium' | 'high';
+    aiPrompt?: string; // Custom AI prompt
   } = {}
 ): Promise<any[]> => {
   try {
