@@ -14,12 +14,14 @@ interface ApiKeyRequirementProps {
   title?: string;
   description?: string;
   children?: React.ReactNode;
+  showUserGuide?: React.ReactNode;
 }
 
 const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
   title = "OpenAI API Key Required",
   description = "To use AI-powered features, please set up your OpenAI API key.",
-  children
+  children,
+  showUserGuide
 }) => {
   const { isKeySet, loadApiKeyFromDatabase } = useApiKey();
   const { user } = useAuth();
@@ -33,7 +35,7 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
   };
   
   if (!user) {
-    return <AuthRequirement>{children}</AuthRequirement>;
+    return <AuthRequirement showUserGuide={showUserGuide}>{children}</AuthRequirement>;
   }
   
   if (isKeySet) return <>{children}</>; // Return children directly if key is set
