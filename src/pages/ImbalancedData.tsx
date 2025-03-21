@@ -196,7 +196,7 @@ const ImbalancedData = () => {
                                     style={{ width: `${percentage}%` }}
                                   ></div>
                                 </div>
-                                <div className="w-10 text-right">{percentage}%</div>
+                                <div className="w-10 text-right">{percentage as number}%</div>
                               </div>
                             ))}
                           </div>
