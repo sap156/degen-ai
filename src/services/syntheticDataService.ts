@@ -55,6 +55,7 @@ export const defaultSchemas: Record<string, DataField[]> = {
   custom: [], // Empty for custom schemas
 };
 
+// 🔹 Generate Synthetic Data
 export const generateSyntheticData = async (
   options: SyntheticDataOptions, 
   apiKey: string | null = null
@@ -69,21 +70,44 @@ export const generateSyntheticData = async (
 
       const { dataType, rowCount, outputFormat, onProgress, fields, aiPrompt, uploadedData } = options;
 
-      // If dataType is "custom" and no schema fields are provided, use only the AI prompt
+      // 🔹 If dataType is "custom" and no schema fields are provided, use AI prompt only
       const useAIPromptOnly = dataType === "custom" && (!fields || fields.length === 0);
 
-      // Construct AI prompt dynamically
+      // 🔹 Construct AI prompt dynamically
       let aiGeneratedPrompt = aiPrompt;
 
       if (useAIPromptOnly) {
-        aiGeneratedPrompt = `Generate ${rowCount} rows of synthetic data based on the pattern of the uploaded file. Ensure it mimics the structure and distribution of values in a realistic way.`;
+        aiGeneratedPrompt = `
+        Generate a synthetic dataset of ${rowCount} rows in JSON format. 
+
+        The dataset should contain diverse and realistic fields based on the provided description: "${aiPrompt}".
+
+        Each row should be a structured JSON object with meaningful field names and values. Ensure data consistency, quality, uniqueness, and realism.
+
+        Format the output as an array of JSON objects.
+
+        Example:
+        [
+          {
+            "transaction_id": "T12345",
+            "store": "Starbucks",
+            "product": "Latte",
+            "price": 5.99,
+            "quantity": 2,
+            "total": 11.98,
+            "payment_method": "Credit Card",
+            "timestamp": "2025-03-21T10:15:00Z"
+          },
+          ...
+        ]
+        `;
 
         if (uploadedData && uploadedData.length > 0) {
           aiGeneratedPrompt += ` Use the following sample data as a reference: ${JSON.stringify(uploadedData.slice(0, 5))}`;
         }
       }
 
-      // Convert selected fields to schema format only if a schema exists
+      // 🔹 Convert selected fields to schema format only if a schema exists
       const schema: Record<string, string> = {};
       if (!useAIPromptOnly) {
         fields
@@ -99,7 +123,7 @@ export const generateSyntheticData = async (
         aiPrompt: aiGeneratedPrompt
       });
 
-      // Convert to requested format
+      // 🔹 Convert to requested format
       const formattedData = outputFormat === 'json' 
         ? JSON.stringify(result, null, 2) 
         : convertToCSV(result);
@@ -112,6 +136,7 @@ export const generateSyntheticData = async (
     }
   });
 };
+
 
 
 // 🔹 AI-Powered Schema Detection
