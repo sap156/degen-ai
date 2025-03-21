@@ -22,10 +22,6 @@ const NavBar = () => {
   const { isKeySet } = useApiKey();
   
   const navItems = [{
-    path: '/',
-    label: 'Dashboard',
-    icon: <Database className="h-4 w-4" />
-  }, {
     path: '/synthetic-data',
     label: 'Synthetic Data',
     icon: <Layers className="h-4 w-4" />
@@ -76,10 +72,10 @@ const NavBar = () => {
     <header className="sticky top-0 z-50 w-full">
       <div className="glassmorph border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm">
         <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <Database className="h-6 w-6 text-primary" />
-            <span className="hidden md:inline-block text-lg font-semibold tracking-tight">DeGen.AI</span>
-          </div>
+            <span className="text-lg font-semibold tracking-tight">DeGen.AI</span>
+          </Link>
           
           {user && (
             <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={toggleMobileMenu}>

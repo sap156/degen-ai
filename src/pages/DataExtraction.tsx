@@ -39,9 +39,12 @@ import {
 } from '@/services/dataExtractionService';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import UserGuideDataExtraction from '@/components/ui/UserGuideDataExtraction';
+import { useAuth } from '@/hooks/useAuth';
+import AuthRequirement from '@/components/AuthRequirement';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();
+  const { user } = useAuth();
   const [url, setUrl] = useState<string>('');
   const [extractionType, setExtractionType] = useState<ExtractionType>('tables');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -52,6 +55,60 @@ const DataExtraction: React.FC = () => {
   const [imageQuestion, setImageQuestion] = useState<string>('');
   const [followUpQuestion, setFollowUpQuestion] = useState<string>('');
   const [isProcessingFollowUp, setIsProcessingFollowUp] = useState<boolean>(false);
+
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="space-y-2 mb-8">
+          <motion.h1 
+            className="text-3xl font-bold tracking-tight"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            Data Extraction
+          </motion.h1>
+          <motion.p 
+            className="text-muted-foreground"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            Extract structured data from websites, documents, and images using AI
+          </motion.p>
+        </div>
+        
+        <AuthRequirement showUserGuide={<UserGuideDataExtraction />} />
+      </div>
+    );
+  }
+
+  if (!isKeySet) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="space-y-2 mb-8">
+          <motion.h1 
+            className="text-3xl font-bold tracking-tight"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            Data Extraction
+          </motion.h1>
+          <motion.p 
+            className="text-muted-foreground"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            Extract structured data from websites, documents, and images using AI
+          </motion.p>
+        </div>
+        
+        <ApiKeyRequirement>
+          <UserGuideDataExtraction />
+        </ApiKeyRequirement>
+      </div>
+    );
+  }
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,10 +286,6 @@ const DataExtraction: React.FC = () => {
       </div>
     );
   };
-
-  if (!isKeySet) {
-    return <ApiKeyRequirement />;
-  }
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">

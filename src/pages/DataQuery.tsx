@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +11,8 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { InfoIcon } from 'lucide-react';
 import UserGuideDataQuery from '@/components/ui/UserGuideDataQuery';
+import { useAuth } from '@/hooks/useAuth';
+import AuthRequirement from '@/components/AuthRequirement';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -25,6 +28,7 @@ export type ProcessingMode = 'generate' | 'optimize' | 'analyze' | 'followup';
 
 const DataQuery = () => {
   const { apiKey, isKeySet } = useApiKey();
+  const { user } = useAuth();
   const [schema, setSchema] = useState<string>('');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [activeTab, setActiveTab] = useState('query');
@@ -57,7 +61,9 @@ const DataQuery = () => {
         </p>
       </div>
 
-      {!isKeySet ? (
+      {!user ? (
+        <AuthRequirement showUserGuide={<UserGuideDataQuery />} />
+      ) : !isKeySet ? (
         <ApiKeyRequirement />
       ) : (
         <>

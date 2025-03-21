@@ -14,6 +14,8 @@ import { FileJson, FileText, FileX, Download, FileType2, Wand2 } from 'lucide-re
 import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
 import FileUploader from '@/components/FileUploader';
 import { parseCSV, parseJSON, formatData } from '@/utils/dataParsing';
+import { useAuth } from '@/hooks/useAuth';
+import AuthRequirement from '@/components/AuthRequirement';
 
 interface ParsingOptions {
   csv: {
@@ -30,6 +32,7 @@ interface ParsingOptions {
 }
 
 const DataParsing = () => {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<'csv' | 'json' | 'text' | null>(null);
   const [parsedData, setParsedData] = useState<any[]>([]);
@@ -147,6 +150,21 @@ const DataParsing = () => {
       setIsConverting(false);
     }
   };
+
+  if (!user) {
+    return (
+      <div className="container mx-auto py-6 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Data Parsing</h1>
+          <p className="text-muted-foreground mt-2">
+            Convert and transform data between different formats
+          </p>
+        </div>
+        
+        <AuthRequirement showUserGuide={<UserGuideDataParsing />} />
+      </div>
+    );
+  }
 
   return (
     <motion.div 
