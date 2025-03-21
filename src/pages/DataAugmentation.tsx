@@ -1,17 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import FileUploader from '@/components/FileUploader';
 import { formatData } from '@/utils/fileUploadUtils';
 import { toast } from 'sonner';
 import { PlusCircle, FileInput, Download, Clock, Wand2 } from 'lucide-react';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
-import DataGenerationOptions from '@/components/DataGenerationOptions';
-import SyntheticDataGenerator from '@/components/SyntheticDataGenerator';
-import TimeSeriesAugmentor from '@/components/TimeSeriesAugmentor';
 import UserGuideDataAugmentation from '@/components/ui/UserGuideDataAugmentation';
 import { augmentDataWithAI, applyAugmentation } from '@/services/dataAugmentationService';
+import FileUploaderWrapper from '@/components/FileUploaderWrapper';
+import DataGenerationOptionsAdapter from '@/components/DataGenerationOptionsAdapter';
+import TimeSeriesAugmentorAdapter from '@/components/TimeSeriesAugmentorAdapter';
+import SyntheticDataGeneratorAdapter from '@/components/SyntheticDataGeneratorAdapter';
 
 const DataAugmentation = () => {
   const [uploadedData, setUploadedData] = useState<any[]>([]);
@@ -114,6 +115,7 @@ const DataAugmentation = () => {
       }
       
       setAugmentedData(result);
+      toast.success(`Generated ${result.length} augmented data records`);
     } catch (error) {
       console.error("Error during augmentation:", error);
       toast.error("Failed to augment data");
@@ -217,7 +219,7 @@ const DataAugmentation = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <FileUploader 
+                    <FileUploaderWrapper
                       onFileUpload={handleFileUpload} 
                       accept=".csv,.json"
                     />
@@ -265,9 +267,9 @@ const DataAugmentation = () => {
                 </Card>
               </div>
               
-              <DataGenerationOptions 
+              <DataGenerationOptionsAdapter 
                 isLoading={loading}
-                handleAugment={(method: string) => handleAugment(method)}
+                handleAugment={(method) => handleAugment(method)}
               />
             </TabsContent>
             
@@ -413,7 +415,7 @@ const DataAugmentation = () => {
             </TabsContent>
             
             <TabsContent value="timeseries" className="space-y-6">
-              <TimeSeriesAugmentor 
+              <TimeSeriesAugmentorAdapter
                 isLoading={loading}
                 handleAugment={() => handleAugment('timeseries')}
                 timeSeriesSettings={timeSeriesSettings}
@@ -422,7 +424,7 @@ const DataAugmentation = () => {
             </TabsContent>
             
             <TabsContent value="results" className="space-y-6">
-              <SyntheticDataGenerator 
+              <SyntheticDataGeneratorAdapter
                 generatedData={augmentedData}
                 isLoading={loading}
                 handleExport={handleExport}

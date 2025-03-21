@@ -1,88 +1,80 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import FileUploader from '@/components/FileUploader';
-import { formatData } from '@/utils/fileUploadUtils';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { LineChart, Calendar, Sparkles, Download } from 'lucide-react';
-import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import { CalendarIcon, Download, LineChart, BarChart, PieChart } from 'lucide-react';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
-import DateRangeInfo from '@/components/DateRangeInfo';
-import { generateTimeSeriesData } from '@/services/timeSeriesService';
+import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import UserGuideTimeSeriesGenerator from '@/components/ui/UserGuideTimeSeriesGenerator';
+import { formatData, downloadData } from '@/utils/fileUploadUtils';
+import FileUploaderWrapper from '@/components/FileUploaderWrapper';
+import DateRangeInfoAdapter from '@/components/DateRangeInfoAdapter';
+import { generateTimeSeriesWithDate } from '@/utils/timeSeriesUtils';
 
 const TimeSeries = () => {
-  const [dataset, setDataset] = useState<any[]>([]);
-  const [columns, setColumns] = useState<string[]>([]);
-  const [targetColumn, setTargetColumn] = useState('');
-  const [startDate, setStartDate] = useState<Date | null>(new Date('2024-01-01'));
-  const [endDate, setEndDate] = useState<Date | null>(new Date('2024-12-31'));
-  const [patternType, setPatternType] = useState('linear');
-  const [noiseLevel, setNoiseLevel] = useState(0.1);
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+  const [interval, setInterval] = useState<string>('daily');
+  const [dataPattern, setDataPattern] = useState<string>('trend');
+  const [datasetType, setDatasetType] = useState<string>('sales');
+  const [loading, setLoading] = useState<boolean>(false);
   const [generatedData, setGeneratedData] = useState<any[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
-  const handleFileUpload = (data: any[]) => {
-    setDataset(data);
-    if (data.length > 0) {
-      const cols = Object.keys(data[0]);
-      setColumns(cols);
-      setTargetColumn(cols[0]);
-      toast.success(`Uploaded dataset with ${data.length} rows and ${cols.length} columns`);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!startDate || !endDate) {
-      toast.error('Please select both start and end dates');
-      return;
-    }
-
-    setGenerating(true);
+  const [exporting, setExporting] = useState<boolean>(false);
+  
+  const handleGenerateData = async () => {
+    setLoading(true);
     try {
-      // Fix the function call to match the expected parameters
-      const generated = await generateTimeSeriesData(startDate);
-      setGeneratedData(generated);
-      toast.success(`Generated ${generated.length} data points`);
+      // Use our adapter function instead of direct service call
+      const data = await generateTimeSeriesWithDate(startDate, endDate, interval, 100);
+      setGeneratedData(data);
+      toast.success(`Generated ${data.length} time series data points`);
     } catch (error) {
       console.error('Error generating time series data:', error);
       toast.error('Failed to generate time series data');
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
-
+  
   const handleExport = () => {
-    if (generatedData.length > 0) {
-      setExporting(true);
-      setTimeout(() => {
-        const formattedData = formatData(generatedData, 'json');
-        // Adjust the filename to include the date range
-        const filename = `time_series_data_${startDate?.toISOString().split('T')[0]}_to_${endDate?.toISOString().split('T')[0]}.json`;
-        const blob = new Blob([formattedData], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setExporting(false);
-        toast.success('Time series data exported successfully');
-      }, 800);
+    if (generatedData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    
+    setExporting(true);
+    try {
+      const formattedData = formatData(generatedData, 'json');
+      downloadData(formattedData, `time_series_${datasetType}_${interval}`, 'json');
+      toast.success('Data exported successfully');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('Failed to export data');
+    } finally {
+      setExporting(false);
+    }
+  };
+  
+  const handleFileUpload = (data: any[]) => {
+    if (data.length > 0) {
+      setGeneratedData(data);
+      toast.success(`Loaded ${data.length} time series data points`);
     }
   };
 
-  // Calculate estimated number of data points
-  const calculateDataPoints = (): number => {
-    if (!startDate || !endDate) return 0;
-    
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+  const formatDate = (date: Date | undefined) => {
+    if (!date) return "";
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
   return (
@@ -91,140 +83,234 @@ const TimeSeries = () => {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Time Series Generator</h1>
           <p className="text-muted-foreground">
-            Generate realistic time series data with customizable patterns and trends.
+            Generate synthetic time series data for testing and development.
           </p>
         </div>
 
         <ApiKeyRequirement showUserGuide={<UserGuideTimeSeriesGenerator />}>
-          <Tabs defaultValue="generator" className="w-full">
-            <TabsList className="grid grid-cols-2 mb-6">
-              <TabsTrigger value="generator" className="flex items-center gap-1">
-                <LineChart className="h-4 w-4" />
-                <span>Generator</span>
+          <Tabs defaultValue="generate" className="w-full">
+            <TabsList className="grid grid-cols-3 mb-6">
+              <TabsTrigger value="generate">
+                <LineChart className="mr-2 h-4 w-4" />
+                <span>Generate</span>
               </TabsTrigger>
-              <TabsTrigger value="info" className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                <span>Date Range Info</span>
+              <TabsTrigger value="visualize">
+                <BarChart className="mr-2 h-4 w-4" />
+                <span>Visualize</span>
+              </TabsTrigger>
+              <TabsTrigger value="export">
+                <Download className="mr-2 h-4 w-4" />
+                <span>Export</span>
               </TabsTrigger>
             </TabsList>
-
-            <TabsContent value="generator" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Sparkles className="mr-2 h-5 w-5 text-blue-500" />
-                    Time Series Configuration
-                  </CardTitle>
-                  <CardDescription>
-                    Customize the parameters for generating time series data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Fix DateRangeInfo props to match what the component expects */}
-                  <DateRangeInfo
-                    startDate={startDate || new Date()}
-                    endDate={endDate || new Date()}
-                    interval="daily"
-                    dataPoints={calculateDataPoints()}
-                  />
-
-                  <div className="space-y-2">
-                    <label htmlFor="pattern-type" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed">
-                      Pattern Type
-                    </label>
-                    <select
-                      id="pattern-type"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:text-muted-foreground file:h-10 file:w-4 file:flex-1 file:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={patternType}
-                      onChange={(e) => setPatternType(e.target.value)}
-                    >
-                      <option value="linear">Linear</option>
-                      <option value="seasonal">Seasonal</option>
-                      <option value="random">Random</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="noise-level" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed">
-                      Noise Level
-                    </label>
-                    <input
-                      type="number"
-                      id="noise-level"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:text-muted-foreground file:h-10 file:w-4 file:flex-1 file:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={noiseLevel}
-                      onChange={(e) => setNoiseLevel(parseFloat(e.target.value))}
-                      min="0"
-                      max="1"
-                      step="0.05"
-                    />
-                  </div>
-
-                  <Button onClick={handleGenerate} disabled={generating} className="w-full">
-                    {generating ? 'Generating...' : 'Generate Time Series Data'}
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="info" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Calendar className="mr-2 h-5 w-5 text-blue-500" />
-                    Date Range Information
-                  </CardTitle>
-                  <CardDescription>
-                    View and adjust the date range for time series generation
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Fix DateRangeInfo props to match what the component expects */}
-                  <DateRangeInfo
-                    startDate={startDate || new Date()}
-                    endDate={endDate || new Date()}
-                    interval="daily"
-                    dataPoints={calculateDataPoints()}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {generatedData.length > 0 && (
-              <div className="space-y-6">
-                <Card>
+            
+            <TabsContent value="generate" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="md:col-span-2">
                   <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <LineChart className="mr-2 h-5 w-5 text-blue-500" />
-                      Time Series Chart
-                    </CardTitle>
+                    <CardTitle>Time Series Configuration</CardTitle>
                     <CardDescription>
-                      Visualize the generated time series data
+                      Configure parameters for generating time series data
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <TimeSeriesChart data={generatedData} />
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Start Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className="w-full justify-start text-left font-normal"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {formatDate(startDate)}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={startDate}
+                                onSelect={(date) => date && setStartDate(date)}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>End Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className="w-full justify-start text-left font-normal"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {formatDate(endDate)}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={endDate}
+                                onSelect={(date) => date && setEndDate(date)}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        
+                        <DateRangeInfoAdapter startDate={startDate} endDate={endDate} dataPoints={100} />
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Data Interval</Label>
+                          <Select value={interval} onValueChange={setInterval}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select interval" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hourly">Hourly</SelectItem>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Data Pattern</Label>
+                          <Select value={dataPattern} onValueChange={setDataPattern}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pattern" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="trend">Trend</SelectItem>
+                              <SelectItem value="seasonal">Seasonal</SelectItem>
+                              <SelectItem value="cyclic">Cyclical</SelectItem>
+                              <SelectItem value="random">Random</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Dataset Type</Label>
+                          <Select value={datasetType} onValueChange={setDatasetType}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sales">Sales Data</SelectItem>
+                              <SelectItem value="temperature">Temperature</SelectItem>
+                              <SelectItem value="stock">Stock Price</SelectItem>
+                              <SelectItem value="website">Website Traffic</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      className="w-full" 
+                      onClick={handleGenerateData}
+                      disabled={loading}
+                    >
+                      {loading ? 'Generating...' : 'Generate Time Series Data'}
+                    </Button>
                   </CardContent>
                 </Card>
-
-                <Button variant="outline" onClick={handleExport} disabled={exporting}>
-                  {exporting ? (
-                    <>
-                      <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Export Data
-                    </>
-                  )}
-                </Button>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Upload Data</CardTitle>
+                    <CardDescription>
+                      Or upload your own time series data
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FileUploaderWrapper
+                      onFileUpload={handleFileUpload}
+                      accept=".csv,.json"
+                    />
+                    
+                    <DateRangeInfoAdapter startDate={startDate} endDate={endDate} dataPoints={100} />
+                  </CardContent>
+                </Card>
               </div>
-            )}
+            </TabsContent>
+            
+            <TabsContent value="visualize" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Time Series Visualization</CardTitle>
+                  <CardDescription>
+                    Visual representation of generated time series data
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {generatedData.length > 0 ? (
+                    <div className="h-80">
+                      <TimeSeriesChart data={generatedData} />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-6 text-center">
+                      <LineChart className="h-12 w-12 text-muted-foreground mb-3" />
+                      <h3 className="text-lg font-medium">No Data to Visualize</h3>
+                      <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                        Generate time series data or upload your own data to visualize it here
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="export" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Export Time Series Data</CardTitle>
+                  <CardDescription>
+                    Download generated time series data in different formats
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Data Preview</h3>
+                      {generatedData.length > 0 ? (
+                        <div className="border rounded-md p-4 max-h-80 overflow-y-auto">
+                          <pre className="text-xs whitespace-pre-wrap">
+                            {JSON.stringify(generatedData.slice(0, 10), null, 2)}
+                            {generatedData.length > 10 && '\n\n... and ' + (generatedData.length - 10) + ' more records'}
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-6 text-center border rounded-md">
+                          <PieChart className="h-12 w-12 text-muted-foreground mb-3" />
+                          <h3 className="text-lg font-medium">No Data Available</h3>
+                          <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                            Generate time series data in the "Generate" tab first
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center">
+                      <Button 
+                        onClick={handleExport} 
+                        disabled={exporting || generatedData.length === 0}
+                        className="w-full md:w-auto"
+                      >
+                        {exporting ? 'Exporting...' : 'Export Data (JSON)'}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </ApiKeyRequirement>
       </div>
