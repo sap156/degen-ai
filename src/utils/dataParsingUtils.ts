@@ -482,7 +482,7 @@ export const cleanDataWithAI = async (
       ],
       { model: localStorage.getItem('openai-model') || 'gpt-4o',
         temperature : 0.3,
-        max_tokens : 30000,
+        max_tokens : 16,385,
        }
     );
     
@@ -548,7 +548,7 @@ export const extractEntities = async (
       ],
       { model: localStorage.getItem('openai-model') || 'gpt-4o',
         temperature : 0.3,
-        max_tokens : 30000,
+        max_tokens : 16,385,
        }
     );
     
@@ -604,7 +604,7 @@ export const analyzeSentiment = async (
       ],
       { model: localStorage.getItem('openai-model') || 'gpt-4o',
         temperature : 0.3,
-        max_tokens : 30000,
+        max_tokens : 16,385,
        }
     );
     
@@ -672,7 +672,7 @@ export const generateTags = async (
             
       { model: localStorage.getItem('openai-model') || 'gpt-4o',
         temperature : 0.3,
-        max_tokens : 30000,
+        max_tokens : 16,385,
        }
     );
     

@@ -84,7 +84,7 @@ const extractTextWithAI = async (
     const response = await getCompletion(apiKey, messages, { 
       model: localStorage.getItem('openai-model') || 'gpt-4o',
       temperature: 0.3,
-      max_tokens: 30000
+      max_tokens: 16,385
     });
     
     return {
