@@ -36,7 +36,7 @@ export const getCompletion = async (
     if (!response.ok) {
       const errorData = await response.text();
       console.error("OpenAI API error response:", errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${errorData}`);
+      throw new Error(`OpenAI API error: (Model: ${options.model})${response.status} ${errorData}`);
     }
 
     const data = await response.json();

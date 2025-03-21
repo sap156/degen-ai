@@ -29,7 +29,7 @@ export const processQueryWithAI = async (
   
   try {
     // Get the model from localStorage
-    const model = localStorage.getItem('openai-model') || 'gpt-3.5-turbo';
+    const model = localStorage.getItem('openai-model') || 'gpt-4o';
     
     // Call the OpenAI API
     const response = await getCompletion(apiKey, messages, {

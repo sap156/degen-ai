@@ -249,7 +249,7 @@ export const processExtractedData = async (
   ];
 
   try {
-    const model = localStorage.getItem('openai-model') || 'gpt-3.5-turbo';
+    const model = localStorage.getItem('openai-model') || 'gpt-4o';
     //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
