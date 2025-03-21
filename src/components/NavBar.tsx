@@ -141,11 +141,7 @@ const NavBar = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
-              <Button size="sm" asChild>
-                <Link to="/auth">Sign in</Link>
-              </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

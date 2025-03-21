@@ -7,11 +7,10 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Plus, Trash2, EyeOff, Eye, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, EyeOff, Eye, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
-import ApiKeyDialog from '@/components/ApiKeyDialog';
 import { Badge } from '@/components/ui/badge';
 
 interface ApiKey {
@@ -31,8 +30,8 @@ const ApiKeys = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
-  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [isActivating, setIsActivating] = useState<string | null>(null);
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -77,10 +76,53 @@ const ApiKeys = () => {
     }
   };
 
+  const validateApiKey = async (key: string): Promise<boolean> => {
+    if (!key.trim()) {
+      setValidationError("Please enter a valid API key");
+      return false;
+    }
+
+    setIsValidatingKey(true);
+    setValidationError(null);
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${key}`,
+        }
+      });
+      
+      if (response.ok) {
+        return true;
+      }
+      
+      const errorData = await response.json();
+      if (response.status === 401) {
+        setValidationError("Invalid API key. Please check and try again.");
+        return false;
+      } else {
+        setValidationError(`API key error: ${errorData.error?.message || "Unknown error"}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("API key validation error:", error);
+      setValidationError("Could not validate API key. Check your internet connection.");
+      return false;
+    } finally {
+      setIsValidatingKey(false);
+    }
+  };
+
   const addApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyName || !newKeyValue) {
       toast.error('Please enter both a name and value for your API key');
+      return;
+    }
+
+    // Validate the API key before saving
+    const isValid = await validateApiKey(newKeyValue);
+    if (!isValid) {
       return;
     }
 
@@ -174,7 +216,6 @@ const ApiKeys = () => {
 
   const activateKey = async (id: string) => {
     try {
-      setIsActivating(id);
       const success = await setActiveKeyId(id);
       
       if (success) {
@@ -186,8 +227,6 @@ const ApiKeys = () => {
     } catch (error) {
       console.error('Error activating API key:', error);
       toast.error('Failed to activate API key');
-    } finally {
-      setIsActivating(null);
     }
   };
 
@@ -196,10 +235,6 @@ const ApiKeys = () => {
       return `sk-...${key.slice(-4)}`;
     }
     return `${key.slice(0, 4)}...${key.slice(-4)}`;
-  };
-
-  const handleKeySaved = () => {
-    fetchApiKeys();
   };
 
   return (
@@ -226,14 +261,6 @@ const ApiKeys = () => {
               </div>
               {!isAdding && (
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => setApiKeyDialogOpen(true)} 
-                    variant="outline"
-                    className="gap-1"
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Set Up OpenAI Key
-                  </Button>
                   <Button onClick={() => setIsAdding(true)} className="gap-1">
                     <Plus className="h-4 w-4" />
                     Add Key
@@ -263,25 +290,41 @@ const ApiKeys = () => {
                       type="password"
                       placeholder="sk-..."
                       value={newKeyValue}
-                      onChange={(e) => setNewKeyValue(e.target.value)}
+                      onChange={(e) => {
+                        setNewKeyValue(e.target.value);
+                        setValidationError(null);
+                      }}
                       required
+                      className={validationError ? "border-red-300" : ""}
                     />
                   </div>
+                  
+                  {validationError && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{validationError}</AlertDescription>
+                    </Alert>
+                  )}
                   
                   <div className="flex justify-end gap-2">
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => setIsAdding(false)}
-                      disabled={isLoading}
+                      onClick={() => {
+                        setIsAdding(false);
+                        setValidationError(null);
+                        setNewKeyName('');
+                        setNewKeyValue('');
+                      }}
+                      disabled={isLoading || isValidatingKey}
                     >
                       Cancel
                     </Button>
                     <Button 
                       type="submit" 
-                      disabled={isLoading}
+                      disabled={isLoading || isValidatingKey || !newKeyName || !newKeyValue}
                     >
-                      {isLoading ? 'Saving...' : 'Save API Key'}
+                      {isValidatingKey ? 'Validating...' : isLoading ? 'Saving...' : 'Save API Key'}
                     </Button>
                   </div>
                 </form>
@@ -337,10 +380,9 @@ const ApiKeys = () => {
                             size="sm"
                             className="text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/30"
                             onClick={() => activateKey(apiKey.id)}
-                            disabled={isActivating === apiKey.id}
                             title="Set as active key"
                           >
-                            {isActivating === apiKey.id ? 'Activating...' : 'Set Active'}
+                            Set Active
                           </Button>
                         )}
                         <Button
@@ -361,12 +403,6 @@ const ApiKeys = () => {
           </Card>
         </ApiKeyRequirement>
       </div>
-      
-      <ApiKeyDialog 
-        open={apiKeyDialogOpen} 
-        onOpenChange={setApiKeyDialogOpen} 
-        onKeySaved={handleKeySaved}
-      />
     </div>
   );
 };

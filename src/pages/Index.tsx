@@ -8,6 +8,7 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from '@/hooks/useAuth';
 
 const container = {
   hidden: {
@@ -115,6 +116,7 @@ const Index: React.FC = () => {
   const {
     isKeySet
   } = useApiKey();
+  const { user } = useAuth();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   
   return <div className="container px-4 mx-auto py-8 max-w-7xl">
@@ -153,36 +155,6 @@ const Index: React.FC = () => {
         delay: 0.2
       }}>DeGen.AI provides powerful tools for data engineers to generate, augment, and analyze data with state-of-the-art AI capabilities.</motion.p>
         
-        <motion.div className="flex flex-wrap gap-4 justify-center mt-6" initial={{
-        opacity: 0,
-        y: 20
-      }} animate={{
-        opacity: 1,
-        y: 0
-      }} transition={{
-        duration: 0.5,
-        delay: 0.3
-      }}>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="gap-2"
-                  disabled={true}
-                >
-                  <Database className="h-4 w-4" />
-                  Connect Database
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Database connection feature is currently disabled</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </motion.div>
-        
         <motion.div className="w-full max-w-2xl mt-6" initial={{
         opacity: 0,
         y: 20
@@ -200,20 +172,30 @@ const Index: React.FC = () => {
                 AI Integration
               </CardTitle>
               <CardDescription>
-                {isKeySet 
-                  ? "Your OpenAI API key is set. Configure your preferred AI model below."
-                  : "Set up your OpenAI API key to unlock AI-powered features across all tools."
-                }
+                {user 
+                  ? (isKeySet 
+                    ? "Your OpenAI API key is set. Configure your preferred AI model below." 
+                    : "BYOK - Bring Your Own Keys. Set up your OpenAI API key to unlock AI-powered features across all tools.")
+                  : "BYOK - Bring Your Own Keys. Sign in and provide your own API keys to unlock AI-powered features across all tools."}
               </CardDescription>
             </CardHeader>
             <CardContent className="pb-0">
-              {isKeySet && <ModelSelector />}
+              {user && isKeySet && <ModelSelector />}
             </CardContent>
             <CardFooter className="pt-4">
-              <Button onClick={() => setApiKeyDialogOpen(true)} variant={isKeySet ? "outline" : "default"} className="w-full gap-2">
-                <KeyRound className="h-4 w-4" />
-                {isKeySet ? "Manage API Key" : "Set Up API Key"}
-              </Button>
+              {user ? (
+                <Button onClick={() => setApiKeyDialogOpen(true)} variant={isKeySet ? "outline" : "default"} className="w-full gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  {isKeySet ? "Manage API Key" : "Set Up API Key"}
+                </Button>
+              ) : (
+                <Button className="w-full gap-2" asChild>
+                  <Link to="/auth">
+                    <KeyRound className="h-4 w-4" />
+                    Sign In
+                  </Link>
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </motion.div>

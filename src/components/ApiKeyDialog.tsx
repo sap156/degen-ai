@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ interface ApiKeyDialogProps {
 
 const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySaved }) => {
   const { apiKey, setApiKey, clearApiKey, isKeySet } = useApiKey();
-  const { user, signIn } = useAuth();
+  const { user } = useAuth();
   const [inputKey, setInputKey] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -119,7 +120,6 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
   const handleSave = async () => {
     if (!user) {
       toast.error("You must be logged in to save API keys.");
-      //await signIn(email, password);// Redirect user to signin 
       return;
     }
 
@@ -182,30 +182,6 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
     onOpenChange(false);
   };
 
-  const fetchData = async () => {
-    if (!user) {
-      throw new Error("User must be authenticated to make API requests");
-    }
-
-    if (!apiKey) {
-      throw new Error("API key is not set");
-    }
-
-    // Make your API request here using the apiKey
-    const response = await fetch('https://api.example.com/data', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch data");
-    }
-
-    const data = await response.json();
-    return data;
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
@@ -251,7 +227,10 @@ const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ open, onOpenChange, onKeySa
                 type="password"
                 placeholder="sk-..."
                 value={inputKey}
-                onChange={(e) => setInputKey(e.target.value)}
+                onChange={(e) => {
+                  setInputKey(e.target.value);
+                  setValidationError(null);
+                }}
                 className={validationError ? "border-red-300" : ""}
               />
             </div>
