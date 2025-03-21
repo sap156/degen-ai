@@ -429,7 +429,7 @@ export const getAIRecommendations = async (
     
     return await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 16385,
+      max_tokens: 16384,
       model: localStorage.getItem('openai-model') || 'gpt-4o'
     });
   } catch (error) {
