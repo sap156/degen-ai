@@ -47,12 +47,12 @@ const features = [
     path: '/synthetic-data'
   }, {
     title: 'Data Augmentation',
-    description: 'Enrich and expand your existing datasets',
+    description: 'Enrich and expand your existing datasets                     ',
     icon: <BarChart3 className="h-5 w-5" />,
     path: '/data-augmentation'
   }, {
     title: 'Time Series Data',
-    description: 'Generate time-based data with customizable patterns',
+    description: 'Generate time-based data with customizable patterns          ',
     icon: <TimerReset className="h-5 w-5" />,
     path: '/time-series'
   }, {
@@ -62,27 +62,27 @@ const features = [
     path: '/edge-cases'
   }, {
     title: 'PII Handling',
-    description: 'Securely process and anonymize sensitive personal data',
+    description: 'Securely process and anonymize sensitive personal data      ',
     icon: <ShieldAlert className="h-5 w-5" />,
     path: '/pii-handling'
   }, {
     title: 'Imbalanced Data',
-    description: 'Balance and optimize unevenly distributed datasets',
+    description: 'Balance and optimize unevenly distributed datasets          ',
     icon: <Scale className="h-5 w-5" />,
     path: '/imbalanced-data'
   }, {
     title: 'Data Parsing',
-    description: 'Parse, extract and analyze text with NER and AI processing',
+    description: 'Parse, extract and analyze text with NER and AI processing ',
     icon: <FileJson className="h-5 w-5" />,
     path: '/data-parsing'
   }, {
     title: 'Data Extraction',
-    description: 'Extract structured data from web scrapes and images',
+    description: 'Extract structured data from web scrapes and images        ',
     icon: <Globe className="h-5 w-5" />,
     path: '/extraction'
   }, {
     title: 'Data Query & Analysis',
-    description: 'Query, analyze and optimize your data operations',
+    description: 'Query, analyze and optimize your data operations           ',
     icon: <Search className="h-5 w-5" />,
     path: '/data-query'
   }
@@ -171,12 +171,18 @@ const Index: React.FC = () => {
                 <Sparkles className="h-5 w-5 text-amber-500" />
                 AI Integration
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-center font-bold text-base">
                 {user 
                   ? (isKeySet 
                     ? "Your OpenAI API key is set. Configure your preferred AI model below." 
-                    : "BYOK - Bring Your Own Keys. Set up your OpenAI API key to unlock AI-powered features across all tools.")
-                  : "BYOK - Bring Your Own Keys. Sign in and provide your own API keys to unlock AI-powered features across all tools."}
+                    : <>
+                        BYOK - Bring Your Own Keys. <br />
+                        Set up your OpenAI API key to unlock AI-powered features across all tools.
+                      </>)
+                  : <>
+                      BYOK - Bring Your Own Keys. <br />
+                      Sign in and Set up your own API keys to unlock AI-powered features across all tools.
+                    </>}
               </CardDescription>
             </CardHeader>
             <CardContent className="pb-0">
