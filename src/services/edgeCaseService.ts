@@ -72,8 +72,8 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 16384,
-        model: localStorage.getItem('openai-model') || 'gpt-4o'
+        max_tokens: 30000,
+        model: 'gpt-4o'
       });
       
       if (!responseText) {
@@ -148,8 +148,8 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 16384,
-        model: localStorage.getItem('openai-model') || 'gpt-4o'
+        max_tokens: 30000,
+        model: 'gpt-4o'
       });
       
       if (!responseText) {
@@ -239,8 +239,8 @@ export const edgeCaseService = {
       //const responseText = await getCompletion(apiKey, messages, { model: "gpt-3.5-turbo" });
       const responseText = await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 16384,
-        model: localStorage.getItem('openai-model') || 'gpt-4o'
+        max_tokens: 30000,
+        model: 'gpt-4o'
       });
       console.log("Received test model response:", responseText);
       
@@ -318,8 +318,8 @@ export const edgeCaseService = {
       
       return await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 16384,
-        model: localStorage.getItem('openai-model') || 'gpt-4o'
+        max_tokens: 30000,
+        model: 'gpt-4o'
       });
 
     } catch (error) {
@@ -362,8 +362,8 @@ export const edgeCaseService = {
       
       return await getCompletion(apiKey, messages, {
         temperature: 0.3,
-        max_tokens: 16384,
-        model: localStorage.getItem('openai-model') || 'gpt-4o'
+        max_tokens: 30000,
+        model: 'gpt-4o'
       });
       
     } catch (error) {

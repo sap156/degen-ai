@@ -230,8 +230,8 @@ const detectIssues = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      max_tokens: 30000,
+      model: 'gpt-4o'
     });
     
     try {
@@ -443,8 +443,8 @@ export const getFeatureEngineeringSuggestions = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      max_tokens: 30000,
+      model: 'gpt-4o'
     });
     
     try {
@@ -522,8 +522,8 @@ export const generateSyntheticSamples = async (
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      max_tokens: 30000,
+      model: 'gpt-4o'
     });
     
     try {

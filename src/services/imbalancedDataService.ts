@@ -429,8 +429,8 @@ export const getAIRecommendations = async (
     
     return await getCompletion(apiKey, messages, {
       temperature: 0.3,
-      max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      max_tokens: 30000,
+      model: 'gpt-4o'
     });
   } catch (error) {
     console.error("Error getting AI recommendations:", error);

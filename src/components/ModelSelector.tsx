@@ -47,14 +47,6 @@ const modelInfo: Record<string, {
     ]
   },
 
-  'gpt-4': {
-    name: 'GPT-4 (Not Recommended)',
-    limitations: [
-      'Highest cost per token among available models.',
-      'Slower response time due to computational complexity.',
-      'May exceed resource quotas quickly, especially with large tasks.'
-    ]
-  },
   'fallback': {
     name: 'Unknown Model',
     limitations: [
