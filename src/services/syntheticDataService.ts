@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { generateSyntheticDataWithAI } from "./openAiService";
 
@@ -96,6 +95,13 @@ export const generateSyntheticData = async (
             schema[field.name] = field.type;
           });
       }
+      
+      // Check for valid schema or prompt in custom mode
+      if (dataType === "custom" && Object.keys(schema).length === 0 && (!aiPrompt || aiPrompt.trim() === '')) {
+        toast.error("Please select at least one field or provide an AI prompt for custom data");
+        reject(new Error("No schema fields or AI prompt provided for custom data"));
+        return;
+      }
 
       // 🔹 Generate data with AI
       try {
@@ -112,6 +118,13 @@ export const generateSyntheticData = async (
         // Update progress
         if (onProgress) {
           onProgress(80);
+        }
+
+        // Check if result contains error
+        if (result.length === 1 && result[0].error) {
+          console.error("Error in AI data generation:", result[0]);
+          reject(new Error(result[0].message || "Error generating data"));
+          return;
         }
 
         // 🔹 Convert to requested format
@@ -142,17 +155,31 @@ export const generateSyntheticData = async (
 export const detectSchemaFromData = async (data: any[], apiKey: string): Promise<DataField[]> => {
   if (!data || data.length === 0) return [];
 
-  const sample = JSON.stringify(data.slice(0, 3));
+  try {
+    const sample = JSON.stringify(data.slice(0, 3));
 
-  const aiPrompt = `Analyze this dataset and infer the schema with field types. Example JSON: ${sample}.`;
+    const aiPrompt = `Analyze this dataset and infer the schema with field types. Example JSON: ${sample}. 
+    Return a JSON array of objects with "name" and "type" properties. Valid types include: string, number, boolean, date, id, name, email, phone, address, integer, float.`;
 
-  const schemaResponse = await generateSyntheticDataWithAI(apiKey, {}, 0, { aiPrompt });
+    const schemaResponse = await generateSyntheticDataWithAI(apiKey, {}, 0, { aiPrompt });
 
-  return schemaResponse.map((field: any) => ({
-    name: field.name,
-    type: field.type,
-    included: false
-  }));
+    if (schemaResponse.length > 0 && schemaResponse[0].error) {
+      console.error("Error detecting schema:", schemaResponse[0]);
+      throw new Error(schemaResponse[0].message || "Failed to detect schema");
+    }
+
+    // Map the response to our DataField type and set included to true by default
+    return schemaResponse.map((field: any) => ({
+      name: field.name || field.field || "",
+      type: field.type || "string",
+      included: true
+    })).filter((field: DataField) => field.name.trim() !== "");
+  } catch (error) {
+    console.error("Error in schema detection:", error);
+    toast.error("Failed to detect schema from data");
+    // Return empty array on error to prevent UI from breaking
+    return [];
+  }
 };
 
 // 🔹 AI-Powered Data Augmentation

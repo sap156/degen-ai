@@ -51,7 +51,8 @@ export const generateSyntheticDataWithAI = async (
     
     Realism level: ${realism}
     
-    Return ONLY a JSON array with the generated records. No explanations.
+    Return ONLY a JSON array with the generated records. No explanations or additional text.
+    The response must be a valid JSON array starting with [ and ending with ] without any markdown formatting.
     `;
     
     // For prompt-only mode, prioritize the AI prompt
@@ -68,6 +69,7 @@ export const generateSyntheticDataWithAI = async (
       Realism level: ${realism}
       
       Return ONLY a JSON array with the ${rowCount} generated records. No explanations or additional text.
+      The response must be a valid JSON array starting with [ and ending with ] without any markdown formatting.
       `;
     }
     
@@ -83,7 +85,7 @@ export const generateSyntheticDataWithAI = async (
         messages: [
           {
             role: 'system',
-            content: 'You are an AI data scientist specializing in synthetic data generation.\n    Generate realistic synthetic data according to the provided schema and constraints.'
+            content: 'You are an AI data scientist specializing in synthetic data generation. Generate realistic synthetic data according to the provided schema and constraints. Your response must be a valid JSON array only, with no additional text or markdown formatting.'
           },
           {
             role: 'user',
@@ -105,29 +107,91 @@ export const generateSyntheticDataWithAI = async (
     
     // Parse the JSON response
     try {
+      // First try direct JSON parsing
+      try {
+        const directParse = JSON.parse(generatedContent.trim());
+        if (Array.isArray(directParse)) {
+          return directParse;
+        }
+      } catch (e) {
+        // If direct parsing fails, we'll try more sophisticated approaches below
+        console.log("Direct JSON parsing failed, trying alternative methods");
+      }
+      
       // Try to extract JSON from the response if it contains markdown or explanations
-      const jsonMatch = generatedContent.match(/```json\n([\s\S]*?)\n```/) || 
-                       generatedContent.match(/```\n([\s\S]*?)\n```/) ||
-                       generatedContent.match(/\[([\s\S]*?)\]/);
-                       
-      const jsonStr = jsonMatch ? jsonMatch[1] : generatedContent.trim();
+      let jsonContent = generatedContent;
       
-      // Clean up the string to ensure it's valid JSON
-      const cleanedStr = jsonStr.replace(/^[\s\S]*?\[/, '[').replace(/\][\s\S]*?$/, ']');
+      // Remove markdown code blocks if present
+      const jsonMatch = generatedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        jsonContent = jsonMatch[1].trim();
+      }
       
-      const generatedData = JSON.parse(cleanedStr);
+      // Find the first [ and last ] to extract the JSON array
+      const startIdx = jsonContent.indexOf('[');
+      const endIdx = jsonContent.lastIndexOf(']');
       
-      // Ensure we always return an array
-      return Array.isArray(generatedData) ? generatedData : [generatedData];
-    } catch (parseError) {
-      console.error("Error parsing OpenAI response:", parseError);
+      if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+        jsonContent = jsonContent.substring(startIdx, endIdx + 1);
+      }
+      
+      // Clean up common issues in the JSON string
+      jsonContent = jsonContent
+        .replace(/\\'/g, "'") // Replace escaped single quotes
+        .replace(/,\s*}/g, '}') // Remove trailing commas in objects
+        .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
+        .replace(/}\s*{/g, '},{') // Fix missing commas between objects
+        .replace(/]\s*\[/g, '],[') // Fix missing commas between arrays
+        .replace(/\\/g, '\\\\') // Escape backslashes
+        .replace(/"\s*\n\s*"/g, '","') // Fix newlines in strings
+        .replace(/"\s*,\s*,\s*"/g, '","'); // Fix double commas
+      
+      try {
+        const parsedData = JSON.parse(jsonContent);
+        if (Array.isArray(parsedData)) {
+          return parsedData;
+        } else {
+          // If we got an object but not an array, see if it contains an array property
+          for (const key in parsedData) {
+            if (Array.isArray(parsedData[key])) {
+              return parsedData[key];
+            }
+          }
+          // If we can't find an array, wrap the object in an array
+          return [parsedData];
+        }
+      } catch (parseError) {
+        console.error("Error parsing JSON after cleanup:", parseError);
+        
+        // Last resort: try to fix the JSON with a more aggressive approach
+        try {
+          // Remove all whitespace and try again with a regex-based approach
+          const arrayMatch = generatedContent.match(/\[\s*{[\s\S]*}\s*\]/);
+          if (arrayMatch) {
+            const arrayContent = arrayMatch[0];
+            return JSON.parse(arrayContent);
+          }
+        } catch (lastError) {
+          console.error("All JSON parsing attempts failed");
+        }
+        
+        // If all parsing attempts fail, return an error structure
+        console.log("Raw response:", generatedContent);
+        return [{
+          error: "Failed to parse AI-generated data",
+          message: "The AI generated content that could not be parsed as JSON",
+          rawResponse: generatedContent
+        }];
+      }
+    } catch (error) {
+      console.error("Error in JSON extraction logic:", error);
       console.log("Raw response:", generatedContent);
       
       // If parsing fails, try to return a structured error message
       return [{
         error: "Failed to parse AI-generated data",
         message: "The AI generated content that could not be parsed as JSON",
-        rawResponse: generatedContent.slice(0, 500) + (generatedContent.length > 500 ? '...' : '')
+        rawResponse: generatedContent
       }];
     }
   } catch (error) {
