@@ -53,8 +53,6 @@ const AuthRequirement: React.FC<AuthRequirementProps> = ({
       
       {/* Show only user guide if provided when not authenticated */}
       {showUserGuide}
-      
-      {/* Don't render actual service content */}
     </div>
   );
 };

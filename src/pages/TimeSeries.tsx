@@ -14,6 +14,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useApiKey } from '@/contexts/ApiKeyContext';
+import { useAuth } from '@/hooks/useAuth';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
+import AuthRequirement from '@/components/AuthRequirement';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
 import FileUploader from '@/components/FileUploader';
 import SchemaEditor from '@/components/SchemaEditor';
@@ -56,12 +58,12 @@ type FormValues = TimeSeriesOptions & {
   additionalFieldCount: number;
   aiPrompt?: string;
   useAi?: boolean;
-  //excludeDefaultValue?: boolean;
   generationMode: 'new' | 'append';
 };
 
 const TimeSeries = () => {
   const { apiKey } = useApiKey();
+  const { user } = useAuth();
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesDataPoint[]>([]);
   const [formattedData, setFormattedData] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -76,6 +78,18 @@ const TimeSeries = () => {
   const [detectedSchema, setDetectedSchema] = useState<Record<string, SchemaFieldType> | null>(null);
   const [uploadedTimestampField, setUploadedTimestampField] = useState<string | null>(null);
   const [datasetAnalysis, setDatasetAnalysis] = useState<any>(null);
+  
+  if (!user) {
+    return (
+      <div className="container mx-auto py-6">
+        <AuthRequirement 
+          title="Authentication Required" 
+          description="Please sign in to access the Time Series Generator."
+          showUserGuide={<UserGuideTimeSeriesGenerator />}
+        />
+      </div>
+    );
+  }
   
   const { handleSubmit, control, watch, setValue, register, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -1074,7 +1088,7 @@ const TimeSeries = () => {
       <UserGuideTimeSeriesGenerator />
     </div>
   );
-  
 };
 
 export default TimeSeries;
+
