@@ -213,34 +213,28 @@ const Index: React.FC = () => {
         
         {!user && (
           <motion.div 
-          className="flex justify-center mt-4"
+          className="flex justify-center mt-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
-          <a 
-            href="https://www.producthunt.com/posts/degen-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen&#0045;ai" 
+          <a
+            href="https://www.producthunt.com/posts/degen-ai?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen-ai"
             target="_blank"
             rel="noreferrer"
-            className="rounded-full shadow-md hover:shadow-lg transition-all duration-300"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-white font-semibold shadow-md transition hover:scale-105"
             style={{
-              display: 'inline-block',
-              background: 'linear-gradient(135deg, #FFD6E8, #FFECD2)', // fill inside
-              padding: '0', // no external padding now
-              borderRadius: '9999px',
+              background: 'linear-gradient(to right, #ff758c, #ff7eb3)',
+              boxShadow: '0 4px 10px rgba(255, 117, 140, 0.3)',
             }}
           >
-            <img 
-              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=944920&theme=light&t=1742654095056" 
-              alt="DeGen.ai | Product Hunt" 
-              style={{
-                width: '171.72px',
-                height: '54px',
-                borderRadius: '9999px', // matches container
-                background: 'linear-gradient(135deg, #FFD6E8, #FFECD2)', // applies fill inside
-                padding: '8px'
-              }} 
+            <img
+              src="https://ph-avatars.imgix.net/1890126/original.png?auto=format&fit=crop&h=32&w=32"
+              alt="Product Hunt logo"
+              className="w-6 h-6 rounded-full"
             />
+            <span>Find us on Product Hunt</span>
+            <span className="text-lg">⬆️</span>
           </a>
         </motion.div>
         )}
