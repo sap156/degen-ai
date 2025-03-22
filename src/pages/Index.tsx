@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -209,6 +210,29 @@ const Index: React.FC = () => {
             </CardFooter>
           </Card>
         </motion.div>
+        
+        {!user && (
+          <motion.div 
+            className="flex justify-center mt-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <a 
+              href="https://www.producthunt.com/posts/degen-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen&#0045;ai" 
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img 
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=944920&theme=light&t=1742654095056" 
+                alt="DeGen&#0046;ai - Transform&#0032;your&#0032;data&#0032;with&#0032;Generative&#0032;AI&#0046;&#0032; | Product Hunt" 
+                style={{ width: "250px", height: "54px" }} 
+                width="250" 
+                height="54" 
+              />
+            </a>
+          </motion.div>
+        )}
       </div>
 
       <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" variants={container} initial="hidden" animate="show">
