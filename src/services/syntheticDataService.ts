@@ -72,47 +72,24 @@ export const generateSyntheticData = async (
 
       const { dataType, rowCount, outputFormat, onProgress, fields, aiPrompt, uploadedData } = options;
 
-      // 🔹 If dataType is "prompt_only" or "custom" with no schema fields, use AI prompt only
-      const useAIPromptOnly = dataType === "prompt_only" || 
-                            (dataType === "custom" && (!fields || fields.length === 0));
+      // 🔹 Check if using prompt-only mode
+      const isPromptOnlyMode = dataType === "prompt_only";
 
-      // 🔹 Construct AI prompt dynamically
-      let aiGeneratedPrompt = aiPrompt;
-
-      if (useAIPromptOnly) {
-        aiGeneratedPrompt = `
-        Generate a synthetic dataset of ${rowCount} rows in JSON format. 
-
-        The dataset should contain diverse and realistic fields based on the provided description: "${aiPrompt}".
-
-        Each row should be a structured JSON object with meaningful field names and values. Ensure data consistency, quality, uniqueness, and realism.
-
-        Format the output as an array of JSON objects.
-
-        Example:
-        [
-          {
-            "transaction_id": "T12345",
-            "store": "Starbucks",
-            "product": "Latte",
-            "price": 5.99,
-            "quantity": 2,
-            "total": 11.98,
-            "payment_method": "Credit Card",
-            "timestamp": "2025-03-21T10:15:00Z"
-          },
-          ...
-        ]
-        `;
-
-        if (uploadedData && uploadedData.length > 0) {
-          aiGeneratedPrompt += ` Use the following sample data as a reference: ${JSON.stringify(uploadedData.slice(0, 5))}`;
-        }
+      if (isPromptOnlyMode && (!aiPrompt || aiPrompt.trim() === '')) {
+        toast.error("AI prompt is required for prompt-only mode");
+        reject(new Error("AI prompt is required for prompt-only mode"));
+        return;
       }
 
-      // 🔹 Convert selected fields to schema format only if a schema exists
-      const schema: Record<string, string> = {};
-      if (!useAIPromptOnly) {
+      // Set progress to indicate the request has started
+      if (onProgress) {
+        onProgress(10);
+      }
+
+      // 🔹 Convert selected fields to schema format only if not in prompt-only mode
+      let schema: Record<string, string> = {};
+      
+      if (!isPromptOnlyMode) {
         fields
           .filter(field => field.included)
           .forEach(field => {
@@ -120,21 +97,40 @@ export const generateSyntheticData = async (
           });
       }
 
-      // 🔥 AI-powered synthetic data generation
-      const result = await generateSyntheticDataWithAI(apiKey, schema, rowCount, {
-        seedData: uploadedData?.slice(0, 5),
-        aiPrompt: aiGeneratedPrompt
-      });
+      // 🔹 Generate data with AI
+      try {
+        // Update progress
+        if (onProgress) {
+          onProgress(30);
+        }
 
-      // 🔹 Convert to requested format
-      const formattedData = outputFormat === 'json' 
-        ? JSON.stringify(result, null, 2) 
-        : convertToCSV(result);
+        const result = await generateSyntheticDataWithAI(apiKey, schema, rowCount, {
+          seedData: uploadedData?.slice(0, 5),
+          aiPrompt: aiPrompt
+        });
 
-      resolve(formattedData);
+        // Update progress
+        if (onProgress) {
+          onProgress(80);
+        }
 
+        // 🔹 Convert to requested format
+        const formattedData = outputFormat === 'json' 
+          ? JSON.stringify(result, null, 2) 
+          : convertToCSV(result);
+
+        // Update progress
+        if (onProgress) {
+          onProgress(100);
+        }
+
+        resolve(formattedData);
+      } catch (error) {
+        console.error("Error in AI data generation:", error);
+        reject(error);
+      }
     } catch (error) {
-      console.error("Error generating synthetic data with AI:", error);
+      console.error("Error generating synthetic data:", error);
       reject(error);
     }
   });
