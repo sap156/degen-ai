@@ -213,28 +213,23 @@ const Index: React.FC = () => {
         
         {!user && (
           <motion.div 
-          className="flex justify-center mt-6"
+          className="flex justify-center mt-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
-          <a
-            href="https://www.producthunt.com/posts/degen-ai?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen-ai"
+          <a 
+            href="https://www.producthunt.com/posts/degen-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen&#0045;ai" 
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-white font-semibold shadow-md transition hover:scale-105"
-            style={{
-              background: 'linear-gradient(to right, #ff758c, #ff7eb3)',
-              boxShadow: '0 4px 10px rgba(255, 117, 140, 0.3)',
-            }}
           >
-            <img
-              src="https://ph-avatars.imgix.net/1890126/original.png?auto=format&fit=crop&h=32&w=32"
-              alt="Product Hunt logo"
-              className="w-6 h-6 rounded-full"
+            <img 
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=944920&theme=light&t=1742654095056" 
+              alt="DeGen&#0046;ai - Transform&#0032;your&#0032;data&#0032;with&#0032;Generative&#0032;AI&#0046;&#0032; | Product Hunt" 
+              style={{ width: "171.72px", height: "54px" }} 
+              width="171.72" 
+              height="54" 
             />
-            <span>Find us on Product Hunt</span>
-            <span className="text-lg">⬆️</span>
           </a>
         </motion.div>
         )}
