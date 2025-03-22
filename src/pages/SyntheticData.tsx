@@ -43,7 +43,7 @@ import {
   detectSchemaFromData,
   defaultSchemas
 } from "@/services/syntheticDataService";
-import { Code, Database, Download, FileJson, FilePlus2, Plus, Sparkles, Trash2, Upload, Info, HelpCircle, MousePointer, Book, ArrowRight, Lightbulb } from "lucide-react";
+import { Code, Database, Download, FileJson, FilePlus2, Plus, Sparkles, Trash2, Upload, Info, HelpCircle, MousePointer, Book, ArrowRight, Lightbulb, FileText } from "lucide-react";
 import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import FileUploader from '@/components/FileUploader';
@@ -57,6 +57,7 @@ const dataTypes = [
   { value: 'product', label: 'Product Data' },
   { value: 'health', label: 'Health Data' },
   { value: 'custom', label: 'Custom Data' },
+  { value: 'prompt_only', label: 'Prompt Only' }, // New data type option
 ];
 
 function SyntheticData() {
@@ -69,6 +70,7 @@ function SyntheticData() {
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPromptOnlyMode, setIsPromptOnlyMode] = useState<boolean>(false);
 
   const form = useForm({
     defaultValues: {
@@ -83,8 +85,11 @@ function SyntheticData() {
     },
   });
   
+  // Monitor changes in dataType to set prompt-only mode
   useEffect(() => {
     const dataType = form.watch("dataType");
+    setIsPromptOnlyMode(dataType === "prompt_only");
+    
     if (dataType in defaultSchemas) {
       setDataFields(defaultSchemas[dataType]);
     }
@@ -96,15 +101,17 @@ function SyntheticData() {
       return;
     }
     
-    
-    // For predefined data types, check if fields are selected
-    if (values.dataType !== 'custom') {
-      const hasIncludedFields = dataFields.some(field => field.included);
-      if (!hasIncludedFields) {
-        toast.error("Please select at least one field to include in your data");
-        return;
+    // Skip field validation for prompt-only mode
+    if (values.dataType !== 'prompt_only') {
+      // For predefined data types, check if fields are selected
+      if (values.dataType !== 'custom') {
+        const hasIncludedFields = dataFields.some(field => field.included);
+        if (!hasIncludedFields) {
+          toast.error("Please select at least one field to include in your data");
+          return;
+        }
       }
-   }
+    }
     
     setIsGenerating(true);
     setGenerationProgress(0);
@@ -350,14 +357,17 @@ function SyntheticData() {
                                   </SelectContent>
                                 </Select>
                                 <FormDescription>
-                                  Select the type of data you want to generate.
+                                  {isPromptOnlyMode 
+                                    ? "Prompt-only mode uses AI to generate data directly from your prompt without a predefined schema."
+                                    : "Select the type of data you want to generate."}
                                 </FormDescription>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
                           
-                          {dataFields.length > 0 && (
+                          {/* Show schema fields section only when not in prompt-only mode */}
+                          {dataFields.length > 0 && !isPromptOnlyMode && (
                             <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <FormLabel>Schema Fields</FormLabel>
@@ -509,28 +519,31 @@ function SyntheticData() {
                             )}
                           />
                           
-                          <FormField
-                            control={form.control}
-                            name="includeNulls"
-                            render={({ field }) => (
-                              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                <div className="space-y-0.5">
-                                  <FormLabel className="text-base">Include Null Values</FormLabel>
-                                  <FormDescription>
-                                    Randomly include null values in the generated data.
-                                  </FormDescription>
-                                </div>
-                                <FormControl>
-                                  <Switch
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                  />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
+                          {/* Hide null settings for prompt-only mode */}
+                          {!isPromptOnlyMode && (
+                            <FormField
+                              control={form.control}
+                              name="includeNulls"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-base">Include Null Values</FormLabel>
+                                    <FormDescription>
+                                      Randomly include null values in the generated data.
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          )}
                           
-                          {form.watch("includeNulls") && (
+                          {form.watch("includeNulls") && !isPromptOnlyMode && (
                             <FormField
                               control={form.control}
                               name="nullPercentage"
@@ -560,22 +573,44 @@ function SyntheticData() {
                             name="aiPrompt"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>AI Generation Prompt</FormLabel>
+                                <FormLabel className={isPromptOnlyMode ? "text-primary font-medium" : ""}>
+                                  {isPromptOnlyMode ? "AI Prompt (Required)" : "AI Generation Prompt"}
+                                </FormLabel>
                                 <FormControl>
                                   <Textarea 
-                                    placeholder="Describe the kind of data you want to generate..."
-                                    className="resize-none"
-                                    rows={3}
+                                    placeholder={isPromptOnlyMode 
+                                      ? "Describe in detail the data you want to generate..." 
+                                      : "Describe the kind of data you want to generate..."}
+                                    className={`resize-none ${isPromptOnlyMode ? 'border-primary min-h-[100px]' : ''}`}
+                                    rows={isPromptOnlyMode ? 4 : 3}
                                     {...field}
                                   />
                                 </FormControl>
                                 <FormDescription>
-                                  Describe the data you want AI to generate in detail.
+                                  {isPromptOnlyMode 
+                                    ? "In prompt-only mode, your description is the only source for AI to understand what data to generate. Be specific and detailed."
+                                    : "Describe the data you want AI to generate in detail."}
                                 </FormDescription>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
+
+                          {isPromptOnlyMode && (
+                            <div className="rounded-lg border p-4 bg-muted/30">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Lightbulb className="h-4 w-4 text-amber-500" />
+                                <span className="font-medium text-sm">Prompt Tips</span>
+                              </div>
+                              <ul className="text-xs text-muted-foreground space-y-1.5 ml-6 list-disc">
+                                <li>Be specific about fields you want in your data (e.g., "customer_id", "purchase_date", "amount")</li>
+                                <li>Specify data types and formats (e.g., "dates in ISO format", "amounts as decimal numbers")</li>
+                                <li>Include value ranges (e.g., "ages between 18-65", "prices from $5 to $500")</li>
+                                <li>Mention relationships between fields (e.g., "total should be price × quantity")</li>
+                                <li>Define any special distributions or patterns (e.g., "normal distribution", "seasonal trend")</li>
+                              </ul>
+                            </div>
+                          )}
                         </CardContent>
                         <CardFooter className="flex flex-col gap-4">
                           {isGenerating && (
@@ -609,7 +644,7 @@ function SyntheticData() {
                             
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                               <Sparkles className="h-4 w-4 text-amber-500" />
-                              AI-powered generation
+                              {isPromptOnlyMode ? "Pure AI generation" : "AI-powered generation"}
                             </div>
                           </div>
                         </CardFooter>
@@ -704,7 +739,7 @@ function SyntheticData() {
                 <h4 className="font-medium">Step 1: Choose Your Data Source</h4>
                 <p className="text-muted-foreground">
                   You can either use a pre-defined schema template, upload your own data file, 
-                  or manually create a custom schema by defining fields.
+                  manually create a custom schema, or use the "Prompt Only" option for pure AI generation.
                 </p>
               </div>
               
@@ -715,6 +750,7 @@ function SyntheticData() {
                   <li>Set the number of rows to generate</li>
                   <li>Choose the output format (JSON or CSV)</li>
                   <li>Optionally include null values at a specified percentage</li>
+                  <li>For Prompt Only mode, just craft a detailed text prompt</li>
                 </ul>
               </div>
               
@@ -725,6 +761,32 @@ function SyntheticData() {
                   it or save it to your database for further use.
                 </p>
               </div>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <AccordionItem value="prompt-only">
+            <AccordionTrigger className="text-lg font-medium">
+              <div className="flex items-center">
+                <Sparkles className="h-5 w-5 mr-2 text-muted-foreground" />
+                Using Prompt-Only Mode
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-2 pl-7">
+              <p className="text-muted-foreground">
+                Prompt-Only mode allows you to generate data using only natural language descriptions without defining a schema structure first.
+              </p>
+              <p className="text-muted-foreground">
+                This mode is ideal for:
+              </p>
+              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                <li>Advanced users who want complete flexibility</li>
+                <li>Generating complex data structures quickly</li>
+                <li>Exploring possibilities before creating formal schemas</li>
+                <li>Testing data patterns that don't fit standard templates</li>
+              </ul>
+              <p className="text-muted-foreground mt-2">
+                For best results, write detailed prompts that clearly specify fields, relationships, and value ranges.
+              </p>
             </AccordionContent>
           </AccordionItem>
           
@@ -761,8 +823,8 @@ function SyntheticData() {
                 <li className="flex items-start gap-2">
                   <ArrowRight className="h-4 w-4 mt-1 text-primary flex-shrink-0" />
                   <div>
-                    <span className="font-medium">Customizable Fields</span>
-                    <p className="text-sm text-muted-foreground">Add, remove, and configure data fields with various types (string, number, date, email, etc.)</p>
+                    <span className="font-medium">Prompt-Only Mode</span>
+                    <p className="text-sm text-muted-foreground">Generate data from natural language descriptions without defining schemas</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-2">
@@ -794,40 +856,4 @@ function SyntheticData() {
               <div className="space-y-1">
                 <h4 className="font-medium">Use AI Prompts Effectively</h4>
                 <p className="text-muted-foreground text-sm">
-                  Be specific in your AI generation prompt. For example, instead of "Generate user data", 
-                  try "Generate data for tech professionals aged 25-40 with job titles and salary ranges".
-                </p>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="font-medium">Upload Sample Data</h4>
-                <p className="text-muted-foreground text-sm">
-                  For best results, upload a sample of real data (with sensitive information removed) 
-                  to help the AI understand your specific data patterns and relationships.
-                </p>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="font-medium">Generate in Batches</h4>
-                <p className="text-muted-foreground text-sm">
-                  For large datasets (1000+ rows), consider generating in smaller batches 
-                  to ensure optimal quality and reduce the chance of API timeouts.
-                </p>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="font-medium">Check Field Type Accuracy</h4>
-                <p className="text-muted-foreground text-sm">
-                  When uploading a schema, verify that detected field types are correct. 
-                  Correctly typed fields lead to more accurate synthetic data generation.
-                </p>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    </div>
-  );
-}
-
-export default SyntheticData;
+                  Be specific

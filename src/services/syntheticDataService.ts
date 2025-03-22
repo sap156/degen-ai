@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { generateSyntheticDataWithAI } from "./openAiService";
 
@@ -53,6 +54,7 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "created_at", type: "date", included: true },
   ],
   custom: [], // Empty for custom schemas
+  prompt_only: [], // Empty for prompt-only generation
 };
 
 // 🔹 Generate Synthetic Data
@@ -70,8 +72,9 @@ export const generateSyntheticData = async (
 
       const { dataType, rowCount, outputFormat, onProgress, fields, aiPrompt, uploadedData } = options;
 
-      // 🔹 If dataType is "custom" and no schema fields are provided, use AI prompt only
-      const useAIPromptOnly = dataType === "custom" && (!fields || fields.length === 0);
+      // 🔹 If dataType is "prompt_only" or "custom" with no schema fields, use AI prompt only
+      const useAIPromptOnly = dataType === "prompt_only" || 
+                            (dataType === "custom" && (!fields || fields.length === 0));
 
       // 🔹 Construct AI prompt dynamically
       let aiGeneratedPrompt = aiPrompt;
