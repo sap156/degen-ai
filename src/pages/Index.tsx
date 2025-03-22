@@ -222,19 +222,24 @@ const Index: React.FC = () => {
             href="https://www.producthunt.com/posts/degen-ai?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-degen&#0045;ai" 
             target="_blank"
             rel="noreferrer"
-            className="rounded-2xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300"
+            className="rounded-full shadow-md hover:shadow-lg transition-all duration-300"
             style={{
-              background: 'linear-gradient(135deg, #FFD6E8, #FFECD2)', // soft premium pink/orange
-              padding: '8px 16px',
-              display: 'inline-block'
+              display: 'inline-block',
+              background: 'linear-gradient(135deg, #FFD6E8, #FFECD2)', // fill inside
+              padding: '0', // no external padding now
+              borderRadius: '9999px',
             }}
           >
             <img 
               src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=944920&theme=light&t=1742654095056" 
-              alt="DeGen&#0046;ai - Transform&#0032;your&#0032;data&#0032;with&#0032;Generative&#0032;AI&#0046;&#0032; | Product Hunt" 
-              style={{ width: "171px", height: "54px", borderRadius: "12px" }} 
-              width="171" 
-              height="54" 
+              alt="DeGen.ai | Product Hunt" 
+              style={{
+                width: '171.72px',
+                height: '54px',
+                borderRadius: '9999px', // matches container
+                background: 'linear-gradient(135deg, #FFD6E8, #FFECD2)', // applies fill inside
+                padding: '8px'
+              }} 
             />
           </a>
         </motion.div>
