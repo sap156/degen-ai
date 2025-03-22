@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -856,4 +857,36 @@ function SyntheticData() {
               <div className="space-y-1">
                 <h4 className="font-medium">Use AI Prompts Effectively</h4>
                 <p className="text-muted-foreground text-sm">
-                  Be specific
+                  Be specific about the data you want to generate, including field names, relationships, and any constraints.
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Start with Templates</h4>
+                <p className="text-muted-foreground text-sm">
+                  Use the predefined templates as starting points, then customize them to your needs.
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Test with Small Datasets First</h4>
+                <p className="text-muted-foreground text-sm">
+                  Generate small datasets (10-20 rows) to verify the structure and quality before creating larger ones.
+                </p>
+              </div>
+              
+              <div className="space-y-1">
+                <h4 className="font-medium">Include Seed Data</h4>
+                <p className="text-muted-foreground text-sm">
+                  Upload sample data to help the AI better understand the patterns and relationships you want.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    </div>
+  );
+}
+
+export default SyntheticData;
