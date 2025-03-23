@@ -1,7 +1,8 @@
+
 import { useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug, User, LogOut, KeyRound } from 'lucide-react';
-import { useState } from 'react';
+import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, Menu, X, Bug, User, LogOut, KeyRound } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
@@ -72,11 +73,7 @@ const NavBar = () => {
       <div className="glassmorph border-b border-slate-200/20 dark:border-slate-800/20 shadow-sm">
         <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2">
-            <img 
-              src="/lovable-uploads/6048faca-ac75-4af4-8c1c-b42b7306dff6.png" 
-              alt="DeGen.AI Logo" 
-              className="h-8 w-8" 
-            />
+            <Database className="h-6 w-6 text-primary" />
             <span className="text-lg font-semibold tracking-tight">DeGen.AI</span>
           </Link>
           
