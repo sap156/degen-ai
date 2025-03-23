@@ -5,10 +5,10 @@
       default-src 'none';
       script-src 'self' https://api.openai.com https://www.producthunt.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      img-src 'self' data: https://www.producthunt.com;
+      img-src 'self' data: https://api.producthunt.com;
       font-src 'self' https://fonts.gstatic.com;
       connect-src 'self' https://api.openai.com https://api.producthunt.com;
-      frame-src https://www.producthunt.com;
+      frame-src https://www.producthunt.com; https://api.producthunt.com;
       object-src 'none';
       base-uri 'self';
       form-action 'self';
