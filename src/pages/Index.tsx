@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug, Linkedin, Mail, Github, ExternalLink } from 'lucide-react';
+import { BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, Globe, Search, ArrowRight, KeyRound, Sparkles, Bug, Linkedin, Mail, Github, ExternalLink } from 'lucide-react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
