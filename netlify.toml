@@ -1,8 +1,18 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self';"
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' https://api.openai.com https://www.producthunt.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      img-src 'self' data: https://www.producthunt.com;
+      font-src 'self' https://fonts.gstatic.com;
+      connect-src 'self' https://api.openai.com https://api.producthunt.com;
+      frame-src https://www.producthunt.com;
+      object-src 'none';
+    """
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "no-referrer-when-downgrade"
+    Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), camera=(), microphone=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
