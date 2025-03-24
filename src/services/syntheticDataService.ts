@@ -43,6 +43,15 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "transaction_date", type: "date", included: true },
     { name: "status", type: "string", included: true },
   ],
+  health: [
+    { name: "patient_id", type: "id", included: true },
+    { name: "patient_name", type: "name", included: true },
+    { name: "patient_age", type: "int", included: true },
+    { name: "admission_date", type: "date", included: true },
+    { name: "diagnosis", type: "string", included: true },
+    { name: "treatment", type: "string", included: true },
+    
+  ],
   product: [
     { name: "product_id", type: "id", included: true },
     { name: "name", type: "string", included: true },
