@@ -43,15 +43,7 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "transaction_date", type: "date", included: true },
     { name: "status", type: "string", included: true },
   ],
-  health: [
-    { name: "patient_id", type: "id", included: true },
-    { name: "patient_name", type: "name", included: true },
-    { name: "patient_age", type: "int", included: true },
-    { name: "admission_date", type: "date", included: true },
-    { name: "diagnosis", type: "string", included: true },
-    { name: "treatment", type: "string", included: true },
-    
-  ],
+  
   product: [
     { name: "product_id", type: "id", included: true },
     { name: "name", type: "string", included: true },
@@ -60,6 +52,16 @@ export const defaultSchemas: Record<string, DataField[]> = {
     { name: "category", type: "string", included: true },
     { name: "stock", type: "integer", included: true },
     { name: "created_at", type: "date", included: true },
+  ],
+  health: [
+    { name: "patient_id", type: "id", included: false },
+    { name: "name", type: "name", included: false },
+    { name: "dob", type: "date", included: false },
+    { name: "blood_type", type: "string", included: false },
+    { name: "heart_rate", type: "integer", included: false },
+    { name: "blood_pressure", type: "string", included: false },
+    { name: "diagnosis", type: "string", included: false },
+    { name: "admission_date", type: "date", included: false },
   ],
   custom: [], // Empty for custom schemas
   prompt_only: [], // Empty for prompt-only generation
