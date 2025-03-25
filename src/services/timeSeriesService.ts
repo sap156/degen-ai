@@ -12,7 +12,6 @@ export interface TimeSeriesOptions {
   startDate: Date;
   endDate: Date;
   interval: 'hourly' | 'daily' | 'weekly' | 'monthly';
-  dataPoints: number;
   trend?: 'random' | 'upward' | 'downward' | 'seasonal' | 'cyclical' | 'extend';
   noiseLevel?: number;
   seed?: number;
@@ -22,8 +21,36 @@ export interface TimeSeriesOptions {
     type: 'number' | 'boolean' | 'category';
   }>;
   existingData?: TimeSeriesDataPoint[];
-  //excludeDefaultValue?: boolean;
 }
+
+// Helper to calculate number of data points based on date range and interval
+export const calculateDataPointsCount = (
+  startDate: Date,
+  endDate: Date,
+  interval: 'hourly' | 'daily' | 'weekly' | 'monthly'
+): number => {
+  const startTime = startDate.getTime();
+  const endTime = endDate.getTime();
+  const millisecondsDiff = endTime - startTime;
+  
+  switch (interval) {
+    case 'hourly':
+      return Math.ceil(millisecondsDiff / (60 * 60 * 1000)) + 1;
+    case 'daily':
+      return Math.ceil(millisecondsDiff / (24 * 60 * 60 * 1000)) + 1;
+    case 'weekly':
+      return Math.ceil(millisecondsDiff / (7 * 24 * 60 * 60 * 1000)) + 1;
+    case 'monthly':
+      // Calculate months between dates
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const endYear = endDate.getFullYear();
+      const endMonth = endDate.getMonth();
+      return (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+    default:
+      return 0;
+  }
+};
 
 // Helper to generate a random value between min and max
 const getRandomValue = (min: number, max: number, seed?: number): number => {
@@ -75,31 +102,21 @@ const generateTrendValue = (
 };
 
 // Function to generate dates between start and end with given interval
-const generateDates = (start: Date, end: Date, interval: TimeSeriesOptions['interval'], count?: number): Date[] => {
+const generateDates = (start: Date, end: Date, interval: TimeSeriesOptions['interval']): Date[] => {
   const dates: Date[] = [];
   const startTime = start.getTime();
   const endTime = end.getTime();
   
-  if (count) {
-    // If count is specified, distribute dates evenly
-    const step = (endTime - startTime) / (count - 1);
-    for (let i = 0; i < count; i++) {
-      dates.push(new Date(startTime + step * i));
-    }
-    return dates;
-  }
-  
-  // Otherwise, generate based on interval
+  // Generate based on interval
   let current = new Date(startTime);
   
   // Ensure the end date is included
-  // Fix for hourly interval: Check if the current time is less than or equal to the end time
   while (current.getTime() <= endTime) {
     dates.push(new Date(current));
     
     switch (interval) {
       case 'hourly':
-        // Fix for hourly data - properly add hours
+        // Properly add hours
         current = new Date(current.getTime() + 60 * 60 * 1000);
         break;
       case 'daily':
@@ -148,11 +165,9 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       interval,
       trend,
       noiseLevel,
-      dataPoints,
       additionalFields = [],
       categories = [],
       seed
-      //excludeDefaultValue = false
     } = options;
     
     if (startDate > endDate) {
@@ -160,7 +175,7 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
     }
     
     // Generate timestamps
-    const dates = generateDates(startDate, endDate, interval, dataPoints);
+    const dates = generateDates(startDate, endDate, interval);
     
     // Base value and amplitude for the series
     const baseValue = 50;
@@ -181,10 +196,8 @@ export const generateTimeSeriesData = (options: TimeSeriesOptions): TimeSeriesDa
       // Create the base data point
       const dataPoint: TimeSeriesDataPoint = { timestamp: date.toISOString() };
       
-      // Add value field if not excluded
-      //if (!excludeDefaultValue) {
-        //dataPoint.value = value;
-      //}
+      // Add value field
+      dataPoint.value = value;
       
       // Add additional fields if specified
       additionalFields.forEach(field => {
@@ -290,13 +303,11 @@ export interface AITimeSeriesOptions {
   startDate: Date;
   endDate: Date;
   interval: string;
-  dataPoints: number;
   additionalFields?: Array<{
     name: string;
     type: 'number' | 'boolean' | 'category';
   }>;
   existingData?: TimeSeriesDataPoint[];
-  //excludeDefaultValue?: boolean;
   onProgressUpdate?: (progress: number) => void;
 }
 
@@ -311,10 +322,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       startDate,
       endDate,
       interval,
-      dataPoints,
       additionalFields,
       existingData,
-      //excludeDefaultValue = false,
       onProgressUpdate
     } = options;
 
@@ -325,6 +334,9 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       toast.error("API key is required for AI-powered time series generation");
       throw new Error("API key is required");
     }
+
+    // Calculate expected number of data points based on date range and interval
+    const expectedDataPoints = calculateDataPointsCount(startDate, endDate, interval as 'hourly' | 'daily' | 'weekly' | 'monthly');
 
     // Format the dates for the prompt
     const formattedStartDate = startDate.toISOString().split('T')[0];
@@ -344,7 +356,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       - If the user requests additional fields, include them while maintaining logical coherence.
     
       **Data Generation Guidelines:**
-      - **Timestamps:** Ensure consistent time intervals (e.g., hourly, daily, weekly) as per user input.
+      - **Timestamps:** Generate exactly ${expectedDataPoints} data points with consistent ${interval} intervals between ${formattedStartDate} and ${formattedEndDate}.
       - **Numeric Fields:** If applicable, generate values using appropriate statistical distributions:
         - **Gaussian (Normal)** for sensor readings or financial data.
         - **Poisson** for event counts (e.g., transactions per minute).
@@ -359,17 +371,8 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
       - DO NOT return metadata, comments, or explanations.
       - Your response MUST strictly be a **valid JSON array**, formatted correctly.
       - If constraints or patterns are unclear, use standard assumptions for realistic time series data.
-    
-      **Expected Output Example (DO NOT include this in your response):**
-      \`\`\`json
-      [
-        {"timestamp": "2025-03-19T12:00:00Z", "temperature": 22.5, "humidity": 60.2},
-        {"timestamp": "2025-03-19T13:00:00Z", "temperature": 22.8, "humidity": 59.8}
-      ]
-      \`\`\`
       `
     };
-    
     
     onProgressUpdate?.(15);
     
@@ -406,7 +409,7 @@ export const generateTimeSeriesWithAI = async (options: AITimeSeriesOptions): Pr
     // Build the user prompt
     const userMessage: OpenAiMessage = {
       role: 'user',
-      content: `Generate ${dataPoints || 'appropriate number of'} time series data points from ${formattedStartDate} to ${formattedEndDate} with ${interval} interval.
+      content: `Generate ${expectedDataPoints} time series data points from ${formattedStartDate} to ${formattedEndDate} with ${interval} interval.
       ${prompt}
       ${existingDataInfo}
       ${additionalFieldsInfo}
@@ -833,11 +836,9 @@ export const extendTimeSeriesData = (
     startDate,
     endDate,
     interval,
-    dataPoints,
     noiseLevel = 0.3,
     trend = 'extend',
     additionalFields = [],
-    //excludeDefaultValue = false,
   } = options;
 
   // Use the original data to determine the pattern to extend
@@ -850,7 +851,7 @@ export const extendTimeSeriesData = (
   
   // Generate new timestamps based on the last timestamp in the original data
   const lastTimestamp = new Date(sortedOriginalData[sortedOriginalData.length - 1].timestamp);
-  const newTimestamps = generateTimestampsAfter(lastTimestamp, interval, dataPoints, endDate);
+  const newTimestamps = generateTimestampsAfter(lastTimestamp, interval, calculateDataPointsCount(startDate, endDate, interval), endDate);
   
   // Create new data points by extending the patterns from original data
   const newDataPoints: TimeSeriesDataPoint[] = newTimestamps.map((timestamp, index) => {

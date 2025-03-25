@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import {
   addNoiseToTimeSeries, 
   isTimeSeriesData 
 } from '@/utils/dataParsingUtils';
-import { SchemaFieldType } from '@/utils/fileUploadUtils';
+import { calculateDataPointsCount, SchemaFieldType } from '@/utils/fileUploadUtils';
 import { TimeSeriesDataPoint } from '@/services/timeSeriesService';
 
 interface TimeSeriesAugmentorProps {
@@ -44,7 +45,6 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
   
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [numPoints, setNumPoints] = useState<number>(20);
   const [noiseLevel, setNoiseLevel] = useState<number>(0.2);
   const [appendData, setAppendData] = useState<boolean>(true);
   
@@ -56,8 +56,10 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
   const [activeTab, setActiveTab] = useState<string>('generate');
   const [numericFields, setNumericFields] = useState<string[]>([]);
   const [selectedNumericField, setSelectedNumericField] = useState<string>('');
+  const [selectedInterval, setSelectedInterval] = useState<'hourly' | 'daily' | 'weekly' | 'monthly'>('daily');
   
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [estimatedPoints, setEstimatedPoints] = useState<number>(0);
   
   useEffect(() => {
     if (data.length > 0) {
@@ -100,6 +102,16 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
     }
   }, [data, schema, dateField]);
   
+  // Update estimated points count when dates or interval change
+  useEffect(() => {
+    if (startDate && endDate) {
+      const count = calculateDataPointsCount(startDate, endDate, selectedInterval);
+      setEstimatedPoints(count);
+    } else {
+      setEstimatedPoints(0);
+    }
+  }, [startDate, endDate, selectedInterval]);
+  
   useEffect(() => {
     prepareChartData();
   }, [previewData, dateField, selectedNumericField]);
@@ -136,8 +148,9 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
         schema,
         startDate,
         endDate,
-        numPoints,
-        noiseLevel
+        estimatedPoints,
+        noiseLevel,
+        selectedInterval
       );
       
       const combinedData = appendData ? [...data, ...newData] : newData;
@@ -294,6 +307,24 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
             </TabsList>
             
             <TabsContent value="generate" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="interval">Time Interval</Label>
+                <Select
+                  value={selectedInterval}
+                  onValueChange={(value) => setSelectedInterval(value as 'hourly' | 'daily' | 'weekly' | 'monthly')}
+                >
+                  <SelectTrigger id="interval">
+                    <SelectValue placeholder="Select interval" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="startDate">Start Date</Label>
@@ -342,32 +373,24 @@ const TimeSeriesAugmentor: React.FC<TimeSeriesAugmentorProps> = ({
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="numPoints">Number of Points</Label>
-                  <Input
-                    id="numPoints"
-                    type="number"
-                    value={numPoints}
-                    onChange={(e) => setNumPoints(parseInt(e.target.value) || 10)}
-                    min={1}
-                    max={1000}
-                  />
+              {startDate && endDate && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  This will generate approximately {estimatedPoints} data points
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="noiseLevel">
-                    Noise Level: {Math.round(noiseLevel * 100)}%
-                  </Label>
-                  <Slider
-                    id="noiseLevel"
-                    value={[noiseLevel]}
-                    onValueChange={(value) => setNoiseLevel(value[0])}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                  />
-                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="noiseLevel">
+                  Noise Level: {Math.round(noiseLevel * 100)}%
+                </Label>
+                <Slider
+                  id="noiseLevel"
+                  value={[noiseLevel]}
+                  onValueChange={(value) => setNoiseLevel(value[0])}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                />
               </div>
               
               <div className="flex items-center space-x-2 pt-2">

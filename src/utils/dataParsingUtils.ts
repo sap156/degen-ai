@@ -226,26 +226,27 @@ export const isTimeSeriesData = (data: any[]): { isTimeSeries: boolean, dateFiel
 // NEW FUNCTIONS FOR TIME SERIES SPECIFIC OPERATIONS
 
 export const generateTimeSeriesInRange = (
-  sourceData: any[], 
+  existingData: any[],
   dateField: string,
-  schema: Record<string, SchemaFieldType>,
+  schema: Record<string, any>,
   startDate: Date,
   endDate: Date,
-  pointCount: number,
-  noiseLevel: number
+  pointsCount: number,
+  noiseLevel: number = 0.2,
+  interval: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily'
 ): any[] => {
-  const filteredData = sourceData.filter(item => {
+  const filteredData = existingData.filter(item => {
     const itemDate = new Date(item[dateField]);
     return itemDate >= startDate && itemDate <= endDate;
   });
   
-  const baseData = filteredData.length > 0 ? filteredData : sourceData;
+  const baseData = filteredData.length > 0 ? filteredData : existingData;
   
   const result: any[] = [];
   
-  const timeStep = (endDate.getTime() - startDate.getTime()) / (pointCount + 1);
+  const timeStep = (endDate.getTime() - startDate.getTime()) / (pointsCount + 1);
   
-  for (let i = 0; i < pointCount; i++) {
+  for (let i = 0; i < pointsCount; i++) {
     const newDate = new Date(startDate.getTime() + timeStep * (i + 1));
     const newPoint = generateTimeSeriesPoint(baseData, dateField, schema, noiseLevel, newDate);
     result.push(newPoint);
