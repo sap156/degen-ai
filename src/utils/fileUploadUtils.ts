@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling file uploads across different data types
  */
@@ -23,7 +24,7 @@ export const calculateDataPointsCount = (
 ): number => {
   const startTime = startDate.getTime();
   const endTime = endDate.getTime();
-  const millisecondsDiff = endTime - startTime;
+  const millisecondsDiff = Math.max(0, endTime - startTime);
   
   switch (interval) {
     case 'hourly':

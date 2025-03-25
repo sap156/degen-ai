@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { 
@@ -52,12 +53,11 @@ import {
   AINoiseOptions
 } from '@/services/timeSeriesService';
 
-type FormValues = TimeSeriesOptions & {
+type FormValues = Omit<TimeSeriesOptions, 'dataPoints'> & {
   outputFormat: 'json' | 'csv';
   datasetName: string;
   additionalFieldCount: number;
   aiPrompt?: string;
-  useAi?: boolean;
   generationMode: 'new' | 'append';
 };
 
@@ -78,18 +78,13 @@ const TimeSeries = () => {
   const [detectedSchema, setDetectedSchema] = useState<Record<string, SchemaFieldType> | null>(null);
   const [uploadedTimestampField, setUploadedTimestampField] = useState<string | null>(null);
   const [datasetAnalysis, setDatasetAnalysis] = useState<any>(null);
+  const [estimatedPoints, setEstimatedPoints] = useState<number>(0);
   
-  if (!user) {
-    return (
-      <div className="container mx-auto py-6">
-        <AuthRequirement 
-          title="Authentication Required" 
-          description="Please sign in to access the Time Series Generator."
-          showUserGuide={<UserGuideTimeSeriesGenerator />}
-        />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (user?.id) {
+      // Initialize any user-specific data
+    }
+  }, [user]);
   
   const { handleSubmit, control, watch, setValue, register, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -98,7 +93,6 @@ const TimeSeries = () => {
       interval: 'daily',
       trend: 'random',
       noiseLevel: 0.3,
-      dataPoints: 100,
       outputFormat: 'json',
       datasetName: 'time_series_' + format(new Date(), 'yyyyMMdd'),
       additionalFieldCount: 0,
@@ -106,21 +100,26 @@ const TimeSeries = () => {
       categories: ['category-A', 'category-B', 'category-C', 'category-D'],
       seed: Math.floor(Math.random() * 10000),
       aiPrompt: '',
-      useAi: false,
-      //excludeDefaultValue: false,
       generationMode: 'new'
     }
   });
   
   const outputFormat = watch('outputFormat');
   const additionalFields = watch('additionalFields') || [];
-  const useAi = watch('useAi');
-  //const excludeDefaultValue = watch('excludeDefaultValue');
   const generationMode = watch('generationMode');
   const startDate = watch('startDate');
   const endDate = watch('endDate');
   const interval = watch('interval');
-  const dataPoints = watch('dataPoints');
+  
+  // Update estimated points count when dates or interval change
+  useEffect(() => {
+    if (startDate && endDate) {
+      const count = calculateDataPointsCount(startDate, endDate, interval);
+      setEstimatedPoints(count);
+    } else {
+      setEstimatedPoints(0);
+    }
+  }, [startDate, endDate, interval]);
   
   const setAdditionalFields = (fields: any[]) => {
     setValue('additionalFields', fields);
@@ -135,25 +134,22 @@ const TimeSeries = () => {
     try {
       let generatedData: TimeSeriesDataPoint[];
       
-      if (data.useAi && data.aiPrompt) {
+      if (data.aiPrompt) {
         generatedData = await generateTimeSeriesWithAI({
           apiKey,
           prompt: data.aiPrompt,
           startDate: data.startDate,
           endDate: data.endDate,
           interval: data.interval,
-          dataPoints: data.dataPoints,
           additionalFields: data.additionalFields,
           existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
             ? timeSeriesData 
             : undefined,
-          //excludeDefaultValue: data.excludeDefaultValue,
           onProgressUpdate: setProgressPercentage
         });
       } else {
         generatedData = generateTimeSeriesData({
           ...data,
-          //excludeDefaultValue: data.excludeDefaultValue,
           existingData: data.generationMode === 'append' && timeSeriesData.length > 0 
             ? timeSeriesData 
             : undefined
@@ -232,6 +228,10 @@ const TimeSeries = () => {
     try {
       const datasetName = watch('datasetName');
       await saveToMockDatabase(timeSeriesData, datasetName);
+      toast.success('Dataset saved successfully');
+    } catch (error) {
+      console.error('Error saving dataset:', error);
+      toast.error('Failed to save dataset');
     } finally {
       setSaving(false);
     }
@@ -411,8 +411,6 @@ const TimeSeries = () => {
         });
       
       setAdditionalFields(schemaFields);
-      
-      setValue('dataPoints', data.length);
       
       setValue('generationMode', 'append');
     } catch (error) {
@@ -594,6 +592,18 @@ const TimeSeries = () => {
       });
   }, [timeSeriesData]);
   
+  if (!user) {
+    return (
+      <div className="container mx-auto py-6">
+        <AuthRequirement 
+          title="Authentication Required" 
+          description="Please sign in to access the Time Series Generator."
+          showUserGuide={<UserGuideTimeSeriesGenerator />}
+        />
+      </div>
+    );
+  }
+  
   return (
     <div className="container mx-auto py-6">
       <div className="flex flex-col md:flex-row gap-6">
@@ -602,7 +612,7 @@ const TimeSeries = () => {
             <CardHeader>
               <CardTitle>Time Series Generator</CardTitle>
               <CardDescription>
-                Configure and generate time series data with various patterns
+                Configure and generate time series data based on date range and interval
               </CardDescription>
             </CardHeader>
             
@@ -653,37 +663,22 @@ const TimeSeries = () => {
                       )}
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <Switch 
-                        id="useAi" 
-                        checked={useAi} 
-                        onCheckedChange={(checked) => setValue('useAi', checked)} 
+                    <div className="space-y-2">
+                      <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
+                      <Textarea
+                        id="aiPrompt"
+                        placeholder={timeSeriesData.length > 0 
+                          ? "Describe how to enhance this existing data (e.g., 'Add seasonal patterns and extend by 30 days')" 
+                          : "Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data')"}
+                        className="h-24"
+                        {...register('aiPrompt')}
                       />
-                      <Label htmlFor="useAi" className="font-medium">
-                        Use AI Generation
-                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {timeSeriesData.length > 0 
+                          ? "Describe how you want to enhance or extend the uploaded data" 
+                          : "Describe domain, patterns, seasonality, trends, and any specific characteristics"}
+                      </p>
                     </div>
-                    
-                    {useAi && (
-                      <ApiKeyRequirement>
-                        <div className="space-y-2">
-                          <Label htmlFor="aiPrompt">AI Generation Prompt</Label>
-                          <Textarea
-                            id="aiPrompt"
-                            placeholder={timeSeriesData.length > 0 
-                              ? "Describe how to enhance this existing data (e.g., 'Add seasonal patterns and extend by 30 days')" 
-                              : "Describe the time series data you want to generate (e.g., 'Generate realistic e-commerce daily sales data')"}
-                            className="h-24"
-                            {...register('aiPrompt')}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            {timeSeriesData.length > 0 
-                              ? "Describe how you want to enhance or extend the uploaded data" 
-                              : "Describe domain, patterns, seasonality, trends, and any specific characteristics"}
-                          </p>
-                        </div>
-                      </ApiKeyRequirement>
-                    )}
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -757,6 +752,12 @@ const TimeSeries = () => {
                       </div>
                     </div>
                     
+                    {estimatedPoints > 0 && (
+                      <div className="text-sm text-muted-foreground mt-2">
+                        This will generate approximately {estimatedPoints} data points
+                      </div>
+                    )}
+                    
                     <div className="border-t pt-4 mt-4">
                       <h3 className="font-medium mb-2">
                         {timeSeriesData.length > 0 ? "Modification Options" : "Generation Options"}
@@ -785,99 +786,72 @@ const TimeSeries = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="dataPoints">
-                        {timeSeriesData.length > 0 ? "Additional Data Points" : "Number of Data Points"}
+                      <Label htmlFor="trend">
+                        {timeSeriesData.length > 0 ? "Modification Pattern" : "Trend Pattern"}
                       </Label>
-                      <Input
-                        id="dataPoints"
-                        type="number"
-                        {...register('dataPoints', { 
-                          required: 'Required',
-                          min: { value: 2, message: 'Minimum 2 points' },
-                          max: { value: 10000, message: 'Maximum 10000 points' }
-                        })}
+                      <Controller
+                        control={control}
+                        name="trend"
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select trend" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="random">Random</SelectItem>
+                              <SelectItem value="upward">Upward</SelectItem>
+                              <SelectItem value="downward">Downward</SelectItem>
+                              <SelectItem value="seasonal">Seasonal</SelectItem>
+                              <SelectItem value="cyclical">Cyclical</SelectItem>
+                              {timeSeriesData.length > 0 && (
+                                <SelectItem value="extend">Extend Similar Pattern</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
                       />
-                      {errors.dataPoints && (
-                        <p className="text-sm text-destructive">{errors.dataPoints.message}</p>
-                      )}
-                      {timeSeriesData.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Current dataset: {timeSeriesData.length} points
-                        </p>
-                      )}
                     </div>
                     
-                    {!useAi && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="trend">
-                            {timeSeriesData.length > 0 ? "Modification Pattern" : "Trend Pattern"}
-                          </Label>
-                          <Controller
-                            control={control}
-                            name="trend"
-                            render={({ field }) => (
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select trend" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="random">Random</SelectItem>
-                                  <SelectItem value="upward">Upward</SelectItem>
-                                  <SelectItem value="downward">Downward</SelectItem>
-                                  <SelectItem value="seasonal">Seasonal</SelectItem>
-                                  <SelectItem value="cyclical">Cyclical</SelectItem>
-                                  {timeSeriesData.length > 0 && (
-                                    <SelectItem value="extend">Extend Similar Pattern</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            )}
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label htmlFor="noiseLevel">Noise Level</Label>
+                        <span className="text-sm text-muted-foreground">
+                          {Math.round(watch('noiseLevel') * 100)}%
+                        </span>
+                      </div>
+                      <Controller
+                        control={control}
+                        name="noiseLevel"
+                        render={({ field: { value, onChange } }) => (
+                          <Slider
+                            defaultValue={[value]}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            onValueChange={(vals) => onChange(vals[0])}
                           />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <Label htmlFor="noiseLevel">Noise Level</Label>
-                            <span className="text-sm text-muted-foreground">
-                              {Math.round(watch('noiseLevel') * 100)}%
-                            </span>
-                          </div>
-                          <Controller
-                            control={control}
-                            name="noiseLevel"
-                            render={({ field: { value, onChange } }) => (
-                              <Slider
-                                defaultValue={[value]}
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                onValueChange={(vals) => onChange(vals[0])}
-                              />
-                            )}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="seed">Random Seed</Label>
-                          <Input
-                            id="seed"
-                            type="number"
-                            {...register('seed', { valueAsNumber: true })}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Use the same seed to generate reproducible results
-                          </p>
-                        </div>
-                      </>
-                    )}
+                        )}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="seed">Random Seed</Label>
+                      <Input
+                        id="seed"
+                        type="number"
+                        {...register('seed', { valueAsNumber: true })}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use the same seed to generate reproducible results
+                      </p>
+                    </div>
                     
                     {detectedSchema && (
                       <SchemaEditor
                         schema={detectedSchema}
                         additionalFields={additionalFields}
                         setAdditionalFields={setAdditionalFields}
-                        excludeDefaultValue={false} // or true, depending on your requirement
+                        excludeDefaultValue={false}
                       />
                     )}
                     
@@ -1049,7 +1023,6 @@ const TimeSeries = () => {
               data={timeSeriesData} 
               title="Time Series Data Preview" 
               additionalFields={additionalFieldNames}
-              //defaultValue={excludeDefaultValue ? undefined : 'value'}
               className="h-[500px]"
             />
           ) : (
@@ -1091,4 +1064,3 @@ const TimeSeries = () => {
 };
 
 export default TimeSeries;
-
