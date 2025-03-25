@@ -199,19 +199,20 @@ import {
        toast.error('Please upload a file first');
        return;
      }
- 
+
      if (!apiKey) {
        toast.error('OpenAI API key is required for data augmentation');
        return;
      }
- 
+
      setIsProcessing(true);
- 
+
      try {
        let allAugmentedData: any[] = [];
- 
+
        for (const method of selectedMethods) {
          try {
+           console.log(`Applying ${method} to all ${parsedData.length} records`);
            const augmentedData = await applyAugmentation(
              apiKey,
              parsedData,
@@ -219,14 +220,14 @@ import {
              augmentationSettings,
              aiPrompt
            );
- 
+
            allAugmentedData = [...allAugmentedData, ...augmentedData];
          } catch (error) {
            console.error(`Error applying ${method}:`, error);
            toast.error(`Failed to apply ${method}`);
          }
        }
- 
+
        const formattedData = JSON.stringify(allAugmentedData, null, 2);
        setAugmentedData(formattedData);
        setPreviewTab('augmented');
@@ -642,3 +643,4 @@ import {
 };
 
 export default DataAugmentation;
+

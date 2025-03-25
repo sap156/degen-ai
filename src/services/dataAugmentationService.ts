@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 
@@ -36,7 +37,7 @@ export const augmentDataWithAI = async (
     const systemMessage = createSystemMessage(options.method, options.interval);
     
     // Create user message with data samples and instructions
-    const userMessage = createUserMessage(samples, options);
+    const userMessage = createUserMessage(samples, options, data.length);
     
     const messages: OpenAiMessage[] = [
       { role: 'system', content: systemMessage },
@@ -45,7 +46,8 @@ export const augmentDataWithAI = async (
     
     console.log("Sending request to OpenAI with options:", {
       method: options.method,
-      interval: options.interval || 'daily'
+      interval: options.interval || 'daily',
+      dataLength: data.length
     });
     
     // Call OpenAI API
@@ -202,13 +204,14 @@ const createSystemMessage = (method: string, interval?: string): string => {
 };
 
 // Helper function to create user message with instructions
-const createUserMessage = (samples: any[], options: AugmentationOptions): string => {
+const createUserMessage = (samples: any[], options: AugmentationOptions, totalRecords: number): string => {
   let message = `I need to augment a dataset with the following characteristics:\n\n`;
   
   // Add method-specific instructions
   message += `Augmentation method: ${options.method}\n`;
   message += `Intensity level: ${options.intensity}\n`;
   message += `Fields to augment: ${options.fields.join(', ')}\n`;
+  message += `Total records in original dataset: ${totalRecords}\n`;
   
   if (options.distribution) {
     message += `Distribution type: ${options.distribution}\n`;
@@ -228,7 +231,7 @@ const createUserMessage = (samples: any[], options: AugmentationOptions): string
   }
   
   // Add specific instructions based on method
-  message += `\nPlease generate ${samples.length * 2} augmented records that follow these instructions and maintain the structure of the original data.`;
+  message += `\nPlease generate ${totalRecords} augmented records that follow these instructions and maintain the structure of the original data.`;
   message += `\nReturn ONLY a JSON array with the augmented data. No explanations or additional text. The output must be valid JSON.`;
   
   return message;
@@ -265,6 +268,7 @@ export const applyAugmentation = async (
   };
   
   try {
+    // Use the full dataset for augmentation - no slicing here
     const augmentedData = await augmentDataWithAI(apiKey, data, options);
     
     if (augmentedData.length === 0) {
