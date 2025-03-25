@@ -50,7 +50,8 @@ import {
   saveToMockDatabase,
   TimeSeriesDataPoint,
   TimeSeriesOptions,
-  AINoiseOptions
+  AINoiseOptions,
+  calculateDataPointsCount
 } from '@/services/timeSeriesService';
 
 type FormValues = Omit<TimeSeriesOptions, 'dataPoints'> & {
