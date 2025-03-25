@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { generateSyntheticDataWithAI } from "./openAiService";
 
@@ -167,30 +168,203 @@ export const detectSchemaFromData = async (data: any[], apiKey: string): Promise
   if (!data || data.length === 0) return [];
 
   try {
-    const sample = JSON.stringify(data.slice(0, 3));
+    // Take up to 5 samples for schema detection to avoid token limits
+    const sampleCount = Math.min(5, data.length);
+    const samples = data.slice(0, sampleCount);
+    const sample = JSON.stringify(samples);
 
-    const aiPrompt = `Analyze this dataset and infer the schema with field types. Example JSON: ${sample}. 
-    Return a JSON array of objects with "name" and "type" properties. Valid types include: string, number, boolean, date, id, name, email, phone, address, integer, float.`;
+    // Create a detailed prompt for the AI to analyze the data schema
+    const aiPrompt = `
+    Analyze this dataset and infer the schema with appropriate field types. JSON data sample:
+    ${sample}
+    
+    Return ONLY a JSON array of objects with "name" and "type" properties. 
+    Valid types include: string, integer, float, boolean, date, id, name, email, phone, address.
+    
+    For each field, determine the most appropriate type by analyzing patterns in the data.
+    - Use "id" for unique identifiers
+    - Use "name" for person names
+    - Use "email" for email addresses
+    - Use "phone" for phone numbers
+    - Use "address" for physical addresses
+    - Use "date" for date/time values
+    - Use "integer" for whole numbers
+    - Use "float" for decimal numbers
+    - Use "boolean" for true/false values
+    - Use "string" for general text
+    
+    Return ONLY the JSON array without any explanation or markdown formatting.
+    `;
 
+    // Call the OpenAI service to detect the schema
     const schemaResponse = await generateSyntheticDataWithAI(apiKey, {}, 0, { aiPrompt });
 
+    // Handle potential errors in the response
     if (schemaResponse.length > 0 && schemaResponse[0].error) {
       console.error("Error detecting schema:", schemaResponse[0]);
       throw new Error(schemaResponse[0].message || "Failed to detect schema");
     }
 
-    // Map the response to our DataField type and set included to true by default
-    return schemaResponse.map((field: any) => ({
-      name: field.name || field.field || "",
-      type: field.type || "string",
-      included: true
-    })).filter((field: DataField) => field.name.trim() !== "");
+    // Process and validate the AI response
+    let detectedSchema: DataField[];
+    
+    // Handle different response formats that might be returned
+    if (Array.isArray(schemaResponse) && typeof schemaResponse[0] === 'object') {
+      // Check if the response has the required properties
+      if (schemaResponse[0].name !== undefined && schemaResponse[0].type !== undefined) {
+        // Direct array of field objects
+        detectedSchema = schemaResponse.map(field => ({
+          name: field.name || field.field || "",
+          type: field.type || "string",
+          included: true
+        }));
+      } else if (schemaResponse[0].fields !== undefined && Array.isArray(schemaResponse[0].fields)) {
+        // Response with nested fields array
+        detectedSchema = schemaResponse[0].fields.map((field: any) => ({
+          name: field.name || field.field || "",
+          type: field.type || "string",
+          included: true
+        }));
+      } else if (schemaResponse[0].schema !== undefined) {
+        // Response with schema object
+        const schemaObj = schemaResponse[0].schema;
+        detectedSchema = Object.entries(schemaObj).map(([name, type]) => ({
+          name,
+          type: type as string,
+          included: true
+        }));
+      } else {
+        // Fallback: try to infer from the first object's structure
+        detectedSchema = Object.keys(data[0]).map(key => ({
+          name: key,
+          type: inferTypeFromValue(data[0][key]),
+          included: true
+        }));
+      }
+    } else {
+      // If the response isn't what we expected, fallback to inferring from data
+      detectedSchema = Object.keys(data[0]).map(key => ({
+        name: key,
+        type: inferTypeFromValue(data[0][key]),
+        included: true
+      }));
+    }
+
+    // Filter out any invalid fields and ensure non-empty field names
+    return detectedSchema
+      .filter((field: DataField) => field.name.trim() !== "")
+      .map((field: DataField) => ({
+        ...field,
+        type: validateFieldType(field.type)
+      }));
   } catch (error) {
     console.error("Error in schema detection:", error);
-    toast.error("Failed to detect schema from data");
-    // Return empty array on error to prevent UI from breaking
-    return [];
+    toast.error("Failed to detect schema from data using AI");
+    
+    // Fallback to basic schema detection if AI fails
+    return fallbackSchemaDetection(data);
   }
+};
+
+// Helper function to infer type from a value
+const inferTypeFromValue = (value: any): string => {
+  if (value === null || value === undefined) return "string";
+  
+  const type = typeof value;
+  
+  if (type === "number") {
+    return Number.isInteger(value) ? "integer" : "float";
+  }
+  
+  if (type === "boolean") return "boolean";
+  
+  if (type === "string") {
+    // Check for date pattern
+    if (/^\d{4}-\d{2}-\d{2}/.test(value) || /^\d{2}\/\d{2}\/\d{4}/.test(value)) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) return "date";
+    }
+    
+    // Check for email pattern
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "email";
+    
+    // Check for phone pattern
+    if (/^[\d\+\-\(\)\s]{7,15}$/.test(value)) return "phone";
+    
+    // Check if it might be a name (two words, each capitalized)
+    if (/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(value)) return "name";
+    
+    // Check if it might be an ID (look for common ID patterns)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) || 
+        /^[A-Z0-9]{8,}$/i.test(value) ||
+        value.toLowerCase().includes('id') && /^[A-Z0-9_-]+$/i.test(value)) {
+      return "id";
+    }
+  }
+  
+  return "string";
+};
+
+// Helper function to validate field type
+const validateFieldType = (type: string): string => {
+  const validTypes = [
+    "string", "integer", "float", "boolean", "date", 
+    "id", "name", "email", "phone", "address"
+  ];
+  
+  return validTypes.includes(type.toLowerCase()) 
+    ? type.toLowerCase() 
+    : "string";
+};
+
+// Fallback schema detection when AI fails
+const fallbackSchemaDetection = (data: any[]): DataField[] => {
+  if (!data || data.length === 0) return [];
+  
+  const firstItem = data[0];
+  return Object.keys(firstItem).map(key => {
+    let inferredType = "string";
+    
+    // Look at the first few items to better infer the type
+    const sampleSize = Math.min(5, data.length);
+    const sampleValues = data.slice(0, sampleSize).map(item => item[key]);
+    
+    // Check if all values are numbers
+    if (sampleValues.every(val => typeof val === "number" || 
+        (typeof val === "string" && !isNaN(Number(val))))) {
+      inferredType = sampleValues.every(val => 
+        typeof val === "number" ? Number.isInteger(val) : Number.isInteger(Number(val))
+      ) ? "integer" : "float";
+    } 
+    // Check if all values are booleans
+    else if (sampleValues.every(val => typeof val === "boolean" || 
+        val === "true" || val === "false")) {
+      inferredType = "boolean";
+    }
+    // Check for common field patterns in the key name
+    else if (typeof firstItem[key] === "string") {
+      const keyLower = key.toLowerCase();
+      if (keyLower.includes("id") && !keyLower.includes("idea") && !keyLower.includes("hidden")) {
+        inferredType = "id";
+      } else if (keyLower.includes("name") || keyLower.includes("fullname") || keyLower === "customer") {
+        inferredType = "name";
+      } else if (keyLower.includes("email")) {
+        inferredType = "email";
+      } else if (keyLower.includes("phone") || keyLower.includes("mobile") || keyLower.includes("cell")) {
+        inferredType = "phone";
+      } else if (keyLower.includes("address") || keyLower.includes("street")) {
+        inferredType = "address";
+      } else if (keyLower.includes("date") || keyLower.includes("time") || keyLower.includes("created")) {
+        inferredType = "date";
+      }
+    }
+    
+    return {
+      name: key,
+      type: inferredType,
+      included: true
+    };
+  });
 };
 
 // 🔹 AI-Powered Data Augmentation
