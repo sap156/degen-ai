@@ -101,8 +101,9 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
         return datasetAnalysis.potentialIssues;
       } catch (error) {
         // If it's not valid JSON but contains markdown list items, try to render it directly
-        if (datasetAnalysis.potentialIssues.includes('- ')) {
-          return renderMarkdown(datasetAnalysis.potentialIssues);
+        const potentialIssuesStr = datasetAnalysis.potentialIssues as string;
+        if (potentialIssuesStr && potentialIssuesStr.includes('- ')) {
+          return renderMarkdown(potentialIssuesStr);
         }
         // If parsing fails, return as-is for plain text display
         return datasetAnalysis.potentialIssues;
