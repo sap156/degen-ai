@@ -50,7 +50,7 @@ const PiiHandling = () => {
   const { apiKey } = useApiKey();
   const [originalData, setOriginalData] = useState<PiiData[]>([]);
   const [maskedData, setMaskedData] = useState<PiiDataMasked[]>([]);
-  const [dataCount, setDataCount] = useState<number>(10);
+  const [dataCount] = useState<number>(10);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
@@ -333,23 +333,7 @@ const PiiHandlingContent = () => {
                 </TabsList>
 
                 <TabsContent value="manual" className="space-y-4">
-                  <div>
-                    <Label htmlFor="record-count">Number of Records</Label>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Input
-                        id="record-count"
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={dataCount}
-                        onChange={(e) => setDataCount(parseInt(e.target.value) || 10)}
-                      />
-                      <Button onClick={generateData} size="sm">
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Generate
-                      </Button>
-                    </div>
-                  </div>
+                  {/* Record count and generate button removed */}
                 </TabsContent>
 
                 <TabsContent value="upload" className="space-y-4">
@@ -700,7 +684,6 @@ const PiiHandlingContent = () => {
     </div>
   );
  };
-
 
   const { user } = useAuth();
 
