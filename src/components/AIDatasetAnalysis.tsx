@@ -69,6 +69,15 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
     }
   };
   
+  // Format potential issues list as markdown
+  const formatPotentialIssuesAsMarkdown = (issues: string[]): string => {
+    if (!issues || issues.length === 0) {
+      return 'No significant issues detected.';
+    }
+    
+    return issues.map(issue => `- ${issue}`).join('\n');
+  };
+  
   if (!datasetAnalysis || !preferences) {
     return (
       <Card className="mt-6">
@@ -110,6 +119,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
               value={desiredOutcome} 
               onValueChange={setDesiredOutcome}
               className="grid grid-cols-1 gap-2"
+              defaultValue="balanced"
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="balanced" id="balanced" />
@@ -132,7 +142,11 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
           
           <div className="space-y-2">
             <Label>Model Preference</Label>
-            <Select value={modelPreference} onValueChange={setModelPreference}>
+            <Select 
+              value={modelPreference} 
+              onValueChange={setModelPreference}
+              defaultValue="auto"
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select model preference" />
               </SelectTrigger>
@@ -229,18 +243,14 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                   </h3>
                   
                   <div className="space-y-2">
-                    {datasetAnalysis.potentialIssues.length > 0 ? (
-                      <ul className="space-y-1 text-sm">
-                        {datasetAnalysis.potentialIssues.map((issue, index) => (
-                          <li key={index} className="flex items-start">
-                            <span className="text-orange-500 mr-2">•</span>
-                            <span>{issue}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No significant issues detected.</p>
-                    )}
+                    <div 
+                      className="bg-muted/50 p-4 rounded-md text-sm prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: renderMarkdown(
+                          formatPotentialIssuesAsMarkdown(datasetAnalysis.potentialIssues)
+                        ) 
+                      }}
+                    />
                   </div>
                 </div>
               </TabsContent>
