@@ -70,13 +70,46 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
   };
   
   // Format potential issues list as markdown
-  const formatPotentialIssuesAsMarkdown = (issues: string[]): string => {
-    if (!issues || issues.length === 0) {
+  const formatPotentialIssuesAsMarkdown = (issues: string[] | null | undefined): string => {
+    if (!issues || !Array.isArray(issues) || issues.length === 0) {
       return 'No significant issues detected.';
     }
     
     // Convert the array to proper markdown bullet points
     return issues.map(issue => `- ${issue}`).join('\n');
+  };
+  
+  // Safely prepare potential issues for display
+  const prepareIssuesForDisplay = () => {
+    if (!datasetAnalysis || !datasetAnalysis.potentialIssues) {
+      return 'No significant issues detected.';
+    }
+    
+    // Handle array of issues
+    if (Array.isArray(datasetAnalysis.potentialIssues)) {
+      return renderMarkdown(formatPotentialIssuesAsMarkdown(datasetAnalysis.potentialIssues));
+    }
+    
+    // Handle JSON string that needs to be parsed (legacy format)
+    if (typeof datasetAnalysis.potentialIssues === 'string') {
+      try {
+        const parsed = JSON.parse(datasetAnalysis.potentialIssues);
+        if (Array.isArray(parsed)) {
+          return renderMarkdown(formatPotentialIssuesAsMarkdown(parsed));
+        }
+        // If it's a string but not JSON array, just return it as plain text
+        return datasetAnalysis.potentialIssues;
+      } catch (error) {
+        // If it's not valid JSON but contains markdown list items, try to render it directly
+        if (datasetAnalysis.potentialIssues.includes('- ')) {
+          return renderMarkdown(datasetAnalysis.potentialIssues);
+        }
+        // If parsing fails, return as-is for plain text display
+        return datasetAnalysis.potentialIssues;
+      }
+    }
+    
+    return 'No significant issues detected.';
   };
   
   if (!datasetAnalysis || !preferences) {
@@ -244,11 +277,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                   <div className="space-y-2">
                     <div 
                       className="bg-muted/50 p-4 rounded-md text-sm prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ 
-                        __html: datasetAnalysis.potentialIssues && Array.isArray(datasetAnalysis.potentialIssues) 
-                          ? renderMarkdown(formatPotentialIssuesAsMarkdown(datasetAnalysis.potentialIssues))
-                          : 'No significant issues detected.'
-                      }}
+                      dangerouslySetInnerHTML={{ __html: prepareIssuesForDisplay() }}
                     />
                   </div>
                 </div>
