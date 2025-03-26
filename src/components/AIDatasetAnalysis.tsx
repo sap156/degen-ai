@@ -75,6 +75,7 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
       return 'No significant issues detected.';
     }
     
+    // Convert the array to proper markdown bullet points
     return issues.map(issue => `- ${issue}`).join('\n');
   };
   
@@ -119,7 +120,6 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
               value={desiredOutcome} 
               onValueChange={setDesiredOutcome}
               className="grid grid-cols-1 gap-2"
-              defaultValue="balanced"
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="balanced" id="balanced" />
@@ -145,7 +145,6 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
             <Select 
               value={modelPreference} 
               onValueChange={setModelPreference}
-              defaultValue="auto"
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select model preference" />
@@ -246,9 +245,9 @@ const AIDatasetAnalysis: React.FC<AIDatasetAnalysisProps> = ({
                     <div 
                       className="bg-muted/50 p-4 rounded-md text-sm prose prose-sm max-w-none"
                       dangerouslySetInnerHTML={{ 
-                        __html: renderMarkdown(
-                          formatPotentialIssuesAsMarkdown(datasetAnalysis.potentialIssues)
-                        ) 
+                        __html: datasetAnalysis.potentialIssues && Array.isArray(datasetAnalysis.potentialIssues) 
+                          ? renderMarkdown(formatPotentialIssuesAsMarkdown(datasetAnalysis.potentialIssues))
+                          : 'No significant issues detected.'
                       }}
                     />
                   </div>
