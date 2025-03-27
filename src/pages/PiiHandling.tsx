@@ -309,7 +309,8 @@ const PiiHandling = () => {
   };
 
   const handleAiPromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setAiPrompt(e.target.value);
+    const newValue = e.target.value;
+    setAiPrompt(newValue);
   };
 
   const PiiHandlingContent = () => {
