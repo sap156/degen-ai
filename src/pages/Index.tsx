@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,14 +7,11 @@ import { Database, BarChart3, TimerReset, Layers, ShieldAlert, Scale, FileJson, 
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 
 const container = {
-  hidden: {
-    opacity: 0
-  },
+  hidden: { opacity: 0 },
   show: {
     opacity: 1,
     transition: {
@@ -26,10 +22,7 @@ const container = {
 };
 
 const item = {
-  hidden: {
-    opacity: 0,
-    y: 20
-  },
+  hidden: { opacity: 0, y: 20 },
   show: {
     opacity: 1,
     y: 0,
@@ -90,11 +83,8 @@ const features = [
   }
 ];
 
-const FeatureCard = ({
-  feature
-}: {
-  feature: typeof features[0];
-}) => <motion.div variants={item}>
+const FeatureCard = ({ feature }: { feature: typeof features[0]; }) => (
+  <motion.div variants={item}>
     <Card className="h-full overflow-hidden border border-border/40 hover:border-border/80 transition-all">
       <CardHeader className="pb-2">
         <div className="bg-primary/10 rounded-full w-10 h-10 flex items-center justify-center text-primary mb-3">
@@ -112,17 +102,16 @@ const FeatureCard = ({
         </Link>
       </CardFooter>
     </Card>
-  </motion.div>;
+  </motion.div>
+);
 
 const Index: React.FC = () => {
-  const {
-    isKeySet
-  } = useApiKey();
+  const { isKeySet } = useApiKey();
   const { user } = useAuth();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   
   return (
-    <AuroraBackground className="overflow-y-auto">
+    <AuroraBackground className="w-full">
       <div className="container px-4 mx-auto py-8 max-w-7xl">
         <div className="flex flex-col items-center text-center mb-16 space-y-3">
           <motion.div initial={{
