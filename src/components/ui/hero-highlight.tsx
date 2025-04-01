@@ -89,9 +89,9 @@ export const Highlight = ({
       }}
       transition={{
         duration: 4,
-        ease: "easeInOut",
+        ease: "anticipate",
         repeat: Infinity,
-        repeatDelay: 1,
+        repeatDelay: 2,
       }}
       style={{
         backgroundRepeat: "no-repeat",
