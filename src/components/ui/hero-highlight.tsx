@@ -36,7 +36,7 @@ export const HeroHighlight = ({
   return (
     <div
       className={cn(
-        "relative h-auto flex items-center bg-white dark:bg-black justify-center w-full group",
+        "relative inline-flex items-center justify-center group",
         containerClassName
       )}
       onMouseMove={handleMouseMove}
@@ -84,16 +84,14 @@ export const Highlight = ({
 }) => {
   return (
     <motion.span
-      initial={{
-        backgroundSize: "0% 100%",
-      }}
       animate={{
-        backgroundSize: "100% 100%",
+        backgroundSize: ["0% 100%", "100% 100%", "100% 100%", "0% 100%"],
       }}
       transition={{
-        duration: 2,
-        ease: "linear",
-        delay: 0.5,
+        duration: 4,
+        ease: "easeInOut",
+        repeat: Infinity,
+        repeatDelay: 1,
       }}
       style={{
         backgroundRepeat: "no-repeat",

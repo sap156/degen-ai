@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -144,7 +143,7 @@ const Index: React.FC = () => {
             }}
           >
             Transform your data with{" "}
-            <HeroHighlight containerClassName="inline-block h-auto py-1 mx-0 bg-transparent">
+            <HeroHighlight>
               <Highlight className="text-foreground">Generative AI</Highlight>
             </HeroHighlight>
           </motion.h1>
