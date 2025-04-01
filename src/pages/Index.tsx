@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,7 +127,7 @@ const Index: React.FC = () => {
             Data Engineering Reimagined
           </motion.div>
           
-          <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl" initial={{
+          <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground" initial={{
           opacity: 0,
           y: 20
         }} animate={{
@@ -238,7 +239,7 @@ const Index: React.FC = () => {
           transition={{ duration: 0.5, delay: 0.6 }}
         >
           <div className="flex flex-col items-center text-center">
-            <h2 className="text-xl font-semibold mb-4">Connect With Me</h2>
+            <h2 className="text-xl font-semibold mb-4 text-foreground">Connect With Me</h2>
             <div className="flex flex-wrap justify-center gap-4 mb-6">
               <a 
                 href="https://www.linkedin.com/in/abhinavneni/" 
