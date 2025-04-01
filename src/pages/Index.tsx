@@ -10,6 +10,7 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
+import { HeroHighlight, Highlight } from '@/components/ui/hero-highlight';
 
 const container = {
   hidden: { opacity: 0 },
@@ -127,16 +128,26 @@ const Index: React.FC = () => {
             Data Engineering Reimagined
           </motion.div>
           
-          <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground" initial={{
-          opacity: 0,
-          y: 20
-        }} animate={{
-          opacity: 1,
-          y: 0
-        }} transition={{
-          duration: 0.5,
-          delay: 0.1
-        }}>Transform your data with Generative AI</motion.h1>
+          <motion.h1 
+            className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground" 
+            initial={{
+              opacity: 0,
+              y: 20
+            }} 
+            animate={{
+              opacity: 1,
+              y: 0
+            }} 
+            transition={{
+              duration: 0.5,
+              delay: 0.1
+            }}
+          >
+            Transform your data with{" "}
+            <HeroHighlight containerClassName="inline-block h-auto py-1 mx-0 bg-transparent">
+              <Highlight className="text-foreground">Generative AI</Highlight>
+            </HeroHighlight>
+          </motion.h1>
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
           opacity: 0,
