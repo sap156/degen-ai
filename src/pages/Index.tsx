@@ -9,7 +9,10 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { HeroHighlight, Highlight } from '@/components/ui/hero-highlight';
+import { Highlight } from '@/components/ui/hero-highlight';
+import { GlowingEffect } from '@/components/ui/glowing-effect';
+import { GradientText } from '@/components/ui/gradient-text';
+import { ButtonColorful } from '@/components/ui/button-colorful';
 
 const container = {
   hidden: { opacity: 0 },
@@ -86,22 +89,29 @@ const features = [
 
 const FeatureCard = ({ feature }: { feature: typeof features[0]; }) => (
   <motion.div variants={item}>
-    <Card className="h-full overflow-hidden border border-border/40 hover:border-border/80 transition-all">
-      <CardHeader className="pb-2">
-        <div className="bg-primary/10 rounded-full w-10 h-10 flex items-center justify-center text-primary mb-3">
-          {feature.icon}
-        </div>
-        <CardTitle className="text-xl">{feature.title}</CardTitle>
-        <CardDescription>{feature.description}</CardDescription>
-      </CardHeader>
-      <CardFooter className="pt-2">
-        <Link to={feature.path} className="w-full">
-          <Button variant="ghost" className="flex items-center justify-between w-full bg-secondary/50 hover:bg-secondary">
-            <span>Explore</span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </Link>
-      </CardFooter>
+    <Card className="h-full overflow-hidden border border-border/40 hover:border-border/80 transition-all rounded-[1.25rem]">
+      <div className="relative h-full w-full">
+        <GlowingEffect 
+          spread={40}
+          glow={true}
+          disabled={false}
+          proximity={64}
+          inactiveZone={0.01}
+          borderWidth={2}
+        />
+        <CardHeader className="pb-2">
+          <div className="bg-primary/10 rounded-full w-10 h-10 flex items-center justify-center text-primary mb-3">
+            {feature.icon}
+          </div>
+          <CardTitle className="text-xl">{feature.title}</CardTitle>
+          <CardDescription>{feature.description}</CardDescription>
+        </CardHeader>
+        <CardFooter className="pt-2">
+          <Link to={feature.path} className="w-full">
+            <ButtonColorful className="w-full" label="Explore" />
+          </Link>
+        </CardFooter>
+      </div>
     </Card>
   </motion.div>
 );
@@ -143,9 +153,9 @@ const Index: React.FC = () => {
             }}
           >
             Transform your data with{" "}
-            <HeroHighlight>
-              <Highlight className="text-foreground">Generative AI</Highlight>
-            </HeroHighlight>
+            <GradientText className="text-foreground">
+              Generative AI
+            </GradientText>
           </motion.h1>
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
