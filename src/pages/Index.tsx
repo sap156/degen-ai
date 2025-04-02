@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +10,9 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { HeroHighlight, Highlight } from '@/components/ui/hero-highlight';
+import { Highlight } from '@/components/ui/hero-highlight';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
+import { GradientText } from '@/components/ui/gradient-text';
 
 const container = {
   hidden: { opacity: 0 },
@@ -154,9 +156,9 @@ const Index: React.FC = () => {
             }}
           >
             Transform your data with{" "}
-            <HeroHighlight>
-              <Highlight className="text-foreground">Generative AI</Highlight>
-            </HeroHighlight>
+            <GradientText className="text-foreground">
+              Generative AI
+            </GradientText>
           </motion.h1>
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
