@@ -153,9 +153,10 @@ const Index: React.FC = () => {
             }}
           >
             Transform your data with{" "}
-            <GradientText className="text-foreground">
-              Generative AI
+            <GradientText className="text-6xl font-bold">
+               Generative AI
             </GradientText>
+
           </motion.h1>
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
