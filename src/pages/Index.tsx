@@ -142,10 +142,8 @@ const Index: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.1 }}
           >
             Transform your data with{' '}
-            <SparklesText text="Generative AI" />
+            <SparklesText text="Generative AI" className="text-6xl" />
           </motion.h1>
-    
-
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
           opacity: 0,
