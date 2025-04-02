@@ -9,7 +9,6 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { Highlight } from '@/components/ui/hero-highlight';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { TextScramble } from '@/components/ui/text-scramble';
 import { GradientText } from '@/components/ui/gradient-text';
@@ -138,27 +137,20 @@ const Index: React.FC = () => {
             Data Engineering Reimagined
           </motion.div>
           
-          <motion.h1 
-            className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground" 
-            initial={{
-              opacity: 0,
-              y: 20
-            }} 
-            animate={{
-              opacity: 1,
-              y: 0
-            }} 
-            transition={{
-              duration: 0.5,
-              delay: 0.1
-            }}
-          >
-            Transform your data with{" "}
-            <GradientText className="text-6xl font-bold">
-               Generative AI
-            </GradientText>
+          <motion.h1
+  className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground"
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.5, delay: 0.1 }}
+>
+        <TextScramble className="inline-block">
+        {"Transform your data with "}
+        </TextScramble>
 
-          </motion.h1>
+      <GradientText className="text-6xl font-bold inline-block">
+        Generative AI
+      </GradientText>
+      </motion.h1>
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
           opacity: 0,
