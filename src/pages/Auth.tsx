@@ -1,13 +1,13 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AuroraButton } from '@/components/ui/aurora-button';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -92,7 +92,7 @@ const Auth = () => {
             </CardContent>
             
             <CardFooter className="flex flex-col gap-4">
-              <Button 
+              <AuroraButton 
                 type="submit" 
                 className="w-full" 
                 disabled={isLoading}
@@ -101,19 +101,19 @@ const Auth = () => {
                   ? 'Please wait...' 
                   : isSignUp ? 'Create account' : 'Sign in'
                 }
-              </Button>
+              </AuroraButton>
               
-              <Button 
+              <AuroraButton 
                 type="button" 
-                variant="ghost" 
-                className="w-full" 
+                className="w-full bg-transparent hover:bg-transparent border-none" 
                 onClick={() => setIsSignUp(!isSignUp)}
+                glowClassName="opacity-50"
               >
                 {isSignUp 
                   ? 'Already have an account? Sign in' 
                   : 'Don\'t have an account? Sign up'
                 }
-              </Button>
+              </AuroraButton>
             </CardFooter>
           </form>
         </Card>

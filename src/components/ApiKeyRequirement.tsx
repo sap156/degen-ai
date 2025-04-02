@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import { useApiKey } from '@/contexts/ApiKeyContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { KeyRound, AlertTriangle, LogIn } from 'lucide-react';
 import ApiKeyDialog from './ApiKeyDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import AuthRequirement from './AuthRequirement';
+import { AuroraButton } from '@/components/ui/aurora-button';
 
 interface ApiKeyRequirementProps {
   title?: string;
@@ -58,14 +58,16 @@ const ApiKeyRequirement: React.FC<ApiKeyRequirementProps> = ({
             </CardDescription>
           </CardHeader>
           <CardFooter className="pt-2">
-            <Button 
+            <AuroraButton 
               onClick={() => setApiKeyDialogOpen(true)}
-              variant="outline"
-              className="border-amber-400 bg-white dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 gap-2"
+              className="border-transparent"
+              glowClassName="from-amber-400 via-orange-500 to-amber-600"
             >
-              <KeyRound className="h-4 w-4" />
-              Set Up API Key
-            </Button>
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4" />
+                Set Up API Key
+              </div>
+            </AuroraButton>
           </CardFooter>
         </Card>
       </motion.div>

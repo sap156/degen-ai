@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { NavBar as TubelightNavBar } from '@/components/ui/tubelight-navbar';
+import { AuroraButton } from '@/components/ui/aurora-button';
 
 const NavBar = () => {
   const location = useLocation();
@@ -132,7 +133,19 @@ const NavBar = () => {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </motion.div>
-              ) : null}
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <AuroraButton className="py-1.5" glowClassName="from-blue-500 via-indigo-500 to-purple-500">
+                    <Link to="/auth" className="flex items-center">
+                      Sign In
+                    </Link>
+                  </AuroraButton>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
@@ -193,14 +206,14 @@ const NavBar = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.2 }}
                 >
-                  <Button 
-                    variant="outline" 
-                    className="w-full text-destructive border-destructive/40"
+                  <AuroraButton 
+                    className="w-full justify-center border-transparent" 
+                    glowClassName="from-red-500 via-pink-500 to-purple-500"
                     onClick={handleSignOut}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign out
-                  </Button>
+                  </AuroraButton>
                 </motion.li>
               </ul>
             </nav>

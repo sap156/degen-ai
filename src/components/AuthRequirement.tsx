@@ -1,10 +1,10 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { AuroraButton } from '@/components/ui/aurora-button';
 
 interface AuthRequirementProps {
   title?: string;
@@ -37,16 +37,15 @@ const AuthRequirement: React.FC<AuthRequirementProps> = ({
             </CardDescription>
           </CardHeader>
           <CardFooter className="pt-2">
-            <Button 
-              variant="outline"
-              className="border-amber-400 bg-white dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 gap-2"
-              asChild
+            <AuroraButton 
+              className="border-transparent"
+              glowClassName="from-amber-400 via-orange-500 to-amber-600"
             >
-              <Link to="/auth">
+              <Link to="/auth" className="flex items-center gap-2">
                 <LogIn className="h-4 w-4" />
                 Sign In
               </Link>
-            </Button>
+            </AuroraButton>
           </CardFooter>
         </Card>
       </motion.div>

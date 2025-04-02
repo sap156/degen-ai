@@ -9,10 +9,10 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { Highlight } from '@/components/ui/hero-highlight';
-import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { GradientText } from '@/components/ui/gradient-text';
+import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { ButtonColorful } from '@/components/ui/button-colorful';
+import { AuroraButton } from '@/components/ui/aurora-button';
 
 const container = {
   hidden: { opacity: 0 },
@@ -213,12 +213,12 @@ const Index: React.FC = () => {
                     {isKeySet ? "Manage API Key" : "Set Up API Key"}
                   </Button>
                 ) : (
-                  <Button className="w-full gap-2" asChild>
-                    <Link to="/auth">
+                  <AuroraButton className="w-full gap-2 justify-center" glowClassName="from-blue-500 via-indigo-500 to-purple-500">
+                    <Link to="/auth" className="flex items-center gap-2">
                       <KeyRound className="h-4 w-4" />
                       Sign In
                     </Link>
-                  </Button>
+                  </AuroraButton>
                 )}
               </CardFooter>
             </Card>
