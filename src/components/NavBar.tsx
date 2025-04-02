@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import { NavBar as TubelightNavBar } from '@/components/ui/tubelight-navbar';
 
 const NavBar = () => {
   const location = useLocation();
@@ -24,39 +25,39 @@ const NavBar = () => {
   const navItems = [{
     path: '/synthetic-data',
     label: 'Synthetic Data',
-    icon: <Layers className="h-4 w-4" />
+    icon: Layers
   }, {
     path: '/data-augmentation',
     label: 'Data Augmentation',
-    icon: <BarChart3 className="h-4 w-4" />
+    icon: BarChart3
   }, {
     path: '/time-series',
     label: 'Time Series',
-    icon: <TimerReset className="h-4 w-4" />
+    icon: TimerReset
   }, {
     path: '/pii-handling',
     label: 'PII Handling',
-    icon: <ShieldAlert className="h-4 w-4" />
+    icon: ShieldAlert
   }, {
     path: '/imbalanced-data',
     label: 'Imbalanced Data',
-    icon: <Scale className="h-4 w-4" />
+    icon: Scale
   }, {
     path: '/data-parsing',
     label: 'Data Parsing',
-    icon: <FileJson className="h-4 w-4" />
+    icon: FileJson
   }, {
     path: '/extraction',
     label: 'Data Extraction',
-    icon: <Globe className="h-4 w-4" />
+    icon: Globe
   }, {
     path: '/edge-cases',
     label: 'Edge Cases',
-    icon: <Bug className="h-4 w-4" />
+    icon: Bug
   }, {
     path: '/data-query',
     label: 'Data Query',
-    icon: <Search className="h-4 w-4" />
+    icon: Search
   }];
   
   const toggleMobileMenu = () => {
@@ -85,45 +86,14 @@ const NavBar = () => {
           
           <AnimatePresence>
             {user && (
-              <motion.nav 
+              <motion.div 
                 className="ml-auto mr-4 hidden md:flex"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                <ul className="flex space-x-1">
-                  {navItems.map(item => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <motion.li 
-                        key={item.path}
-                        initial={{ opacity: 0, x: -5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: 0.1 }}
-                      >
-                        <Link
-                          to={item.path}
-                          className={`relative flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
-                            isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {item.icon}
-                          <span className="hidden lg:inline">{item.label}</span>
-                          {isActive && (
-                            <motion.div
-                              layoutId="navbar-indicator"
-                              className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ duration: 0.2 }}
-                            />
-                          )}
-                        </Link>
-                      </motion.li>
-                    );
-                  })}
-                </ul>
-              </motion.nav>
+                <TubelightNavBar items={navItems} />
+              </motion.div>
             )}
           </AnimatePresence>
           
@@ -195,7 +165,7 @@ const NavBar = () => {
                         }`}
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
-                        {item.icon}
+                        <item.icon className="h-4 w-4" />
                         <span>{item.label}</span>
                       </Link>
                     </motion.li>
