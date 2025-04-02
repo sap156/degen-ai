@@ -10,7 +10,7 @@ import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
-import { GradientText } from '@/components/ui/gradient-text';
+import { SparklesText } from '@/components/ui/sparkles-text';
 import { ButtonColorful } from '@/components/ui/button-colorful';
 
 const container = {
@@ -126,38 +126,23 @@ const Index: React.FC = () => {
     <AuroraBackground className="w-full">
       <div className="container px-4 mx-auto py-8 max-w-7xl">
         <div className="flex flex-col items-center text-center mb-16 space-y-3">
-          <motion.div initial={{
-          opacity: 0,
-          y: -20
-        }} animate={{
-          opacity: 1,
-          y: 0
-        }} transition={{
-          duration: 0.5
-        }} className="bg-primary/10 text-primary font-medium rounded-full px-4 py-2 text-sm">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-primary/10 text-primary font-medium rounded-full px-4 py-2 text-sm"
+          >
             Data Engineering Reimagined
           </motion.div>
-          
-          <motion.h1 
-            className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground" 
-            initial={{
-              opacity: 0,
-              y: 20
-            }} 
-            animate={{
-              opacity: 1,
-              y: 0
-            }} 
-            transition={{
-              duration: 0.5,
-              delay: 0.1
-            }}
-          >
-            Transform your data with{" "}
-            <GradientText className="text-6xl font-bold">
-               Generative AI
-            </GradientText>
 
+          <motion.h1
+            className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight max-w-3xl text-foreground"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            Transform your data with{' '}
+            <SparklesText text="Generative AI" />
           </motion.h1>
     
 
