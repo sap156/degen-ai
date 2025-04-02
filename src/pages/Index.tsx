@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +12,7 @@ import { AuroraBackground } from '@/components/ui/aurora-background';
 import { Highlight } from '@/components/ui/hero-highlight';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { GradientText } from '@/components/ui/gradient-text';
+import { ButtonColorful } from '@/components/ui/button-colorful';
 
 const container = {
   hidden: { opacity: 0 },
@@ -108,10 +108,7 @@ const FeatureCard = ({ feature }: { feature: typeof features[0]; }) => (
         </CardHeader>
         <CardFooter className="pt-2">
           <Link to={feature.path} className="w-full">
-            <Button variant="ghost" className="flex items-center justify-between w-full bg-secondary/50 hover:bg-secondary">
-              <span>Explore</span>
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+            <ButtonColorful className="w-full" label="Explore" />
           </Link>
         </CardFooter>
       </div>
