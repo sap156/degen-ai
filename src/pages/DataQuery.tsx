@@ -33,7 +33,7 @@ const DataQuery = () => {
   const { user } = useAuth();
   const [schema, setSchema] = useState<string>('');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [activeTab, setActiveTab] = useState('query');
+  const [activeTab, setActiveTab] = useState<string>('query');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<SnowflakeConnection | null>(null);
   
@@ -77,7 +77,8 @@ const DataQuery = () => {
         <ApiKeyRequirement />
       ) : (
         <>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          {/* Fixing the Tabs components to properly handle RovingFocusGroup */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="query">
             <TabsList className="grid grid-cols-3 mb-4">
               <TabsTrigger value="query">AI SQL Generator</TabsTrigger>
               <TabsTrigger value="snowflake">Snowflake</TabsTrigger>
@@ -133,13 +134,12 @@ const DataQuery = () => {
                   <p className="text-muted-foreground mb-4">
                     Please select or create a Snowflake connection to continue
                   </p>
-                  <TabsTrigger 
-                    value="connections" 
+                  <button
                     onClick={() => setActiveTab('connections')}
                     className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                   >
                     Manage Connections
-                  </TabsTrigger>
+                  </button>
                 </div>
               )}
             </TabsContent>
