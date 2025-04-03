@@ -154,6 +154,10 @@ export default {
           "50%": { bottom: "25%", right: "40%" },
           "90%": { bottom: "50%", right: "25%" },
         },
+        "rainbow": {
+          "0%": { "background-position": "0%" },
+          "100%": { "background-position": "200%" },
+        },
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
@@ -163,6 +167,7 @@ export default {
 				'slide-in': 'slide-in 0.5s ease-out',
 				'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
 				'aurora': 'aurora 60s linear infinite',
+        'rainbow': 'rainbow var(--speed, 2s) infinite linear',
 			},
 			backdropBlur: {
 				'xs': '2px',
