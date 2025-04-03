@@ -60,6 +60,51 @@ export type Database = {
         }
         Relationships: []
       }
+      snowflake_connections: {
+        Row: {
+          account_identifier: string
+          connection_name: string
+          created_at: string | null
+          database_name: string
+          id: string
+          is_active: boolean | null
+          password: string
+          schema_name: string
+          updated_at: string | null
+          user_id: string
+          username: string
+          warehouse: string
+        }
+        Insert: {
+          account_identifier: string
+          connection_name: string
+          created_at?: string | null
+          database_name: string
+          id?: string
+          is_active?: boolean | null
+          password: string
+          schema_name: string
+          updated_at?: string | null
+          user_id: string
+          username: string
+          warehouse: string
+        }
+        Update: {
+          account_identifier?: string
+          connection_name?: string
+          created_at?: string | null
+          database_name?: string
+          id?: string
+          is_active?: boolean | null
+          password?: string
+          schema_name?: string
+          updated_at?: string | null
+          user_id?: string
+          username?: string
+          warehouse?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,1 +1,5 @@
+
 project_id = "zdbzhlrmpiowsnbhxlyi"
+
+[functions.snowflake-query]
+verify_jwt = true
