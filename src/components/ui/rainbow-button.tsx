@@ -27,9 +27,9 @@ export function RainbowButton({
         // light mode colors
         "bg-[linear-gradient(#121213,#121213),linear-gradient(#121213_50%,rgba(18,18,19,0.6)_80%,rgba(18,18,19,0)),linear-gradient(90deg,hsl(var(--color-1)),hsl(var(--color-5)),hsl(var(--color-3)),hsl(var(--color-4)),hsl(var(--color-2)))]",
 
-        // dark mode colors with improved text visibility
-        "dark:bg-[linear-gradient(#1e1e1e,#1e1e1e),linear-gradient(#1e1e1e_50%,rgba(30,30,30,0.8)_80%,rgba(30,30,30,0)),linear-gradient(90deg,hsl(var(--color-1)),hsl(var(--color-5)),hsl(var(--color-3)),hsl(var(--color-4)),hsl(var(--color-2)))]",
-        "dark:text-white", // Ensure text is visible in dark mode
+        // dark mode colors with dark text
+        "dark:bg-[linear-gradient(#fff,#fff),linear-gradient(#fff_50%,rgba(255,255,255,0.6)_80%,rgba(255,255,255,0)),linear-gradient(90deg,hsl(var(--color-1)),hsl(var(--color-5)),hsl(var(--color-3)),hsl(var(--color-4)),hsl(var(--color-2)))]",
+        "dark:text-black", // Ensure text is dark in dark mode
 
         className
       )}
