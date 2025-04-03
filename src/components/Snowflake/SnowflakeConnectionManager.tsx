@@ -62,20 +62,22 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
   const loadConnections = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // Use type assertion to tell TypeScript this is a valid table name
+      const { data, error } = await (supabase as any)
         .from('snowflake_connections')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      setConnections(data || []);
+      // Type assertion to match our SnowflakeConnection interface
+      setConnections(data as SnowflakeConnection[]);
       
       // If there is a selected connection ID and it exists in the loaded connections, select it
       if (selectedConnectionId) {
         const selected = data?.find(conn => conn.id === selectedConnectionId);
         if (selected && onConnectionSelect) {
-          onConnectionSelect(selected);
+          onConnectionSelect(selected as SnowflakeConnection);
         }
       }
     } catch (error) {
@@ -169,13 +171,13 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
 
       if (editingConnection) {
         // Update existing connection
-        result = await supabase
+        result = await (supabase as any)
           .from('snowflake_connections')
           .update(connectionData)
           .eq('id', editingConnection.id);
       } else {
         // Insert new connection
-        result = await supabase
+        result = await (supabase as any)
           .from('snowflake_connections')
           .insert(connectionData)
           .select();
@@ -190,7 +192,7 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
       // If a new connection was created and it's the only one, select it automatically
       if (!editingConnection && result.data && result.data.length > 0 && connections.length === 0) {
         if (onConnectionSelect) {
-          onConnectionSelect(result.data[0]);
+          onConnectionSelect(result.data[0] as SnowflakeConnection);
         }
       }
       
@@ -206,7 +208,7 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
     if (!confirm("Are you sure you want to delete this connection?")) return;
     
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('snowflake_connections')
         .delete()
         .eq('id', id);

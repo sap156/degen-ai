@@ -3,44 +3,41 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Play, ClipboardCopy, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, Download, Play } from 'lucide-react';
 import { SnowflakeConnection } from './SnowflakeConnectionManager';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SnowflakeSqlEditorProps {
-  selectedConnection: SnowflakeConnection | null;
+  selectedConnection: SnowflakeConnection;
 }
 
 interface QueryResult {
-  data: any[];
-  columns: string[];
+  data?: any;
   error?: string;
+  details?: string;
 }
 
 const SnowflakeSqlEditor: React.FC<SnowflakeSqlEditorProps> = ({ selectedConnection }) => {
-  const [sql, setSql] = useState<string>('SELECT * FROM INFORMATION_SCHEMA.TABLES LIMIT 10;');
+  const [sqlQuery, setSqlQuery] = useState<string>('SELECT current_timestamp();');
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [resultColumns, setResultColumns] = useState<string[]>([]);
+  const [resultRows, setResultRows] = useState<any[]>([]);
 
-  const handleExecuteQuery = async () => {
-    if (!selectedConnection) {
-      toast.error('Please select a Snowflake connection first');
-      return;
-    }
-
-    if (!sql.trim()) {
-      toast.error('SQL query cannot be empty');
+  const executeQuery = async () => {
+    if (!sqlQuery.trim()) {
+      toast.error('Please enter a SQL query');
       return;
     }
 
     setIsExecuting(true);
     setQueryResult(null);
+    setResultColumns([]);
+    setResultRows([]);
 
     try {
-      // Prepare the credentials for the Snowflake Edge Function
+      // Prepare the credentials object from the selected connection
       const credentials = {
         account: selectedConnection.account_identifier,
         username: selectedConnection.username,
@@ -51,136 +48,75 @@ const SnowflakeSqlEditor: React.FC<SnowflakeSqlEditorProps> = ({ selectedConnect
       };
 
       // Call the Snowflake Edge Function
-      const response = await supabase.functions.invoke('snowflake-query', {
+      const { data, error } = await supabase.functions.invoke('snowflake-query', {
         body: {
-          sql,
+          sql: sqlQuery,
           credentials
         }
       });
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Query execution failed');
+      if (error) {
+        throw new Error(error.message || 'Error executing query');
       }
 
-      // Process the query result
-      if (response.data.error) {
-        setQueryResult({
-          data: [],
-          columns: [],
-          error: response.data.error
-        });
-        toast.error('Query execution failed');
+      setQueryResult(data);
+
+      if (data && data.resultSetMetaData && data.data) {
+        // Extract column names from metadata
+        const columns = data.resultSetMetaData.rowType.map((col: any) => col.name);
+        setResultColumns(columns);
+
+        // Extract rows from data
+        setResultRows(data.data);
+        
+        toast.success(`Query executed successfully. ${data.data.length} rows returned.`);
+      } else if (data && !data.error) {
+        toast.success('Query executed successfully. No rows returned.');
       } else {
-        // Process successful result - format depends on Snowflake API response structure
-        // This will need to be adjusted based on actual response format
-        const resultData = processSnowflakeResult(response.data);
-        setQueryResult(resultData);
-        toast.success('Query executed successfully');
+        throw new Error(data.error || 'Unknown error');
       }
     } catch (error) {
-      console.error('Error executing Snowflake query:', error);
-      setQueryResult({
-        data: [],
-        columns: [],
-        error: error.message || 'An unknown error occurred'
-      });
-      toast.error('Failed to execute query');
+      console.error('Error executing SQL query:', error);
+      setQueryResult({ error: 'Failed to execute query', details: error.message });
+      toast.error(`Failed to execute query: ${error.message}`);
     } finally {
       setIsExecuting(false);
     }
   };
 
-  // Helper function to process Snowflake API result
-  const processSnowflakeResult = (apiResponse: any): QueryResult => {
-    // Check if the response contains result data
-    if (!apiResponse || !apiResponse.data || !Array.isArray(apiResponse.data.rows)) {
-      return { 
-        data: [], 
-        columns: [], 
-        error: 'Invalid response format from Snowflake API' 
-      };
+  const downloadResults = () => {
+    if (!resultColumns.length || !resultRows.length) {
+      toast.error('No results to download');
+      return;
     }
 
     try {
-      // Extract column information
-      const columns = apiResponse.data.rowType
-        ? apiResponse.data.rowType.map((col: any) => col.name || 'COLUMN')
-        : [];
-
-      // Extract row data
-      const data = apiResponse.data.rows.map((row: any) => {
-        // If row is an array, map it to an object with column names as keys
-        if (Array.isArray(row)) {
-          return row.reduce((obj: any, val: any, index: number) => {
-            obj[columns[index] || `Column ${index}`] = val;
-            return obj;
-          }, {});
-        }
-        return row;
+      // Create CSV content
+      const csvHeader = resultColumns.join(',');
+      const csvRows = resultRows.map(row => {
+        return row.map((cell: any) => {
+          // Handle cells that might contain commas or quotes
+          if (cell === null || cell === undefined) return '';
+          const cellStr = String(cell);
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return cellStr;
+        }).join(',');
       });
-
-      return {
-        data,
-        columns
-      };
-    } catch (error) {
-      console.error('Error processing Snowflake result:', error);
-      return {
-        data: [],
-        columns: [],
-        error: 'Failed to process query result'
-      };
-    }
-  };
-
-  const handleCopyToClipboard = () => {
-    if (!queryResult || !queryResult.data || queryResult.data.length === 0) {
-      toast.error('No data to copy');
-      return;
-    }
-
-    try {
-      // Convert result to CSV format
-      const headers = queryResult.columns.join(',');
-      const rows = queryResult.data.map(row => 
-        queryResult.columns.map(col => JSON.stringify(row[col] || '')).join(',')
-      );
-      const csv = [headers, ...rows].join('\n');
-
-      navigator.clipboard.writeText(csv);
-      toast.success('Results copied to clipboard');
-    } catch (error) {
-      console.error('Error copying to clipboard:', error);
-      toast.error('Failed to copy results');
-    }
-  };
-
-  const handleDownloadResults = () => {
-    if (!queryResult || !queryResult.data || queryResult.data.length === 0) {
-      toast.error('No data to download');
-      return;
-    }
-
-    try {
-      // Convert result to CSV format
-      const headers = queryResult.columns.join(',');
-      const rows = queryResult.data.map(row => 
-        queryResult.columns.map(col => JSON.stringify(row[col] || '')).join(',')
-      );
-      const csv = [headers, ...rows].join('\n');
-
-      // Create a download link
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('hidden', '');
-      a.setAttribute('href', url);
-      a.setAttribute('download', `snowflake_result_${new Date().getTime()}.csv`);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
+      const csvContent = [csvHeader, ...csvRows].join('\n');
+      
+      // Create a Blob and download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `snowflake-results-${new Date().toISOString().slice(0, 19)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
       toast.success('Results downloaded as CSV');
     } catch (error) {
       console.error('Error downloading results:', error);
@@ -189,115 +125,109 @@ const SnowflakeSqlEditor: React.FC<SnowflakeSqlEditorProps> = ({ selectedConnect
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Snowflake SQL Editor</CardTitle>
           <CardDescription>
-            {selectedConnection
-              ? `Connected to ${selectedConnection.connection_name} (${selectedConnection.database_name}.${selectedConnection.schema_name})`
-              : 'Select a connection to execute queries'}
+            Connected to: {selectedConnection.connection_name} ({selectedConnection.database_name}.{selectedConnection.schema_name})
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Textarea
-            value={sql}
-            onChange={(e) => setSql(e.target.value)}
-            placeholder="Enter your SQL query here..."
-            className="font-mono text-sm h-48 mb-4"
+            value={sqlQuery}
+            onChange={(e) => setSqlQuery(e.target.value)}
+            placeholder="Enter SQL query..."
+            className="font-mono text-sm h-48"
+            spellCheck={false}
           />
-          
-          <div className="flex justify-between">
-            <Button
-              onClick={handleExecuteQuery}
-              disabled={isExecuting || !selectedConnection}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={() => setSqlQuery('')}>
+            Clear
+          </Button>
+          <div className="flex gap-2">
+            {queryResult && resultRows.length > 0 && (
+              <Button 
+                onClick={downloadResults}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download CSV
+              </Button>
+            )}
+            <Button 
+              onClick={executeQuery} 
+              disabled={isExecuting || !sqlQuery.trim()}
               className="gap-2"
             >
               {isExecuting ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Executing...
                 </>
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Execute Query
+                  Run Query
                 </>
               )}
             </Button>
-            
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleCopyToClipboard}
-                disabled={!queryResult || queryResult.data.length === 0}
-              >
-                <ClipboardCopy className="h-4 w-4 mr-2" />
-                Copy Results
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={handleDownloadResults}
-                disabled={!queryResult || queryResult.data.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download CSV
-              </Button>
-            </div>
           </div>
-        </CardContent>
+        </CardFooter>
       </Card>
 
-      {queryResult && queryResult.error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error executing query</AlertTitle>
-          <AlertDescription className="font-mono text-xs whitespace-pre-wrap">{queryResult.error}</AlertDescription>
-        </Alert>
-      )}
-
-      {queryResult && queryResult.data.length > 0 && (
+      {queryResult && (
         <Card>
           <CardHeader>
-            <CardTitle>Query Results</CardTitle>
-            <CardDescription>
-              {queryResult.data.length} rows returned
-            </CardDescription>
+            <CardTitle>
+              Query Results
+              {resultRows.length > 0 && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({resultRows.length} rows)
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-md overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {queryResult.columns.map((column, index) => (
-                      <TableHead key={index}>{column}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {queryResult.data.map((row, rowIndex) => (
-                    <TableRow key={rowIndex}>
-                      {queryResult.columns.map((column, colIndex) => (
-                        <TableCell key={colIndex}>
-                          {typeof row[column] === 'object' 
-                            ? JSON.stringify(row[column]) 
-                            : String(row[column] !== undefined ? row[column] : '')}
-                        </TableCell>
+            {queryResult.error ? (
+              <div className="p-4 bg-destructive/10 text-destructive rounded-md">
+                <p className="font-medium">Error: {queryResult.error}</p>
+                {queryResult.details && (
+                  <p className="mt-2 text-sm">{queryResult.details}</p>
+                )}
+              </div>
+            ) : resultRows.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      {resultColumns.map((column, index) => (
+                        <th key={index} className="py-2 px-3 text-left font-medium text-sm">
+                          {column}
+                        </th>
                       ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {queryResult && queryResult.data.length === 0 && !queryResult.error && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <p className="text-muted-foreground">No results returned</p>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultRows.map((row, rowIndex) => (
+                      <tr key={rowIndex} className="border-b">
+                        {row.map((cell: any, cellIndex: number) => (
+                          <td key={cellIndex} className="py-2 px-3 text-sm">
+                            {cell === null ? 'NULL' : String(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                Query executed successfully. No results to display.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
