@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { RainbowButton } from '@/components/ui/rainbow-button';
 
 interface AuthRequirementProps {
   title?: string;
@@ -37,16 +38,15 @@ const AuthRequirement: React.FC<AuthRequirementProps> = ({
             </CardDescription>
           </CardHeader>
           <CardFooter className="pt-2">
-            <Button 
-              variant="outline"
-              className="border-amber-400 bg-white dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 gap-2"
+            <RainbowButton 
               asChild
+              className="flex items-center gap-2"
             >
               <Link to="/auth">
                 <LogIn className="h-4 w-4" />
                 Sign In
               </Link>
-            </Button>
+            </RainbowButton>
           </CardFooter>
         </Card>
       </motion.div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { AuroraBackground } from '@/components/ui/aurora-background';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { GradientText } from '@/components/ui/gradient-text';
 import { ButtonColorful } from '@/components/ui/button-colorful';
+import { RainbowButton } from '@/components/ui/rainbow-button';
 
 const container = {
   hidden: { opacity: 0 },
@@ -217,12 +219,12 @@ const Index: React.FC = () => {
                     {isKeySet ? "Manage API Key" : "Set Up API Key"}
                   </Button>
                 ) : (
-                  <Button className="w-full gap-2" asChild>
+                  <RainbowButton className="w-full gap-2" asChild>
                     <Link to="/auth">
                       <KeyRound className="h-4 w-4" />
                       Sign In
                     </Link>
-                  </Button>
+                  </RainbowButton>
                 )}
               </CardFooter>
             </Card>

@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { RainbowButton } from '@/components/ui/rainbow-button';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -92,7 +93,7 @@ const Auth = () => {
             </CardContent>
             
             <CardFooter className="flex flex-col gap-4">
-              <Button 
+              <RainbowButton 
                 type="submit" 
                 className="w-full" 
                 disabled={isLoading}
@@ -101,7 +102,7 @@ const Auth = () => {
                   ? 'Please wait...' 
                   : isSignUp ? 'Create account' : 'Sign in'
                 }
-              </Button>
+              </RainbowButton>
               
               <Button 
                 type="button" 
