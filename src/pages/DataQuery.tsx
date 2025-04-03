@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import AuthRequirement from '@/components/AuthRequirement';
 import SnowflakeConnectionManager, { SnowflakeConnection } from '@/components/Snowflake/SnowflakeConnectionManager';
 import SnowflakeSqlEditor from '@/components/Snowflake/SnowflakeSqlEditor';
+import SnowflakeConnectComponent from '@/components/DataQuery/SnowflakeConnectComponent';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -37,14 +38,11 @@ const DataQuery = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<SnowflakeConnection | null>(null);
   
-  // DB connection is disabled
-  const isConnected = false;
-
   // When a successful query is processed, switch to results tab if database is connected
   const handleQuerySuccess = (result: QueryResult) => {
     setQueryResult(result);
     // Only switch to results tab if the database is connected
-    if (isConnected) {
+    if (selectedConnection) {
       setActiveTab('results');
     }
     setIsProcessing(false);
@@ -60,6 +58,11 @@ const DataQuery = () => {
     setSelectedConnection(connection);
     // Switch to Snowflake tab when a connection is selected
     setActiveTab('snowflake');
+  };
+
+  // Handle click on Connect to Snowflake button
+  const handleConnectClick = () => {
+    setActiveTab('connections');
   };
 
   return (
@@ -88,14 +91,7 @@ const DataQuery = () => {
             <TabsContent value="query" className="space-y-6">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <div className="md:col-span-1 space-y-6">
-                  <Alert variant="warning">
-                    <InfoIcon className="h-4 w-4" />
-                    <AlertTitle>Database Connection Disabled</AlertTitle>
-                    <AlertDescription>
-                      The database connection feature is currently unavailable. 
-                      You can still use the SQL query generation with your schema.
-                    </AlertDescription>
-                  </Alert>
+                  <SnowflakeConnectComponent onConnectClick={handleConnectClick} />
                   
                   <Card>
                     <CardHeader>
