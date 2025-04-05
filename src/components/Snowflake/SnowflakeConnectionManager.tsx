@@ -28,11 +28,13 @@ export interface SnowflakeConnection {
 interface SnowflakeConnectionManagerProps {
   onConnectionSelect?: (connection: SnowflakeConnection) => void;
   selectedConnectionId?: string;
+  embedded?: boolean;
 }
 
 const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({ 
   onConnectionSelect,
-  selectedConnectionId 
+  selectedConnectionId,
+  embedded = false
 }) => {
   const { user } = useAuth();
   const { apiKey, isKeySet } = useApiKey();
@@ -145,6 +147,12 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
       toast.error('Warehouse is required');
       return false;
     }
+    
+    // Clean account identifier if it includes the full URL
+    if (accountIdentifier.includes('.snowflakecomputing.com')) {
+      setAccountIdentifier(accountIdentifier.replace('.snowflakecomputing.com', ''));
+    }
+    
     return true;
   };
 
@@ -187,7 +195,7 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
 
       toast.success(`Connection ${editingConnection ? 'updated' : 'created'} successfully`);
       setIsDialogOpen(false);
-      loadConnections();
+      await loadConnections();
       
       // If a new connection was created and it's the only one, select it automatically
       if (!editingConnection && result.data && result.data.length > 0 && connections.length === 0) {
@@ -234,12 +242,15 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
     setIsTestingConnection(true);
     
     try {
+      // Remove any trailing .snowflakecomputing.com to prevent duplication
+      const cleanAccountId = accountIdentifier.replace('.snowflakecomputing.com', '');
+      
       // Prepare a simple test query
       const testQuery = "SELECT 1 AS test";
       
       // Prepare credentials object
       const credentials = {
-        account: accountIdentifier,
+        account: cleanAccountId,
         username,
         password,
         database: databaseName,
@@ -274,18 +285,163 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
     }
   };
 
-  if (!user) {
+  if (!user && !embedded) {
     return <AuthRequirement />;
   }
 
-  if (!isKeySet) {
+  if (!isKeySet && !embedded) {
     return <ApiKeyRequirement />;
   }
+
+  const renderConnectionDialog = () => (
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {editingConnection ? 'Edit Snowflake Connection' : 'New Snowflake Connection'}
+          </DialogTitle>
+          <DialogDescription>
+            Enter your Snowflake credentials to connect to your account
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="connectionName" className="text-right">
+                Connection Name
+              </Label>
+              <Input
+                id="connectionName"
+                value={connectionName}
+                onChange={(e) => setConnectionName(e.target.value)}
+                className="col-span-3"
+                placeholder="My Snowflake Connection"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="accountId" className="text-right">
+                Account Identifier
+              </Label>
+              <Input
+                id="accountId"
+                value={accountIdentifier}
+                onChange={(e) => setAccountIdentifier(e.target.value)}
+                className="col-span-3"
+                placeholder="xy12345.us-east-1"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="username" className="text-right">
+                Username
+              </Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="database" className="text-right">
+                Database
+              </Label>
+              <Input
+                id="database"
+                value={databaseName}
+                onChange={(e) => setDatabaseName(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="schema" className="text-right">
+                Schema
+              </Label>
+              <Input
+                id="schema"
+                value={schemaName}
+                onChange={(e) => setSchemaName(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="warehouse" className="text-right">
+                Warehouse
+              </Label>
+              <Input
+                id="warehouse"
+                value={warehouse}
+                onChange={(e) => setWarehouse(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex justify-between">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleTestConnection}
+              disabled={isTestingConnection || isSubmitting}
+            >
+              {isTestingConnection ? (
+                <>
+                  <span className="mr-2">Testing</span>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </>
+              ) : (
+                <>
+                  <Key className="mr-2 h-4 w-4" />
+                  Test Connection
+                </>
+              )}
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <span className="mr-2">Saving</span>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </Button>
+            </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className={embedded ? "pb-3" : "pb-3"}>
           <CardTitle>Snowflake Connections</CardTitle>
           <CardDescription>
             Create and manage your connections to Snowflake
@@ -356,148 +512,8 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
         </CardFooter>
       </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingConnection ? 'Edit Snowflake Connection' : 'New Snowflake Connection'}
-            </DialogTitle>
-            <DialogDescription>
-              Enter your Snowflake credentials to connect to your account
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="connectionName" className="text-right">
-                  Connection Name
-                </Label>
-                <Input
-                  id="connectionName"
-                  value={connectionName}
-                  onChange={(e) => setConnectionName(e.target.value)}
-                  className="col-span-3"
-                  placeholder="My Snowflake Connection"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="accountId" className="text-right">
-                  Account Identifier
-                </Label>
-                <Input
-                  id="accountId"
-                  value={accountIdentifier}
-                  onChange={(e) => setAccountIdentifier(e.target.value)}
-                  className="col-span-3"
-                  placeholder="xy12345.us-east-1"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="username" className="text-right">
-                  Username
-                </Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="text-right">
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="database" className="text-right">
-                  Database
-                </Label>
-                <Input
-                  id="database"
-                  value={databaseName}
-                  onChange={(e) => setDatabaseName(e.target.value)}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="schema" className="text-right">
-                  Schema
-                </Label>
-                <Input
-                  id="schema"
-                  value={schemaName}
-                  onChange={(e) => setSchemaName(e.target.value)}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="warehouse" className="text-right">
-                  Warehouse
-                </Label>
-                <Input
-                  id="warehouse"
-                  value={warehouse}
-                  onChange={(e) => setWarehouse(e.target.value)}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex justify-between">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleTestConnection}
-                disabled={isTestingConnection || isSubmitting}
-              >
-                {isTestingConnection ? (
-                  <>
-                    <span className="mr-2">Testing</span>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  </>
-                ) : (
-                  <>
-                    <Key className="mr-2 h-4 w-4" />
-                    Test Connection
-                  </>
-                )}
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <span className="mr-2">Saving</span>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    </>
-                  ) : (
-                    'Save'
-                  )}
-                </Button>
-              </div>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Connection Dialog */}
+      {renderConnectionDialog()}
     </div>
   );
 };

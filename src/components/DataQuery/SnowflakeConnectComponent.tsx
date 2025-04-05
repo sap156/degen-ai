@@ -33,11 +33,10 @@ const SnowflakeConnectComponent: React.FC<SnowflakeConnectComponentProps> = ({ o
           <h3 className="text-lg font-medium mb-1">Snowflake Integration</h3>
           <p className="text-sm text-muted-foreground text-center mb-4 max-w-md">
             Connect to your Snowflake database to execute SQL queries directly from this interface.
-            Manage your connections in the Connections tab.
           </p>
           
           <Button
-            variant="database" 
+            variant="default" 
             onClick={onConnectClick}
             className="gap-2"
           >

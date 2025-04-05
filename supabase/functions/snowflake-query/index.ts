@@ -55,10 +55,12 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Executing Snowflake query using account: ${account}`);
+    // Ensure the account does not already include the snowflakecomputing.com domain
+    const cleanAccount = account.replace('.snowflakecomputing.com', '');
+    console.log(`Executing Snowflake query using account: ${cleanAccount}`);
     
-    // Prepare Snowflake API request
-    const snowflakeUrl = `https://${account}.snowflakecomputing.com/api/v2/statements`;
+    // Prepare Snowflake API request with clean account URL
+    const snowflakeUrl = `https://${cleanAccount}.snowflakecomputing.com/api/v2/statements`;
 
     // Prepare the authorization header using base64-encoded credentials
     const credentials = btoa(`${username}:${password}`);
@@ -74,6 +76,7 @@ serve(async (req) => {
     });
 
     console.log('Sending request to Snowflake API...');
+    console.log(`Request URL: ${snowflakeUrl}`);
     
     // Execute the request to the Snowflake API
     const response = await fetch(snowflakeUrl, {

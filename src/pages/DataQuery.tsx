@@ -16,6 +16,7 @@ import AuthRequirement from '@/components/AuthRequirement';
 import SnowflakeConnectionManager, { SnowflakeConnection } from '@/components/Snowflake/SnowflakeConnectionManager';
 import SnowflakeSqlEditor from '@/components/Snowflake/SnowflakeSqlEditor';
 import SnowflakeConnectComponent from '@/components/DataQuery/SnowflakeConnectComponent';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 // Types for the SQL Query Service
 export interface QueryResult {
@@ -37,6 +38,7 @@ const DataQuery = () => {
   const [activeTab, setActiveTab] = useState<string>('query');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<SnowflakeConnection | null>(null);
+  const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false);
   
   // When a successful query is processed, switch to results tab if database is connected
   const handleQuerySuccess = (result: QueryResult) => {
@@ -56,13 +58,14 @@ const DataQuery = () => {
   // Handle selecting a Snowflake connection
   const handleConnectionSelect = (connection: SnowflakeConnection) => {
     setSelectedConnection(connection);
+    setIsConnectionDialogOpen(false);
     // Switch to Snowflake tab when a connection is selected
     setActiveTab('snowflake');
   };
 
   // Handle click on Connect to Snowflake button
   const handleConnectClick = () => {
-    setActiveTab('connections');
+    setIsConnectionDialogOpen(true);
   };
 
   return (
@@ -80,12 +83,11 @@ const DataQuery = () => {
         <ApiKeyRequirement />
       ) : (
         <>
-          {/* Fixing the Tabs components to properly handle RovingFocusGroup */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="query">
-            <TabsList className="grid grid-cols-3 mb-4">
+          {/* Fixed the Tabs components to properly handle RovingFocusGroup */}
+          <Tabs defaultValue="query" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="query">AI SQL Generator</TabsTrigger>
               <TabsTrigger value="snowflake">Snowflake</TabsTrigger>
-              <TabsTrigger value="connections">Connections</TabsTrigger>
             </TabsList>
             
             <TabsContent value="query" className="space-y-6">
@@ -131,7 +133,7 @@ const DataQuery = () => {
                     Please select or create a Snowflake connection to continue
                   </p>
                   <button
-                    onClick={() => setActiveTab('connections')}
+                    onClick={handleConnectClick}
                     className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                   >
                     Manage Connections
@@ -139,14 +141,18 @@ const DataQuery = () => {
                 </div>
               )}
             </TabsContent>
-            
-            <TabsContent value="connections" className="space-y-6">
+          </Tabs>
+          
+          {/* Connection Manager Dialog */}
+          <Dialog open={isConnectionDialogOpen} onOpenChange={setIsConnectionDialogOpen}>
+            <DialogContent className="max-w-4xl">
               <SnowflakeConnectionManager 
                 onConnectionSelect={handleConnectionSelect}
                 selectedConnectionId={selectedConnection?.id}
+                embedded={true}
               />
-            </TabsContent>
-          </Tabs>
+            </DialogContent>
+          </Dialog>
           
           {/* Add the user guide at the bottom of the page */}
           <UserGuideDataQuery />
