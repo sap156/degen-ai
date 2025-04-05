@@ -18,6 +18,17 @@ interface QueryResult {
   details?: string;
 }
 
+// Function to clean Snowflake account identifier
+const cleanSnowflakeAccountId = (accountId: string): string => {
+  // Remove protocol if present
+  let cleaned = accountId.replace(/^https?:\/\//, '');
+  
+  // Remove .snowflakecomputing.com if present
+  cleaned = cleaned.replace(/\.snowflakecomputing\.com.*$/, '');
+  
+  return cleaned;
+};
+
 const SnowflakeSqlEditor: React.FC<SnowflakeSqlEditorProps> = ({ selectedConnection }) => {
   const [sqlQuery, setSqlQuery] = useState<string>('SELECT current_timestamp();');
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
@@ -37,9 +48,12 @@ const SnowflakeSqlEditor: React.FC<SnowflakeSqlEditorProps> = ({ selectedConnect
     setResultRows([]);
 
     try {
+      // Clean the account identifier
+      const cleanedAccountId = cleanSnowflakeAccountId(selectedConnection.account_identifier);
+      
       // Prepare the credentials object from the selected connection
       const credentials = {
-        account: selectedConnection.account_identifier,
+        account: cleanedAccountId,
         username: selectedConnection.username,
         password: selectedConnection.password,
         database: selectedConnection.database_name,

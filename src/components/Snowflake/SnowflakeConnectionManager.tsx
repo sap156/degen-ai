@@ -31,6 +31,17 @@ interface SnowflakeConnectionManagerProps {
   embedded?: boolean;
 }
 
+// Function to clean Snowflake account identifier
+const cleanSnowflakeAccountId = (accountId: string): string => {
+  // Remove protocol if present
+  let cleaned = accountId.replace(/^https?:\/\//, '');
+  
+  // Remove .snowflakecomputing.com if present
+  cleaned = cleaned.replace(/\.snowflakecomputing\.com.*$/, '');
+  
+  return cleaned;
+};
+
 const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({ 
   onConnectionSelect,
   selectedConnectionId,
@@ -148,11 +159,6 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
       return false;
     }
     
-    // Clean account identifier if it includes the full URL
-    if (accountIdentifier.includes('.snowflakecomputing.com')) {
-      setAccountIdentifier(accountIdentifier.replace('.snowflakecomputing.com', ''));
-    }
-    
     return true;
   };
 
@@ -163,9 +169,12 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
     setIsSubmitting(true);
 
     try {
+      // Clean the account identifier before saving
+      const cleanedAccountId = cleanSnowflakeAccountId(accountIdentifier);
+      
       const connectionData = {
         connection_name: connectionName,
-        account_identifier: accountIdentifier,
+        account_identifier: cleanedAccountId,
         username,
         password,
         database_name: databaseName,
@@ -242,15 +251,15 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
     setIsTestingConnection(true);
     
     try {
-      // Remove any trailing .snowflakecomputing.com to prevent duplication
-      const cleanAccountId = accountIdentifier.replace('.snowflakecomputing.com', '');
+      // Clean the account identifier for the test
+      const cleanedAccountId = cleanSnowflakeAccountId(accountIdentifier);
       
       // Prepare a simple test query
       const testQuery = "SELECT 1 AS test";
       
       // Prepare credentials object
       const credentials = {
-        account: cleanAccountId,
+        account: cleanedAccountId,
         username,
         password,
         database: databaseName,
@@ -331,6 +340,9 @@ const SnowflakeConnectionManager: React.FC<SnowflakeConnectionManagerProps> = ({
                 placeholder="xy12345.us-east-1"
                 required
               />
+              <div className="col-span-3 col-start-2 text-xs text-muted-foreground">
+                Enter either xy12345.us-east-1 or the full URL like https://xy12345.us-east-1.snowflakecomputing.com
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="username" className="text-right">

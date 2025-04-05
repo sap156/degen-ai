@@ -20,6 +20,19 @@ interface RequestPayload {
   credentials: SnowflakeCredentials;
 }
 
+// Function to thoroughly clean Snowflake account identifier
+const cleanSnowflakeAccountId = (accountId: string): string => {
+  if (!accountId) return '';
+  
+  // Remove protocol if present
+  let cleaned = accountId.replace(/^https?:\/\//, '');
+  
+  // Remove .snowflakecomputing.com and any trailing path/query if present
+  cleaned = cleaned.replace(/\.snowflakecomputing\.com.*$/, '');
+  
+  return cleaned;
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -55,8 +68,8 @@ serve(async (req) => {
       );
     }
 
-    // Ensure the account does not already include the snowflakecomputing.com domain
-    const cleanAccount = account.replace('.snowflakecomputing.com', '');
+    // Ensure the account is properly cleaned
+    const cleanAccount = cleanSnowflakeAccountId(account);
     console.log(`Authenticating with Snowflake account: ${cleanAccount}`);
     
     // Step 1: Authenticate with Snowflake to get a session token
