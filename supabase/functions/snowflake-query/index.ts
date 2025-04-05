@@ -142,8 +142,8 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'X-Snowflake-Authorization-Token-Type': 'BEARER'
+        'Authorization': `Bearer ${token}`
+        // Removed: 'X-Snowflake-Authorization-Token-Type': 'BEARER'
       },
       body: queryPayload
     });
@@ -178,3 +178,4 @@ serve(async (req) => {
     );
   }
 });
+
