@@ -111,12 +111,12 @@ serve(async (req) => {
     const token = loginResult.data?.token;
     const masterToken = loginResult.data?.masterToken;
     
-    if (!token) {
-      console.error('No token received from Snowflake');
+    if (!token || !masterToken) {
+      console.error('No token or masterToken received from Snowflake');
       return new Response(
         JSON.stringify({ 
-          error: 'No authentication token received from Snowflake',
-          details: 'The login was successful but no token was returned'
+          error: 'No authentication tokens received from Snowflake',
+          details: 'The login was successful but token or masterToken was not returned'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -142,8 +142,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-        // Removed: 'X-Snowflake-Authorization-Token-Type': 'BEARER'
+        'Authorization': `Snowflake Token="${token}", MasterToken="${masterToken}"`
       },
       body: queryPayload
     });
@@ -178,4 +177,3 @@ serve(async (req) => {
     );
   }
 });
-
