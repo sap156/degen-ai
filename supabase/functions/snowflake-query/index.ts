@@ -57,16 +57,64 @@ serve(async (req) => {
 
     // Ensure the account does not already include the snowflakecomputing.com domain
     const cleanAccount = account.replace('.snowflakecomputing.com', '');
-    console.log(`Executing Snowflake query using account: ${cleanAccount}`);
+    console.log(`Authenticating with Snowflake account: ${cleanAccount}`);
     
-    // Prepare Snowflake API request with clean account URL
-    const snowflakeUrl = `https://${cleanAccount}.snowflakecomputing.com/api/v2/statements`;
+    // Step 1: Authenticate with Snowflake to get a session token
+    const loginUrl = `https://${cleanAccount}.snowflakecomputing.com/session/v1/login-request`;
+    
+    const loginPayload = JSON.stringify({
+      data: {
+        ACCOUNT_NAME: cleanAccount,
+        LOGIN_NAME: username,
+        PASSWORD: password,
+      }
+    });
 
-    // Prepare the authorization header using base64-encoded credentials
-    const credentials = btoa(`${username}:${password}`);
+    console.log('Sending authentication request to Snowflake...');
     
-    // Prepare the request body with the SQL statement and parameters
-    const requestBody = JSON.stringify({
+    const loginResponse = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: loginPayload
+    });
+    
+    if (!loginResponse.ok) {
+      const errorText = await loginResponse.text();
+      console.error('Snowflake Authentication Error:', errorText);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to authenticate with Snowflake',
+          details: errorText
+        }),
+        { status: loginResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const loginResult = await loginResponse.json();
+    const token = loginResult.data?.token;
+    const masterToken = loginResult.data?.masterToken;
+    
+    if (!token) {
+      console.error('No token received from Snowflake');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No authentication token received from Snowflake',
+          details: 'The login was successful but no token was returned'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('Successfully authenticated with Snowflake');
+    
+    // Step 2: Execute the SQL query using the token
+    const queryUrl = `https://${cleanAccount}.snowflakecomputing.com/api/v2/statements`;
+    
+    const queryPayload = JSON.stringify({
       statement: payload.sql,
       timeout: 60,
       database: database,
@@ -74,41 +122,37 @@ serve(async (req) => {
       warehouse: warehouse,
       role: 'ACCOUNTADMIN' // Using default role
     });
-
-    console.log('Sending request to Snowflake API...');
-    console.log(`Request URL: ${snowflakeUrl}`);
     
-    // Execute the request to the Snowflake API
-    const response = await fetch(snowflakeUrl, {
+    console.log('Sending SQL query to Snowflake API...');
+    
+    const queryResponse = await fetch(queryUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${credentials}`,
-        'X-Snowflake-Authorization-Token-Type': 'BASIC'
+        'Authorization': `Bearer ${token}`,
+        'X-Snowflake-Authorization-Token-Type': 'BEARER'
       },
-      body: requestBody
+      body: queryPayload
     });
-
-    console.log(`Snowflake API response status: ${response.status}`);
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Snowflake API Error:', errorText);
+    if (!queryResponse.ok) {
+      const errorText = await queryResponse.text();
+      console.error('Snowflake Query Error:', errorText);
       
       return new Response(
         JSON.stringify({ 
           error: 'Error executing Snowflake query',
           details: errorText
         }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: queryResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
+    
     // Parse and return the Snowflake API response
-    const result = await response.json();
+    const queryResult = await queryResponse.json();
     
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(queryResult),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
     
