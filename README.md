@@ -1,4 +1,6 @@
 
+<img width="973" alt="Screenshot 2025-04-21 at 10 13 19 AM" src="https://github.com/user-attachments/assets/cdf97ccb-4040-4e12-8848-3b86bb463729" />
+
 **Use your preferred IDE**
 
 If you want to work locally using your own IDE, you can clone this repo and push changes.
