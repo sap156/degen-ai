@@ -10,7 +10,6 @@ import ApiKeyDialog from '@/components/ApiKeyDialog';
 import ModelSelector from '@/components/ModelSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { Highlight } from '@/components/ui/hero-highlight';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { GradientText } from '@/components/ui/gradient-text';
 import { ButtonColorful } from '@/components/ui/button-colorful';
@@ -92,14 +91,14 @@ const features = [
 const FeatureCard = ({ feature }: { feature: typeof features[0]; }) => (
   <motion.div variants={item}>
     <Card className="h-full overflow-hidden border border-border/40 hover:border-border/80 transition-all rounded-[1.25rem]">
-      <div className="relative h-full w-full">
-        <GlowingEffect 
+    <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-border p-2 md:rounded-[1.5rem] md:p-3">
+        <GlowingEffect
           spread={40}
           glow={true}
           disabled={false}
           proximity={64}
           inactiveZone={0.01}
-          borderWidth={2}
+          borderWidth={3}
         />
         <CardHeader className="pb-2">
           <div className="bg-primary/10 rounded-full w-10 h-10 flex items-center justify-center text-primary mb-3">
@@ -122,7 +121,9 @@ const Index: React.FC = () => {
   const { isKeySet } = useApiKey();
   const { user } = useAuth();
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [loopTrigger, setLoopTrigger] = useState(true);
   
+
   return (
     <AuroraBackground className="w-full">
       <div className="container px-4 mx-auto py-8 max-w-7xl">
@@ -160,6 +161,8 @@ const Index: React.FC = () => {
             </GradientText>
 
           </motion.h1>
+    
+
           
           <motion.p className="text-muted-foreground max-w-2xl text-lg" initial={{
           opacity: 0,
