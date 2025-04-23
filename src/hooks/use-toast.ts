@@ -10,6 +10,10 @@ import {
 } from "@/components/ui/toast";
 import { useToast as useToastPrimitive } from "@/components/ui/use-toast";
 
+// Initialize the primitive toast function
+const { toast: toastFn } = useToastPrimitive();
+
+// Export a context for components that need the full toast API
 export const ToastContext = React.createContext({
   toast: () => {},
   toasts: [],
@@ -24,5 +28,5 @@ export const useToast = () => {
   return context;
 };
 
-// Now we can safely export this after it's been initialized
-export const toast = useToastPrimitive().toast;
+// Export the simple toast function for direct usage
+export const toast = toastFn;

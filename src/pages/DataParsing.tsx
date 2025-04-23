@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { FileJson, FileText, FileX, Download, FileType2, Wand2 } from 'lucide-react';
 import UserGuideDataParsing from '@/components/ui/UserGuideDataParsing';
 import FileUploader from '@/components/FileUploader';
@@ -44,7 +45,6 @@ const DataParsing = () => {
   });
   const [isParsing, setIsParsing] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
-  const { toast } = useToast();
 
   if (!user) {
     return (
