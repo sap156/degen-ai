@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -873,4 +874,132 @@ const PiiHandling = () => {
                               {maskedData.slice(0, 5).map((item) => (
                                 <TableRow key={item.id}>
                                   <TableCell>{item.id}</TableCell>
-                                  {Object.entries
+                                  {Object.entries(item)
+                                    .filter(([key]) => key !== 'id')
+                                    .map(([key, value]) => (
+                                      <TableCell key={key} className="max-w-[200px] truncate">
+                                        {value}
+                                      </TableCell>
+                                    ))
+                                  }
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          {maskedData.length > 5 && (
+                            <div className="p-2 text-center text-sm text-muted-foreground">
+                              Showing 5 of {maskedData.length} records
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                          <p className="text-muted-foreground mb-2">No masked data available</p>
+                          <p className="text-xs text-muted-foreground">Use the Generate PII Masking button to mask your data</p>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm font-medium mb-2">Original Data</div>
+                      {originalData.length > 0 ? (
+                        <div className="border rounded-md overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>ID</TableHead>
+                                {originalData.length > 0 && 
+                                  Object.keys(originalData[0])
+                                    .filter(k => k !== 'id')
+                                    .map(field => (
+                                      <TableHead key={field}>{field}</TableHead>
+                                    ))
+                                }
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {originalData.slice(0, 5).map((item) => (
+                                <TableRow key={item.id}>
+                                  <TableCell>{item.id}</TableCell>
+                                  {Object.entries(item)
+                                    .filter(([key]) => key !== 'id')
+                                    .map(([key, value]) => (
+                                      <TableCell key={key} className="max-w-[200px] truncate">
+                                        {value}
+                                      </TableCell>
+                                    ))
+                                  }
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                          <p className="text-muted-foreground mb-2">No data uploaded</p>
+                          <p className="text-xs text-muted-foreground">Upload a CSV or JSON file to get started</p>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium mb-2">Masked Data</div>
+                      {maskedData.length > 0 ? (
+                        <div className="border rounded-md overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>ID</TableHead>
+                                {maskedData.length > 0 && 
+                                  Object.keys(maskedData[0])
+                                    .filter(k => k !== 'id')
+                                    .map(field => (
+                                      <TableHead key={field}>{field}</TableHead>
+                                    ))
+                                }
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {maskedData.slice(0, 5).map((item) => (
+                                <TableRow key={item.id}>
+                                  <TableCell>{item.id}</TableCell>
+                                  {Object.entries(item)
+                                    .filter(([key]) => key !== 'id')
+                                    .map(([key, value]) => (
+                                      <TableCell key={key} className="max-w-[200px] truncate">
+                                        {value}
+                                      </TableCell>
+                                    ))
+                                  }
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                          <p className="text-muted-foreground mb-2">No masked data available</p>
+                          <p className="text-xs text-muted-foreground">Use the Generate PII Masking button to mask your data</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="container mx-auto py-8">
+      <PiiHandlingContent />
+      <UserGuidePiiHandling />
+    </div>
+  );
+};
+
+export default PiiHandling;
