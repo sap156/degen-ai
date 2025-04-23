@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -48,7 +47,6 @@ import {
   exportAsJson, 
   exportAsCsv, 
   downloadData,
-  analyzePiiData,
   detectPiiInData,
   generateMaskingSuggestions
 } from '@/services/piiHandlingService';
@@ -450,161 +448,150 @@ const PiiHandling = () => {
       if (!fields.length) return;
 
       const sampleRecords = originalData.slice(0, 5);
-      // Generate one prompt string per field ("Suggest a masking technique for the field 'X' given the following examples: ...")
       const fieldToSuggestion: Record<string, string> = {};
 
       await Promise.all(fields.map(async (field) => {
-        // Take up to 3 examples
-        const examples = sampleRecords.map(rec => rec[field]).filter(Boolean).slice(0, 3);
+        // Take up to 5 examples, always as context for OpenAI
+        const examples = sampleRecords.map(rec => rec[field]).filter(Boolean).slice(0, 5);
         if (examples.length === 0) {
-          fieldToSuggestion[field] = "No data available to suggest masking.";
+          fieldToSuggestion[field] = "No data available to generate suggestion.";
           return;
         }
-        // Call OpenAI via the analyzePiiData or a custom prompt for each field
+
         try {
-          const message = `Given the following sample values for the field "${field}", suggest the best data masking technique to protect privacy while preserving utility for analytics. Give a single concise sentence. Example values:\n${examples.map(e => `- ${e}`).join('\n')}`;
-          // Reuse the analyzePiiWithAI/OpenAI API via our service layer
-          // (Assume analyzePiiWithAI returns { identifiedPii: string[], suggestions: string })
-          const { suggestions } = await analyzePiiData(
-            [{ [field]: examples[0] } as any], // minimal valid shape
-            apiKey
-          );
-          // We'll use the 'suggestions' as the masking suggestion
-          fieldToSuggestion[field] = suggestions || "No suggestion.";
+          // The suggestion prompt is handled inside generateMaskingSuggestions, which will call OpenAI
+          fieldToSuggestion[field] = await generateMaskingSuggestions(field, examples);
         } catch (err) {
-          fieldToSuggestion[field] = "Could not generate suggestion.";
+          fieldToSuggestion[field] = "AI could not generate a suggestion for this field.";
         }
       }));
 
       setMaskingSuggestions(fieldToSuggestion);
     };
 
-    // Debounce, so that rapid file changes or field changes don't spam requests
     const timer = setTimeout(fetchSuggestions, 350);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line
+// eslint-disable-next-line
   }, [originalData, piiDetectionResult, apiKey]);
 
-  const PiiHandlingContent = () => {
-    return (
-      <div className="container mx-auto py-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
-          <p className="text-muted-foreground mt-2">
-            Securely handle Personally Identifiable Information (PII) with AI-powered detection and masking techniques.
-          </p>
-        </div>
+const PiiHandlingContent = () => {
+  return (
+    <div className="container mx-auto py-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">PII Data Handling</h1>
+        <p className="text-muted-foreground mt-2">
+          Securely handle Personally Identifiable Information (PII) with AI-powered detection and masking techniques.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Import</CardTitle>
+              <CardDescription>Upload your data for PII handling</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="mb-2 block">Upload JSON or CSV file</Label>
+                <FileUploader
+                  onFileUpload={handleFileUpload}
+                  accept=".json,.csv"
+                  maxSize={50}
+                  title="Upload Data"
+                  description="Upload a JSON or CSV file with data to mask"
+                />
+              </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
-          <div className="lg:col-span-1 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Data Import</CardTitle>
-                <CardDescription>Upload your data for PII handling</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="mb-2 block">Upload JSON or CSV file</Label>
-                  <FileUploader
-                    onFileUpload={handleFileUpload}
-                    accept=".json,.csv"
-                    maxSize={50}
-                    title="Upload Data"
-                    description="Upload a JSON or CSV file with data to mask"
-                  />
+              {isProcessingFile && (
+                <div className="flex items-center justify-center space-x-2 py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                  <span className="text-sm">Processing file...</span>
                 </div>
+              )}
 
-                {isProcessingFile && (
-                  <div className="flex items-center justify-center space-x-2 py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                    <span className="text-sm">Processing file...</span>
-                  </div>
-                )}
+              {uploadedFile && !isProcessingFile && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  <p className="font-medium">File: {uploadedFile.name}</p>
+                  <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                  <p>Records: {originalData.length}</p>
+                </div>
+              )}
 
-                {uploadedFile && !isProcessingFile && (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    <p className="font-medium">File: {uploadedFile.name}</p>
-                    <p>Size: {(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                    <p>Records: {originalData.length}</p>
-                  </div>
-                )}
+              {dataReady && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => detectPiiFields(originalData)}
+                  disabled={!apiKey || isDetectingPii || originalData.length === 0}
+                  className="w-full"
+                >
+                  {isDetectingPii ? (
+                    <>
+                      <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Detecting PII...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Detect PII Fields
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
 
-                {dataReady && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => detectPiiFields(originalData)}
-                    disabled={!apiKey || isDetectingPii || originalData.length === 0}
-                    className="w-full"
-                  >
-                    {isDetectingPii ? (
-                      <>
-                        <div className="animate-spin h-3 w-3 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
-                        Detecting PII...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        Detect PII Fields
-                      </>
-                    )}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Masking Instructions</CardTitle>
+              <CardDescription>
+                Describe how you want each field to be masked
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {piiDetectionResult && (
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md text-sm space-y-2 mb-2">
+                  <p className="font-medium text-blue-700 dark:text-blue-300">PII Detection Results:</p>
+                  <p className="text-sm">
+                    Identified {piiDetectionResult.detectedFields.length} potential PII fields
+                  </p>
+                  {piiDetectionResult.detectedFields.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {piiDetectionResult.detectedFields.map((field, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {field.fieldName}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-amber-600 dark:text-amber-400 text-xs mt-1">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      No PII fields automatically detected. Please select fields manually.
+                    </div>
+                  )}
+                </div>
+              )}
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Masking Instructions</CardTitle>
-                <CardDescription>
-                  Describe how you want each field to be masked
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {piiDetectionResult && (
-                  <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md text-sm space-y-2 mb-2">
-                    <p className="font-medium text-blue-700 dark:text-blue-300">PII Detection Results:</p>
-                    <p className="text-sm">
-                      Identified {piiDetectionResult.detectedFields.length} potential PII fields
-                    </p>
-                    {piiDetectionResult.detectedFields.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {piiDetectionResult.detectedFields.map((field, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {field.fieldName}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center text-amber-600 dark:text-amber-400 text-xs mt-1">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        No PII fields automatically detected. Please select fields manually.
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="border rounded-md p-3 space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">
-                        Masking Instructions
-                      </Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-5 w-5">
-                              <Info className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[300px]" align="end">
-                            <p className="text-xs">
-                              Provide specific instructions for how you want each field masked.
-                              For example: "Mask emails by keeping the domain but replace username with asterisks.
-                              Replace all digits in credit cards except the last 4."
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
+              <div className="border rounded-md p-3 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-masking-prompt" className="text-sm font-medium">
+                      Masking Instructions
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5">
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[300px]" align="end">
+                          <p className="text-xs">
+                            Provide specific instructions for how you want each field masked.
+                            For example: "Mask emails by keeping the domain but replace username with asterisks.
+                            Replace all digits in credit cards except the last 4."
+                          </p>
+                        </TooltipContent>
                       </TooltipProvider>
                     </div>
                     <Textarea 
@@ -672,7 +659,6 @@ const PiiHandling = () => {
               </CardContent>
             </Card>
           </div>
-
           <div className="lg:col-span-3 space-y-6">
             <Card>
               <CardHeader>
@@ -728,10 +714,11 @@ const PiiHandling = () => {
                               )}
                             </div>
                           </div>
-                          
                           {config.enabled && (
                             <div className="mt-2 text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-                              <p>Suggestion: {maskingSuggestions[field] || "Analyzing..."}</p>
+                              <p>
+                                Suggestion: {maskingSuggestions[field] ? maskingSuggestions[field] : "Analyzing..."}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -741,7 +728,6 @@ const PiiHandling = () => {
                 </div>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -807,7 +793,6 @@ const PiiHandling = () => {
                       <TabsTrigger value="original">Original Data</TabsTrigger>
                       <TabsTrigger value="masked">Masked Data</TabsTrigger>
                     </TabsList>
-
                     <TabsContent value="original">
                       {originalData.length > 0 ? (
                         <div className="border rounded-md overflow-auto">
@@ -853,7 +838,6 @@ const PiiHandling = () => {
                         </div>
                       )}
                     </TabsContent>
-
                     <TabsContent value="masked">
                       {maskedData.length > 0 ? (
                         <div className="border rounded-md overflow-auto">
@@ -894,112 +878,3 @@ const PiiHandling = () => {
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
-                          <p className="text-muted-foreground mb-2">No masked data available</p>
-                          <p className="text-xs text-muted-foreground">Use the Generate PII Masking button to mask your data</p>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm font-medium mb-2">Original Data</div>
-                      {originalData.length > 0 ? (
-                        <div className="border rounded-md overflow-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>ID</TableHead>
-                                {originalData.length > 0 && 
-                                  Object.keys(originalData[0])
-                                    .filter(k => k !== 'id')
-                                    .map(field => (
-                                      <TableHead key={field}>{field}</TableHead>
-                                    ))
-                                }
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {originalData.slice(0, 5).map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.id}</TableCell>
-                                  {Object.entries(item)
-                                    .filter(([key]) => key !== 'id')
-                                    .map(([key, value]) => (
-                                      <TableCell key={key} className="max-w-[200px] truncate">
-                                        {value}
-                                      </TableCell>
-                                    ))
-                                  }
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
-                          <p className="text-muted-foreground mb-2">No data uploaded</p>
-                          <p className="text-xs text-muted-foreground">Upload a CSV or JSON file to get started</p>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium mb-2">Masked Data</div>
-                      {maskedData.length > 0 ? (
-                        <div className="border rounded-md overflow-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>ID</TableHead>
-                                {maskedData.length > 0 && 
-                                  Object.keys(maskedData[0])
-                                    .filter(k => k !== 'id')
-                                    .map(field => (
-                                      <TableHead key={field}>{field}</TableHead>
-                                    ))
-                                }
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {maskedData.slice(0, 5).map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.id}</TableCell>
-                                  {Object.entries(item)
-                                    .filter(([key]) => key !== 'id')
-                                    .map(([key, value]) => (
-                                      <TableCell key={key} className="max-w-[200px] truncate">
-                                        {value}
-                                      </TableCell>
-                                    ))
-                                  }
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
-                          <p className="text-muted-foreground mb-2">No masked data available</p>
-                          <p className="text-xs text-muted-foreground">Use the Generate PII Masking button to mask your data</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="container mx-auto py-8">
-      <PiiHandlingContent />
-      <UserGuidePiiHandling />
-    </div>
-  );
-};
-
-export default PiiHandling;

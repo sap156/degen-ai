@@ -1,4 +1,3 @@
-
 import * as React from "react";
 import {
   Toast,
@@ -21,7 +20,3 @@ export const useToast = () => {
 };
 
 export const toast = useToastPrimitive;
-
-export interface ToasterProps {
-  toasts: ToastPrimitiveProps[];
-}
