@@ -299,81 +299,140 @@ export const addNoiseToTimeSeries = (
   return result;
 };
 
+/**
+ * Generate synthetic PII data based on schema
+ * @param sampleData Sample data to use as a basis
+ * @param schema Schema definition
+ * @param count Number of records to generate
+ */
 export const generatePiiData = (
   sampleData: any[],
-  schema: Record<string, SchemaFieldType>,
+  schema: Record<string, string>,
   count: number
 ): any[] => {
-  const result = [];
-  
-  for (let i = 0; i < count; i++) {
-    const newItem: any = {};
+  // Use the first sample as a template
+  const template = sampleData[0] || {};
+
+  // Generate the requested number of records
+  return Array.from({ length: count }, (_, index) => {
+    const record: Record<string, any> = {};
     
+    // Use sample ID format or create a standard one
+    if (template.id) {
+      record.id = `${typeof template.id === 'string' ? template.id.split('-')[0] : 'user'}-${index + 1}`;
+    } else {
+      record.id = `record-${index + 1}`;
+    }
+    
+    // Generate values for each field based on type
     Object.entries(schema).forEach(([field, type]) => {
-      switch (type) {
-        case 'name':
-          const firstNames = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica'];
-          const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Garcia'];
-          newItem[field] = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
-          break;
-          
-        case 'email':
-          const domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'example.com'];
-          const username = Math.random().toString(36).substring(2, 10);
-          const domain = domains[Math.floor(Math.random() * domains.length)];
-          newItem[field] = `${username}@${domain}`;
-          break;
-          
-        case 'phone':
-          const areaCode = Math.floor(Math.random() * 900) + 100;
-          const prefix = Math.floor(Math.random() * 900) + 100;
-          const lineNum = Math.floor(Math.random() * 9000) + 1000;
-          newItem[field] = `(${areaCode}) ${prefix}-${lineNum}`;
-          break;
-          
-        case 'address':
-          const streetNum = Math.floor(Math.random() * 9000) + 1000;
-          const streetNames = ['Main St', 'Oak Ave', 'Maple Rd', 'Washington Blvd', 'Park Lane'];
-          const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia'];
-          const states = ['NY', 'CA', 'IL', 'TX', 'AZ', 'PA'];
-          const zipCodes = ['10001', '90001', '60601', '77001', '85001', '19101'];
-          const streetName = streetNames[Math.floor(Math.random() * streetNames.length)];
-          const cityIndex = Math.floor(Math.random() * cities.length);
-          
-          newItem[field] = `${streetNum} ${streetName}, ${cities[cityIndex]}, ${states[cityIndex]} ${zipCodes[cityIndex]}`;
-          break;
-          
-        case 'ssn':
-          const part1 = Math.floor(Math.random() * 900) + 100;
-          const part2 = Math.floor(Math.random() * 90) + 10;
-          const part3 = Math.floor(Math.random() * 9000) + 1000;
-          newItem[field] = `${part1}-${part2}-${part3}`;
-          break;
-          
-        case 'creditcard':
-          const groups = Array.from({length: 4}, () => Math.floor(Math.random() * 9000) + 1000);
-          newItem[field] = groups.join('-');
-          break;
-          
-        case 'date':
-          const now = new Date();
-          const pastDate = new Date(
-            now.getFullYear() - Math.floor(Math.random() * 50),
-            Math.floor(Math.random() * 12),
-            Math.floor(Math.random() * 28) + 1
-          );
-          newItem[field] = pastDate.toISOString().split('T')[0];
-          break;
-          
-        default:
-          newItem[field] = generateValueForField(field, type, sampleData, 0.2);
-      }
+      if (field === 'id') return; // Skip ID as we already handled it
+      
+      record[field] = generateFieldValue(type, field, template[field]);
     });
     
-    result.push(newItem);
+    return record;
+  });
+};
+
+/**
+ * Generate synthetic value for a field based on its type
+ */
+const generateFieldValue = (type: string, fieldName: string, sampleValue?: any): any => {
+  const typeStr = type.toLowerCase();
+  
+  switch (typeStr) {
+    case 'name':
+      return generateName();
+    case 'email':
+      return generateEmail();
+    case 'phone':
+      return generatePhone();
+    case 'address':
+      return generateAddress();
+    case 'date':
+      return generateDate();
+    case 'ssn':
+      return generateSSN();
+    case 'creditcard':
+      return generateCreditCard();
+    case 'integer':
+      return Math.floor(Math.random() * 1000);
+    case 'float':
+      return Math.random() * 1000;
+    case 'boolean':
+      return Math.random() > 0.5;
+    default:
+      // If the sample value is present, use similar format
+      if (sampleValue) {
+        if (typeof sampleValue === 'string') {
+          return generateSimilarString(sampleValue);
+        }
+      }
+      return `Sample-${Math.floor(Math.random() * 1000)}`;
+  }
+};
+
+// Helper functions for generating different types of data
+const generateName = (): string => {
+  const firstNames = ['John', 'Jane', 'Michael', 'Emma', 'David', 'Sarah', 'Robert', 'Lisa', 'William', 'Emily'];
+  const lastNames = ['Smith', 'Johnson', 'Brown', 'Davis', 'Wilson', 'Taylor', 'Clark', 'Walker', 'Allen', 'Young'];
+  
+  return `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+};
+
+const generateEmail = (): string => {
+  const domains = ['example.com', 'gmail.com', 'yahoo.com', 'outlook.com', 'mail.com'];
+  const name = generateName().toLowerCase().replace(' ', '.');
+  return `${name}@${domains[Math.floor(Math.random() * domains.length)]}`;
+};
+
+const generatePhone = (): string => {
+  return `(${Math.floor(Math.random() * 900) + 100})-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`;
+};
+
+const generateAddress = (): string => {
+  const streets = ['Main St', 'Oak Ave', 'Elm Dr', 'Maple Rd', 'Cedar Ln'];
+  const cities = ['Springfield', 'Riverside', 'Georgetown', 'Franklin', 'Clinton'];
+  const states = ['CA', 'NY', 'TX', 'FL', 'IL'];
+  
+  return `${Math.floor(Math.random() * 9000) + 1000} ${streets[Math.floor(Math.random() * streets.length)]}, ${cities[Math.floor(Math.random() * cities.length)]}, ${states[Math.floor(Math.random() * states.length)]} ${Math.floor(Math.random() * 90000) + 10000}`;
+};
+
+const generateDate = (): string => {
+  const month = Math.floor(Math.random() * 12) + 1;
+  const day = Math.floor(Math.random() * 28) + 1;
+  const year = Math.floor(Math.random() * 40) + 1960;
+  
+  return `${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}/${year}`;
+};
+
+const generateSSN = (): string => {
+  return `${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`;
+};
+
+const generateCreditCard = (): string => {
+  return `${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
+};
+
+const generateSimilarString = (sample: string): string => {
+  // Create a string with similar length and character types
+  const result: string[] = [];
+  
+  for (let i = 0; i < sample.length; i++) {
+    const char = sample[i];
+    if (/[A-Z]/.test(char)) {
+      result.push(String.fromCharCode(65 + Math.floor(Math.random() * 26)));
+    } else if (/[a-z]/.test(char)) {
+      result.push(String.fromCharCode(97 + Math.floor(Math.random() * 26)));
+    } else if (/[0-9]/.test(char)) {
+      result.push(String.fromCharCode(48 + Math.floor(Math.random() * 10)));
+    } else {
+      result.push(char);
+    }
   }
   
-  return result;
+  return result.join('');
 };
 
 /**

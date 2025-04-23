@@ -14,7 +14,7 @@ export interface AddFieldParams {
   type: string;
 }
 
-// New type definitions for enhanced prompt-based masking
+// Enhanced prompt-based masking
 export interface PromptBasedMasking {
   prompt: string;
   preserveFormat: boolean;
@@ -28,4 +28,18 @@ export interface MaskingPattern {
 
 export interface FieldMaskingPattern {
   [fieldName: string]: MaskingPattern[];
+}
+
+// New type definitions for PII detection
+export interface DetectedPiiField {
+  fieldName: string;
+  confidence: 'high' | 'medium' | 'low';
+  suggestedMaskingTechnique: MaskingTechnique;
+  examples: string[];
+}
+
+export interface PiiDetectionResult {
+  detectedFields: DetectedPiiField[];
+  suggestedPrompt: string;
+  undetectedFields: string[];
 }

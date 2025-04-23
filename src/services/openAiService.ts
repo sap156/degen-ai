@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 export type OpenAIGenerationOptions = {
@@ -8,13 +7,25 @@ export type OpenAIGenerationOptions = {
   onProgress?: (progress: number) => void;
 };
 
-// Define OpenAiMessage type needed by several services
 export type OpenAiMessage = {
   role: 'system' | 'user' | 'assistant';
-  content: string | Array<{type: string; [key: string]: any}>;
+  content: string | Array<{
+    type: string;
+    text?: string;
+    image_url?: {
+      url: string;
+      detail?: 'auto' | 'low' | 'high';
+    };
+  }>;
 };
 
-// Function to generate synthetic data with AI
+export interface OpenAiCompletionOptions {
+  temperature?: number;
+  max_tokens?: number;
+  model?: string;
+  stream?: boolean;
+}
+
 export const generateSyntheticDataWithAI = async (
   apiKey: string, 
   schema: Record<string, string> = {}, 
@@ -24,13 +35,11 @@ export const generateSyntheticDataWithAI = async (
   try {
     const { aiPrompt, seedData, realism = 'medium' } = options;
     
-    // Construct the prompt for the AI model
     let promptContent = `
     Generate ${rowCount} synthetic data records with this schema:
     ${Object.keys(schema).length > 0 ? JSON.stringify(schema, null, 2) : ''}
     `;
     
-    // Add seed data to the prompt if provided
     if (seedData && seedData.length > 0) {
       promptContent += `
       Use these examples as reference:
@@ -38,7 +47,6 @@ export const generateSyntheticDataWithAI = async (
       `;
     }
     
-    // Add AI prompt if provided
     if (aiPrompt && aiPrompt.trim()) {
       promptContent += `
       
@@ -46,7 +54,6 @@ export const generateSyntheticDataWithAI = async (
       `;
     }
     
-    // Add realism level
     promptContent += `
     
     Realism level: ${realism}
@@ -55,9 +62,7 @@ export const generateSyntheticDataWithAI = async (
     The response must be a valid JSON array starting with [ and ending with ] without any markdown formatting.
     `;
     
-    // For prompt-only mode, prioritize the AI prompt
     if (Object.keys(schema).length === 0 && aiPrompt && aiPrompt.trim()) {
-      // Create a more specific prompt for prompt-only mode
       promptContent = `
       Generate ${rowCount} synthetic data records based on this description:
       ${aiPrompt}
@@ -73,7 +78,6 @@ export const generateSyntheticDataWithAI = async (
       `;
     }
     
-    // Call the OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -105,29 +109,23 @@ export const generateSyntheticDataWithAI = async (
     const data = await response.json();
     const generatedContent = data.choices[0].message.content;
     
-    // Parse the JSON response
     try {
-      // First try direct JSON parsing
       try {
         const directParse = JSON.parse(generatedContent.trim());
         if (Array.isArray(directParse)) {
           return directParse;
         }
       } catch (e) {
-        // If direct parsing fails, we'll try more sophisticated approaches below
         console.log("Direct JSON parsing failed, trying alternative methods");
       }
       
-      // Try to extract JSON from the response if it contains markdown or explanations
       let jsonContent = generatedContent;
       
-      // Remove markdown code blocks if present
       const jsonMatch = generatedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonContent = jsonMatch[1].trim();
       }
       
-      // Find the first [ and last ] to extract the JSON array
       const startIdx = jsonContent.indexOf('[');
       const endIdx = jsonContent.lastIndexOf(']');
       
@@ -135,37 +133,32 @@ export const generateSyntheticDataWithAI = async (
         jsonContent = jsonContent.substring(startIdx, endIdx + 1);
       }
       
-      // Clean up common issues in the JSON string
       jsonContent = jsonContent
-        .replace(/\\'/g, "'") // Replace escaped single quotes
-        .replace(/,\s*}/g, '}') // Remove trailing commas in objects
-        .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
-        .replace(/}\s*{/g, '},{') // Fix missing commas between objects
-        .replace(/]\s*\[/g, '],[') // Fix missing commas between arrays
-        .replace(/\\/g, '\\\\') // Escape backslashes
-        .replace(/"\s*\n\s*"/g, '","') // Fix newlines in strings
-        .replace(/"\s*,\s*,\s*"/g, '","'); // Fix double commas
+        .replace(/\\'/g, "'")
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*]/g, ']')
+        .replace(/}\s*{/g, '},{')
+        .replace(/]\s*\[/g, '],[')
+        .replace(/\\/g, '\\\\')
+        .replace(/"\s*\n\s*"/g, '","')
+        .replace(/"\s*,\s*,\s*"/g, '","');
       
       try {
         const parsedData = JSON.parse(jsonContent);
         if (Array.isArray(parsedData)) {
           return parsedData;
         } else {
-          // If we got an object but not an array, see if it contains an array property
           for (const key in parsedData) {
             if (Array.isArray(parsedData[key])) {
               return parsedData[key];
             }
           }
-          // If we can't find an array, wrap the object in an array
           return [parsedData];
         }
       } catch (parseError) {
         console.error("Error parsing JSON after cleanup:", parseError);
         
-        // Last resort: try to fix the JSON with a more aggressive approach
         try {
-          // Remove all whitespace and try again with a regex-based approach
           const arrayMatch = generatedContent.match(/\[\s*{[\s\S]*}\s*\]/);
           if (arrayMatch) {
             const arrayContent = arrayMatch[0];
@@ -175,7 +168,6 @@ export const generateSyntheticDataWithAI = async (
           console.error("All JSON parsing attempts failed");
         }
         
-        // If all parsing attempts fail, return an error structure
         console.log("Raw response:", generatedContent);
         return [{
           error: "Failed to parse AI-generated data",
@@ -187,7 +179,6 @@ export const generateSyntheticDataWithAI = async (
       console.error("Error in JSON extraction logic:", error);
       console.log("Raw response:", generatedContent);
       
-      // If parsing fails, try to return a structured error message
       return [{
         error: "Failed to parse AI-generated data",
         message: "The AI generated content that could not be parsed as JSON",
@@ -200,16 +191,10 @@ export const generateSyntheticDataWithAI = async (
   }
 };
 
-// Generic function to get completion from OpenAI used by many services
 export const getCompletion = async (
-  apiKey: string | null, 
-  messages: OpenAiMessage[], 
-  options: { 
-    model?: string;
-    temperature?: number;
-    max_tokens?: number;
-    [key: string]: any;
-  } = {}
+  apiKey: string,
+  messages: OpenAiMessage[],
+  options: OpenAiCompletionOptions = {}
 ): Promise<string> => {
   if (!apiKey) {
     throw new Error("OpenAI API key is required");
@@ -251,48 +236,109 @@ export const getCompletion = async (
   }
 };
 
-// Function for analyzing PII data with AI
-export const analyzePiiWithAI = async (
+export const detectPiiFields = async (
   apiKey: string,
-  sampleData: string
-): Promise<{ identifiedPii: string[], suggestions: string }> => {
+  sampleData: any[]
+): Promise<any> => {
   try {
+    const sampleDataString = JSON.stringify(sampleData.slice(0, 5), null, 2);
+    
     const messages: OpenAiMessage[] = [
       {
         role: 'system',
-        content: 'You are an AI specialized in identifying Personally Identifiable Information (PII) in datasets.'
+        content: `You are an expert in personally identifiable information (PII) detection. 
+        You need to analyze a dataset and identify potential PII fields.
+        For each identified field, provide:
+        1. The field name
+        2. Your confidence level (high, medium, low)
+        3. A suggested masking technique
+        4. Example values from the data
+        
+        Also suggest an appropriate masking prompt for the detected fields.
+        Return your analysis in a valid JSON format according to this structure:
+        {
+          "detectedFields": [
+            {
+              "fieldName": "string",
+              "confidence": "high|medium|low",
+              "suggestedMaskingTechnique": "character-masking|truncation|tokenization|encryption|redaction|synthetic-replacement",
+              "examples": ["string"]
+            }
+          ],
+          "suggestedPrompt": "string",
+          "undetectedFields": ["string"]
+        }`
       },
       {
         role: 'user',
-        content: `Analyze this sample data and identify any PII fields:\n\n${sampleData}\n\nReturn a JSON object with "identifiedPii" (array of field names) and "suggestions" (string with masking recommendations).`
+        content: `Please analyze this dataset and identify potential PII fields:\n\n${sampleDataString}`
       }
     ];
 
     const response = await getCompletion(apiKey, messages, {
-      temperature: 0.3,
-      model: 'gpt-4o'
+      temperature: 0.1,
+      model: 'gpt-4o-mini'
     });
 
     try {
-      const result = JSON.parse(response);
+      return JSON.parse(response);
+    } catch (error) {
+      console.error("Error parsing PII detection result:", error);
       return {
-        identifiedPii: Array.isArray(result.identifiedPii) ? result.identifiedPii : [],
-        suggestions: typeof result.suggestions === 'string' ? result.suggestions : 'No specific suggestions provided'
-      };
-    } catch (parseError) {
-      console.error("Error parsing analyzePiiWithAI response:", parseError);
-      return {
-        identifiedPii: ['Error: Could not parse PII analysis results'],
-        suggestions: 'Error analyzing data. Please try again with a different sample.'
+        detectedFields: [],
+        suggestedPrompt: "",
+        undetectedFields: Object.keys(sampleData[0] || {})
       };
     }
   } catch (error) {
-    console.error("Error in analyzePiiWithAI:", error);
+    console.error("Error in PII detection:", error);
     throw error;
   }
 };
 
-// Function for generating masked data with AI
+export const analyzePiiWithAI = async (
+  apiKey: string, 
+  sampleData: string
+): Promise<{ identifiedPii: string[], suggestions: string }> => {
+  const messages: OpenAiMessage[] = [
+    {
+      role: 'system',
+      content: `You are an expert in personally identifiable information (PII) detection.
+      Analyze the provided data sample and identify any PII fields.
+      Also provide specific suggestions for how each type of PII should be masked.
+      Return your analysis in a valid JSON format according to this structure:
+      {
+        "identifiedPii": ["array of field names that contain PII"],
+        "suggestions": "detailed suggestions for masking each PII type"
+      }`
+    },
+    {
+      role: 'user',
+      content: `Please analyze this data sample and identify PII fields:\n\n${sampleData}`
+    }
+  ];
+
+  try {
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.1,
+      model: 'gpt-4o-mini'
+    });
+
+    try {
+      return JSON.parse(response);
+    } catch (error) {
+      console.error("Error parsing PII analysis result:", error);
+      return {
+        identifiedPii: [],
+        suggestions: "Unable to generate suggestions. Please check the data format."
+      };
+    }
+  } catch (error) {
+    console.error("Error in PII analysis:", error);
+    throw error;
+  }
+};
+
 export const generateMaskedDataWithAI = async (
   apiKey: string,
   data: any[],
@@ -302,42 +348,49 @@ export const generateMaskedDataWithAI = async (
     customPrompt?: string;
   } = {}
 ): Promise<any[]> => {
-  try {
-    const sampleData = JSON.stringify(data, null, 2);
-    const preserveFormat = options.preserveFormat !== undefined ? options.preserveFormat : true;
-    
-    const messages: OpenAiMessage[] = [
-      {
-        role: 'system',
-        content: 'You are an AI specialized in data privacy and masking PII information.'
-      },
-      {
-        role: 'user',
-        content: options.customPrompt || 
-          `Mask the following fields in this data: ${fieldsToMask.join(', ')}
-           ${preserveFormat ? 'Preserve the format of each field.' : 'You can change formats if needed.'}
-           Return the modified data as a JSON array.\n\n${sampleData}`
-      }
-    ];
+  const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
+  const fieldsStr = fieldsToMask.join(", ");
+  const preserveFormat = options.preserveFormat !== undefined ? options.preserveFormat : true;
+  
+  const customPrompt = options.customPrompt || 
+    "Mask the PII data while preserving the format and ensuring privacy.";
+  
+  const messages: OpenAiMessage[] = [
+    {
+      role: 'system',
+      content: `You are an expert in PII data masking.
+      You will be given a sample of data records and a list of fields to mask.
+      ${customPrompt}
+      
+      The fields to mask are: ${fieldsStr}
+      ${preserveFormat ? 'IMPORTANT: Preserve the format (length, structure) of each field when masking.' : ''}
+      
+      Return ONLY a valid JSON array of the masked records with the same structure.`
+    },
+    {
+      role: 'user',
+      content: `Please mask the following data:\n\n${sampleData}`
+    }
+  ];
 
+  try {
     const response = await getCompletion(apiKey, messages, {
-      temperature: 0.3,
-      model: 'gpt-4o'
+      temperature: 0.2,
+      model: 'gpt-4o-mini'
     });
 
     try {
       return JSON.parse(response);
-    } catch (parseError) {
-      console.error("Error parsing generateMaskedDataWithAI response:", parseError);
-      throw new Error("Failed to parse masked data response");
+    } catch (error) {
+      console.error("Error parsing masked data result:", error);
+      throw new Error("Failed to generate masked data with AI");
     }
   } catch (error) {
-    console.error("Error in generateMaskedDataWithAI:", error);
+    console.error("Error in generating masked data:", error);
     throw error;
   }
 };
 
-// Functions for aiDataAnalysisService.ts
 export const analyzeImbalancedDataset = async (
   apiKey: string,
   data: any[],

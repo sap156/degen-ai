@@ -1,4 +1,5 @@
-import { analyzePiiWithAI, generateMaskedDataWithAI } from "./openAiService";
+import { DetectedPiiField, PiiDetectionResult } from '@/types/piiHandling';
+import { analyzePiiWithAI, detectPiiFields, generateMaskedDataWithAI } from "./openAiService";
 
 export interface PiiData {
   id: string;
@@ -250,7 +251,7 @@ const calculateSimilarity = (str1: string, str2: string): number => {
     const isLetter2 = /[a-zA-Z]/.test(char2);
     
     if ((isDigit1 && isDigit2) || (isLetter1 && isLetter2) || 
-        (!isDigit1 && !isLetter1 && !isDigit2 && !isLetter2)) {
+        (!isDigit1 && !isDigit1 && !isDigit2 && !isLetter2)) {
       typeSim++;
     }
   }
@@ -361,6 +362,44 @@ const applyStandardMasking = (data: PiiData[], perFieldMaskingOptions: PerFieldM
   });
 };
 
+// Enhanced PII detection using AI
+export const detectPiiInData = async (data: PiiData[], apiKey: string | null): Promise<PiiDetectionResult> => {
+  if (!apiKey) {
+    return {
+      detectedFields: [],
+      suggestedPrompt: "Please set your OpenAI API key to use AI-powered PII detection.",
+      undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+    };
+  }
+  
+  try {
+    // Use a sample of the data for detection
+    const sampleSize = Math.min(5, data.length);
+    const sampleData = data.slice(0, sampleSize);
+    
+    // Use the OpenAI API to detect PII fields
+    const detectionResult = await detectPiiFields(apiKey, sampleData);
+    
+    // If the OpenAI detection didn't return the expected format, prepare a fallback
+    if (!detectionResult.detectedFields) {
+      return {
+        detectedFields: [],
+        suggestedPrompt: "Use character masking for sensitive fields while preserving format.",
+        undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+      };
+    }
+    
+    return detectionResult;
+  } catch (error) {
+    console.error("Error detecting PII in data:", error);
+    return {
+      detectedFields: [],
+      suggestedPrompt: "An error occurred during PII detection. Please try again.",
+      undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+    };
+  }
+};
+
 // Analyze PII data using AI
 export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Promise<PiiAnalysisResult> => {
   if (!apiKey) {
@@ -427,4 +466,31 @@ export const downloadData = (data: string, filename: string, type: 'json' | 'csv
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+// Generate masking suggestions based on field name and sample values
+export const generateMaskingSuggestions = (fieldName: string, sampleValues: string[]): string => {
+  // Simple rules-based suggestions
+  const fieldNameLower = fieldName.toLowerCase();
+  
+  if (fieldNameLower.includes('email')) {
+    return "Mask the username portion of email addresses but keep the domain (e.g., ****@example.com).";
+  } else if (fieldNameLower.includes('phone') || fieldNameLower.includes('mobile')) {
+    return "Mask all digits except the last 4 (e.g., (XXX) XXX-1234).";
+  } else if (fieldNameLower.includes('ssn') || fieldNameLower.includes('social')) {
+    return "Fully mask except for last 4 digits (e.g., XXX-XX-1234).";
+  } else if (fieldNameLower.includes('credit') || fieldNameLower.includes('card') || fieldNameLower.includes('cc')) {
+    return "Replace digits with X except the last 4 (e.g., XXXX-XXXX-XXXX-1234).";
+  } else if (fieldNameLower.includes('name')) {
+    return "Keep first initial, mask the rest (e.g., J*** D**).";
+  } else if (fieldNameLower.includes('address')) {
+    return "Keep street number, mask street name, keep city and state (e.g., 123 **** St, New York, NY).";
+  } else if (fieldNameLower.includes('dob') || fieldNameLower.includes('birth')) {
+    return "Keep month and day, mask year (e.g., 01/15/XXXX).";
+  } else if (fieldNameLower.includes('zip') || fieldNameLower.includes('postal')) {
+    return "Mask all but last two digits (e.g., XXX12).";
+  } else {
+    // Generic masking suggestion
+    return "Mask all characters except first and last (e.g., A***Z).";
+  }
 };
