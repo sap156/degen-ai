@@ -20,7 +20,7 @@ import {
   X,
   Shield
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApiKey } from '@/contexts/ApiKeyContext';
@@ -58,7 +58,7 @@ import AuthRequirement from '@/components/AuthRequirement';
 import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
 
 const PiiHandling = () => {
-  const { toast } = useToast();
+  // Use the toast directly without destructuring from useToast
   const { apiKey } = useApiKey();
   const [originalData, setOriginalData] = useState<PiiData[]>([]);
   const [maskedData, setMaskedData] = useState<PiiDataMasked[]>([]);
