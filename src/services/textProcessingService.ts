@@ -24,6 +24,26 @@ export interface ProcessedText {
 }
 
 /**
+ * Strip markdown code blocks from a string
+ */
+export const stripMarkdownCodeBlocks = (text: string): string => {
+  // Check if the text starts with ```json or other markdown code indicators
+  const codeBlockRegex = /^```(?:json|javascript|js)?\n([\s\S]*?)```$/m;
+  const match = text.match(codeBlockRegex);
+  
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  
+  // If no code block found or if the regex didn't match properly,
+  // do a more aggressive cleanup to handle partial markdown
+  return text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
+};
+
+/**
  * Process text with AI to extract structured information
  */
 export const processTextWithAI = async (
@@ -57,6 +77,8 @@ export const processTextWithAI = async (
   
   ${userContext ? `Additional context: ${userContext}` : ''}
   
+  IMPORTANT: Do NOT hallucinate or make up information. Only analyze the provided text.
+  
   ${outputFormat === 'json' ? 'Return your response as clean JSON without markdown formatting or code blocks.' : 'Return your response as structured text with clear sections and highlights.'}`;
 
   // Create user message with the text to process
@@ -68,8 +90,6 @@ export const processTextWithAI = async (
   ];
 
   try {
-    //const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
-    //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
@@ -107,26 +127,6 @@ export const processTextWithAI = async (
     console.error('Error processing text with AI:', error);
     throw error;
   }
-};
-
-/**
- * Strip markdown code blocks from a string
- */
-export const stripMarkdownCodeBlocks = (text: string): string => {
-  // Check if the text starts with ```json or other markdown code indicators
-  const codeBlockRegex = /^```(?:json|javascript|js)?\n([\s\S]*?)```$/m;
-  const match = text.match(codeBlockRegex);
-  
-  if (match && match[1]) {
-    return match[1].trim();
-  }
-  
-  // If no code block found or if the regex didn't match properly,
-  // do a more aggressive cleanup to handle partial markdown
-  return text
-    .replace(/```json\n?/g, '')
-    .replace(/```\n?/g, '')
-    .trim();
 };
 
 /**

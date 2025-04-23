@@ -24,6 +24,26 @@ export interface ExtractedData {
 }
 
 /**
+ * Strip markdown code blocks from a string
+ */
+const stripMarkdownCodeBlocks = (text: string): string => {
+  // Check if the text starts with ```json or other markdown code indicators
+  const codeBlockRegex = /^```(?:json|javascript|js)?\n([\s\S]*?)```$/m;
+  const match = text.match(codeBlockRegex);
+  
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  
+  // If no code block found or if the regex didn't match properly,
+  // do a more aggressive cleanup to handle partial markdown
+  return text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
+};
+
+/**
  * Extract data from a URL using OpenAI
  */
 export const extractDataFromUrl = async (
@@ -49,14 +69,12 @@ export const extractDataFromUrl = async (
   ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content with proper nesting and relationships. Separate textual content from image URLs.' : ''}
   ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
   
-  Important notes:
-  1. If you cannot access the content directly, describe what you're able to see and what might be missing.
-  2. For dynamic content, try to extract whatever is visible in the current state.
-  3. Always use the current timestamp in your metadata.
-  4. If you find no content matching the extraction type, try to provide alternative useful data from the page.
-  5. For text and JSON extraction, identify and extract image URLs separately from textual content.
+  IMPORTANT: Do NOT hallucinate or make up information. Only extract data that actually exists on the page.
+  If you cannot access the content or if the URL is invalid, clearly state this in your response.
+  If there is no content matching the extraction type, state this explicitly rather than inventing data.
   
-  Return your response in valid JSON format with the following structure:
+  Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
+  Use this structure:
   {
     "extracted_data": [...], // The main extracted content
     "text_content": "The main textual content of the page", 
@@ -68,9 +86,7 @@ export const extractDataFromUrl = async (
       "query": "${userQuery || 'none'}"
     },
     "summary": "A brief summary of what was extracted"
-  }
-  
-  Do NOT include any explanatory text outside the JSON structure.`;
+  }`;
 
   // Create user message with the URL
   const userMessage = userQuery 
@@ -91,10 +107,13 @@ export const extractDataFromUrl = async (
     });
     
     try {
+      // Clean the response if it contains markdown code blocks
+      const cleanedResponse = stripMarkdownCodeBlocks(response);
+      
       // Try to parse as JSON
-      const jsonData = JSON.parse(response);
+      const jsonData = JSON.parse(cleanedResponse);
       return {
-        raw: response,
+        raw: cleanedResponse,
         format: 'json',
         structured: jsonData,
         summary: jsonData.summary || 'Data extracted successfully'
@@ -138,7 +157,11 @@ export const extractDataFromImage = async (
     ${extractionType === 'text' ? 'Extract all readable text, preserving layout when possible. Also identify any embedded images and describe them briefly.' : ''}
     ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
     
-    Return your response in valid JSON format with the following structure:
+    IMPORTANT: Do NOT hallucinate or make up information. Only extract data that you can clearly see in the image.
+    If you cannot read portions of the image, indicate this in your response.
+    
+    Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
+    Use this structure:
     {
       "extracted_data": [...], // The main extracted content
       "text_content": "All the readable text from the image",
@@ -147,14 +170,11 @@ export const extractDataFromImage = async (
         "source_type": "image",
         "filename": "${imageFile.name}",
         "extraction_type": "${extractionType}",
-        "timestamp": "current_time",
+        "timestamp": "${new Date().toISOString()}",
         "query": "${userQuery || 'none'}"
       },
       "summary": "A brief summary of what was extracted"
-    }
-    
-    If you cannot read or extract certain parts of the image, indicate this in your response.
-    Do NOT include any explanatory text outside the JSON structure.`;
+    }`;
 
     // Create user message with the image query
     const userMessage = userQuery 
@@ -189,10 +209,13 @@ export const extractDataFromImage = async (
     });
     
     try {
+      // Clean the response if it contains markdown code blocks
+      const cleanedResponse = stripMarkdownCodeBlocks(response);
+      
       // Try to parse as JSON
-      const jsonData = JSON.parse(response);
+      const jsonData = JSON.parse(cleanedResponse);
       return {
-        raw: response,
+        raw: cleanedResponse,
         format: 'json',
         structured: jsonData,
         summary: jsonData.summary || 'Data extracted successfully'
@@ -240,7 +263,11 @@ export const extractDataFromDocument = async (
     ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the document content.' : ''}
     ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
     
-    Return your response in valid JSON format with the following structure:
+    IMPORTANT: Do NOT hallucinate or make up information. Only extract data that actually exists in the document.
+    If you cannot extract portions of the document, indicate this clearly.
+    
+    Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
+    Use this structure:
     {
       "extracted_data": [...], // The main extracted content
       "text_content": "The main textual content of the document",
@@ -253,10 +280,7 @@ export const extractDataFromDocument = async (
         "query": "${userQuery || 'none'}"
       },
       "summary": "A brief summary of what was extracted"
-    }
-    
-    If you cannot read or extract certain parts of the document, indicate this in your response.
-    Do NOT include any explanatory text outside the JSON structure.`;
+    }`;
 
     // For this demo, we'll simulate document extraction with a limited approach
     // Using the file information to prompt the AI
@@ -281,10 +305,13 @@ export const extractDataFromDocument = async (
     });
     
     try {
+      // Clean the response if it contains markdown code blocks
+      const cleanedResponse = stripMarkdownCodeBlocks(response);
+      
       // Try to parse as JSON
-      const jsonData = JSON.parse(response);
+      const jsonData = JSON.parse(cleanedResponse);
       return {
-        raw: response,
+        raw: cleanedResponse,
         format: 'json',
         structured: jsonData,
         summary: jsonData.summary || `Data extracted from ${fileType} file`
@@ -351,8 +378,11 @@ export const processExtractedData = async (
   const systemMessage = `You are an expert data analyst AI assistant. 
   Your task is to analyze the provided extracted data and answer the user's specific query about it.
   Be precise and focus only on the information requested.
+  IMPORTANT: Do NOT hallucinate or make up information. Only use the data provided to you.
+  If you cannot answer the question based on the extracted data, clearly state this.
   
-  Return your response in valid JSON format with the following structure:
+  Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
+  Use this structure:
   {
     "answer": "Your detailed answer to the query",
     "relevant_data": [...], // Any specific data points relevant to the query
@@ -360,9 +390,7 @@ export const processExtractedData = async (
     "images": [], // Keep any relevant image URLs from the original extraction
     "text_content": "Your detailed answer in a narrative format",
     "summary": "A brief summary of your findings"
-  }
-  
-  Do NOT include any explanatory text outside the JSON structure.`;
+  }`;
 
   const messages: OpenAiMessage[] = [
     { role: 'system', content: systemMessage },
@@ -378,10 +406,13 @@ export const processExtractedData = async (
     });
     
     try {
+      // Clean the response if it contains markdown code blocks
+      const cleanedResponse = stripMarkdownCodeBlocks(response);
+      
       // Try to parse as JSON
-      const jsonData = JSON.parse(response);
+      const jsonData = JSON.parse(cleanedResponse);
       return {
-        raw: response,
+        raw: cleanedResponse,
         format: 'json',
         structured: jsonData,
         summary: jsonData.answer || 'Analysis completed'
