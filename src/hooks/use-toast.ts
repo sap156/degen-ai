@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import {
   Toast,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/toast";
 import { useToast as useToastPrimitive } from "@/components/ui/use-toast";
 
-export const ToastContext = React.createContext(useToastPrimitive);
+export const ToastContext = React.createContext(useToastPrimitive());
 
 export const useToast = () => {
   const context = React.useContext(ToastContext);
@@ -19,4 +20,4 @@ export const useToast = () => {
   return context;
 };
 
-export const toast = useToastPrimitive;
+export const toast = useToastPrimitive().toast;

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -592,289 +593,402 @@ const PiiHandlingContent = () => {
                             Replace all digits in credit cards except the last 4."
                           </p>
                         </TooltipContent>
-                      </TooltipProvider>
-                    </div>
-                    <Textarea 
-                      id="ai-masking-prompt"
-                      placeholder="Describe exactly how you want each field masked. Be specific about techniques and formats."
-                      value={aiPrompt}
-                      onChange={handleAiPromptChange}
-                      className="min-h-[120px]"
-                    />
-
-                    <div className="pt-2">
-                      <Label className="text-xs text-muted-foreground mb-2 block">Example instructions:</Label>
-                      <div className="space-y-2">
-                        {examplePrompts.map((prompt, index) => (
-                          <div 
-                            key={index}
-                            className="text-xs p-2 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors"
-                            onClick={() => handleApplyExamplePrompt(prompt)}
-                          >
-                            {prompt.substring(0, 100)}...
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
+                  <Textarea 
+                    id="ai-masking-prompt"
+                    placeholder="Describe exactly how you want each field masked. Be specific about techniques and formats."
+                    value={aiPrompt}
+                    onChange={handleAiPromptChange}
+                    className="min-h-[120px]"
+                  />
 
-                  <div className="flex items-center justify-between mt-3">
-                    <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
-                    <div className="flex h-8 items-center space-x-2">
-                      <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                          onClick={() => handlePreserveFormatToggle(false)}>
-                        No
-                      </div>
-                      <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                          onClick={() => handlePreserveFormatToggle(true)}>
-                        Yes
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {dataReady && (
-                  <Button 
-                    className="w-full mt-4" 
-                    onClick={applyMasking}
-                    disabled={isMaskingData || originalData.length === 0 || !apiKey}
-                  >
-                    {isMaskingData ? (
-                      <>
-                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
-                        Processing... {processingProgress > 0 && `${processingProgress}%`}
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="h-4 w-4 mr-2" />
-                        Generate PII Masking
-                      </>
-                    )}
-                  </Button>
-                )}
-
-                {isMaskingData && processingProgress > 0 && (
-                  <Progress value={processingProgress} className="h-2" />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          <div className="lg:col-span-3 space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Fields to Mask</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => toggleAllFields(true)}
-                      className="text-xs h-8"
-                    >
-                      <Check className="h-3 w-3 mr-1" />
-                      Select All
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => toggleAllFields(false)}
-                      className="text-xs h-8"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Clear All
-                    </Button>
-                  </div>
-                </div>
-                <CardDescription>
-                  Select which fields should be masked by the AI
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {Object.entries(perFieldMaskingOptions).length === 0 ? (
-                    <div className="text-center py-6 text-muted-foreground">
-                      <UploadCloud className="mx-auto h-12 w-12 text-muted" />
-                      <p className="mt-2">Upload a file to view available fields</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
-                        <div key={field} className="border rounded-md p-3 hover:bg-muted/30 transition-colors">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <MaskingFieldControl 
-                                field={field}
-                                enabled={config.enabled}
-                                onToggle={() => toggleFieldMasking(field)}
-                              />
-                              {piiDetectionResult?.detectedFields.some(f => f.fieldName === field) && (
-                                <Badge className="ml-2 text-xs" variant="secondary">
-                                  Detected PII
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          {config.enabled && (
-                            <div className="mt-2 text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-                              <p>
-                                Suggestion: {maskingSuggestions[field] ? maskingSuggestions[field] : "Analyzing..."}
-                              </p>
-                            </div>
-                          )}
+                  <div className="pt-2">
+                    <Label className="text-xs text-muted-foreground mb-2 block">Example instructions:</Label>
+                    <div className="space-y-2">
+                      {examplePrompts.map((prompt, index) => (
+                        <div 
+                          key={index}
+                          className="text-xs p-2 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors"
+                          onClick={() => handleApplyExamplePrompt(prompt)}
+                        >
+                          {prompt.substring(0, 100)}...
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>PII Data Viewer</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setViewMode(viewMode === 'tabbed' ? 'side-by-side' : 'tabbed')}
-                      className="h-8"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      {viewMode === 'tabbed' ? 'Side by Side' : 'Tabbed View'}
-                    </Button>
                   </div>
                 </div>
-                <CardDescription>
-                  View original and masked PII data {viewMode === 'tabbed' ? 'in tabs' : 'side by side'} (showing first 5 records)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-                  <div className="flex items-center space-x-2">
-                    <Label className="text-sm">Export Format:</Label>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${exportFormat === 'json' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                        onClick={() => setExportFormat('json')}
-                      >
-                        JSON
-                      </div>
-                      <div
-                        className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${exportFormat === 'csv' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
-                        onClick={() => setExportFormat('csv')}
-                      >
-                        CSV
-                      </div>
+
+                <div className="flex items-center justify-between mt-3">
+                  <Label htmlFor="preserve-format" className="text-xs">Preserve Format</Label>
+                  <div className="flex h-8 items-center space-x-2">
+                    <div className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${!globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(false)}>
+                      No
+                    </div>
+                    <div className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${globalMaskingPreferences.preserveFormat ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => handlePreserveFormatToggle(true)}>
+                      Yes
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => handleExport(maskedData)} 
-                      className="w-fit"
-                      disabled={maskedData.length === 0}
+                </div>
+              </div>
+
+              {dataReady && (
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={applyMasking}
+                  disabled={isMaskingData || originalData.length === 0 || !apiKey}
+                >
+                  {isMaskingData ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full"></div>
+                      Processing... {processingProgress > 0 && `${processingProgress}%`}
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-4 w-4 mr-2" />
+                      Generate PII Masking
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {isMaskingData && processingProgress > 0 && (
+                <Progress value={processingProgress} className="h-2" />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:col-span-3 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Fields to Mask</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => toggleAllFields(true)}
+                    className="text-xs h-8"
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Select All
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => toggleAllFields(false)}
+                    className="text-xs h-8"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              <CardDescription>
+                Select which fields should be masked by the AI
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(perFieldMaskingOptions).length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <UploadCloud className="mx-auto h-12 w-12 text-muted" />
+                    <p className="mt-2">Upload a file to view available fields</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {Object.entries(perFieldMaskingOptions).map(([field, config]) => (
+                      <div key={field} className="border rounded-md p-3 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <MaskingFieldControl 
+                              field={field}
+                              enabled={config.enabled}
+                              onToggle={() => toggleFieldMasking(field)}
+                            />
+                            {piiDetectionResult?.detectedFields.some(f => f.fieldName === field) && (
+                              <Badge className="ml-2 text-xs" variant="secondary">
+                                Detected PII
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {config.enabled && (
+                          <div className="mt-2 text-xs text-muted-foreground p-2 bg-muted/20 rounded">
+                            <p>
+                              Suggestion: {maskingSuggestions[field] ? maskingSuggestions[field] : "Analyzing..."}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>PII Data Viewer</CardTitle>
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setViewMode(viewMode === 'tabbed' ? 'side-by-side' : 'tabbed')}
+                    className="h-8"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {viewMode === 'tabbed' ? 'Side by Side' : 'Tabbed View'}
+                  </Button>
+                </div>
+              </div>
+              <CardDescription>
+                View original and masked PII data {viewMode === 'tabbed' ? 'in tabs' : 'side by side'} (showing first 5 records)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                <div className="flex items-center space-x-2">
+                  <Label className="text-sm">Export Format:</Label>
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${exportFormat === 'json' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                      onClick={() => setExportFormat('json')}
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Masked Data
-                    </Button>
-                    <Button 
-                      onClick={() => copyToClipboard(maskedData)} 
-                      variant="outline" 
-                      className="w-fit"
-                      disabled={maskedData.length === 0}
+                      JSON
+                    </div>
+                    <div
+                      className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${exportFormat === 'csv' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                      onClick={() => setExportFormat('csv')}
                     >
-                      <Clipboard className="h-4 w-4 mr-2" />
-                      Copy to Clipboard
-                    </Button>
+                      CSV
+                    </div>
                   </div>
                 </div>
-                {viewMode === 'tabbed' ? (
-                  <Tabs defaultValue="original">
-                    <TabsList>
-                      <TabsTrigger value="original">Original Data</TabsTrigger>
-                      <TabsTrigger value="masked">Masked Data</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="original">
-                      {originalData.length > 0 ? (
-                        <div className="border rounded-md overflow-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>ID</TableHead>
-                                {originalData.length > 0 && 
-                                  Object.keys(originalData[0])
-                                    .filter(k => k !== 'id')
-                                    .map(field => (
-                                      <TableHead key={field}>{field}</TableHead>
-                                    ))
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => handleExport(maskedData)} 
+                    className="w-fit"
+                    disabled={maskedData.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Masked Data
+                  </Button>
+                  <Button 
+                    onClick={() => copyToClipboard(maskedData)} 
+                    variant="outline" 
+                    className="w-fit"
+                    disabled={maskedData.length === 0}
+                  >
+                    <Clipboard className="h-4 w-4 mr-2" />
+                    Copy to Clipboard
+                  </Button>
+                </div>
+              </div>
+              {viewMode === 'tabbed' ? (
+                <Tabs defaultValue="original">
+                  <TabsList>
+                    <TabsTrigger value="original">Original Data</TabsTrigger>
+                    <TabsTrigger value="masked">Masked Data</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="original">
+                    {originalData.length > 0 ? (
+                      <div className="border rounded-md overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>ID</TableHead>
+                              {originalData.length > 0 && 
+                                Object.keys(originalData[0])
+                                  .filter(k => k !== 'id')
+                                  .map(field => (
+                                    <TableHead key={field}>{field}</TableHead>
+                                  ))
+                              }
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {originalData.slice(0, 5).map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.id}</TableCell>
+                                {Object.entries(item)
+                                  .filter(([key]) => key !== 'id')
+                                  .map(([key, value]) => (
+                                    <TableCell key={key} className="max-w-[200px] truncate">
+                                      {value}
+                                    </TableCell>
+                                  ))
                                 }
                               </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {originalData.slice(0, 5).map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.id}</TableCell>
-                                  {Object.entries(item)
-                                    .filter(([key]) => key !== 'id')
-                                    .map(([key, value]) => (
-                                      <TableCell key={key} className="max-w-[200px] truncate">
-                                        {value}
-                                      </TableCell>
-                                    ))
-                                  }
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                          {originalData.length > 5 && (
-                            <div className="p-2 text-center text-sm text-muted-foreground">
-                              Showing 5 of {originalData.length} records
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
-                          <p className="text-muted-foreground mb-2">No data uploaded</p>
-                          <p className="text-xs text-muted-foreground">Upload a CSV or JSON file to get started</p>
-                        </div>
-                      )}
-                    </TabsContent>
-                    <TabsContent value="masked">
-                      {maskedData.length > 0 ? (
-                        <div className="border rounded-md overflow-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>ID</TableHead>
-                                {maskedData.length > 0 && 
-                                  Object.keys(maskedData[0])
-                                    .filter(k => k !== 'id')
-                                    .map(field => (
-                                      <TableHead key={field}>{field}</TableHead>
-                                    ))
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {originalData.length > 5 && (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            Showing 5 of {originalData.length} records
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                        <p className="text-muted-foreground mb-2">No data uploaded</p>
+                        <p className="text-xs text-muted-foreground">Upload a CSV or JSON file to get started</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="masked">
+                    {maskedData.length > 0 ? (
+                      <div className="border rounded-md overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>ID</TableHead>
+                              {maskedData.length > 0 && 
+                                Object.keys(maskedData[0])
+                                  .filter(k => k !== 'id')
+                                  .map(field => (
+                                    <TableHead key={field}>{field}</TableHead>
+                                  ))
+                              }
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {maskedData.slice(0, 5).map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.id}</TableCell>
+                                {Object.entries(item)
+                                  .filter(([key]) => key !== 'id')
+                                  .map(([key, value]) => (
+                                    <TableCell key={key} className="max-w-[200px] truncate">
+                                      {value}
+                                    </TableCell>
+                                  ))
                                 }
                               </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {maskedData.slice(0, 5).map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.id}</TableCell>
-                                  {Object.entries(item)
-                                    .filter(([key]) => key !== 'id')
-                                    .map(([key, value]) => (
-                                      <TableCell key={key} className="max-w-[200px] truncate">
-                                        {value}
-                                      </TableCell>
-                                    ))
-                                  }
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                          {maskedData.length > 5 && (
-                            <div className="p-2 text-center text-sm text-muted-foreground">
-                              Showing 5 of {maskedData.length} records
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {maskedData.length > 5 && (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            Showing 5 of {maskedData.length} records
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                        <p className="text-muted-foreground mb-2">No masked data available</p>
+                        <p className="text-xs text-muted-foreground">Use the masking controls to generate masked data</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="font-medium mb-2">Original Data</h3>
+                    {originalData.length > 0 ? (
+                      <div className="border rounded-md overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>ID</TableHead>
+                              {originalData.length > 0 && 
+                                Object.keys(originalData[0])
+                                  .filter(k => k !== 'id')
+                                  .map(field => (
+                                    <TableHead key={field}>{field}</TableHead>
+                                  ))
+                              }
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {originalData.slice(0, 5).map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.id}</TableCell>
+                                {Object.entries(item)
+                                  .filter(([key]) => key !== 'id')
+                                  .map(([key, value]) => (
+                                    <TableCell key={key} className="max-w-[100px] truncate">
+                                      {value}
+                                    </TableCell>
+                                  ))
+                                }
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                        <p className="text-muted-foreground">No data uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-medium mb-2">Masked Data</h3>
+                    {maskedData.length > 0 ? (
+                      <div className="border rounded-md overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>ID</TableHead>
+                              {maskedData.length > 0 && 
+                                Object.keys(maskedData[0])
+                                  .filter(k => k !== 'id')
+                                  .map(field => (
+                                    <TableHead key={field}>{field}</TableHead>
+                                  ))
+                              }
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {maskedData.slice(0, 5).map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.id}</TableCell>
+                                {Object.entries(item)
+                                  .filter(([key]) => key !== 'id')
+                                  .map(([key, value]) => (
+                                    <TableCell key={key} className="max-w-[100px] truncate">
+                                      {value}
+                                    </TableCell>
+                                  ))
+                                }
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[200px] border rounded-md bg-muted/10">
+                        <p className="text-muted-foreground">No masked data available</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+  return (
+    <div className="bg-background min-h-screen pb-12">
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 gap-6">
+          <ApiKeyRequirement>
+            <PiiHandlingContent />
+          </ApiKeyRequirement>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PiiHandling;
