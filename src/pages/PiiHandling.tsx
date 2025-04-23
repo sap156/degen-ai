@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -58,7 +57,6 @@ import AuthRequirement from '@/components/AuthRequirement';
 import UserGuidePiiHandling from '@/components/ui/UserGuidePiiHandling';
 
 const PiiHandling = () => {
-  // Use the toast directly without destructuring from useToast
   const { apiKey } = useApiKey();
   const [originalData, setOriginalData] = useState<PiiData[]>([]);
   const [maskedData, setMaskedData] = useState<PiiDataMasked[]>([]);
@@ -78,12 +76,11 @@ const PiiHandling = () => {
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [processingProgress, setProcessingProgress] = useState<number>(0);
   const [viewMode, setViewMode] = useState<'side-by-side' | 'tabbed'>('tabbed');
-  
   const [perFieldMaskingOptions, setPerFieldMaskingOptions] = useState<PerFieldMaskingOptions>({});
-  
   const [globalMaskingPreferences, setGlobalMaskingPreferences] = useState({
     preserveFormat: true
   });
+  const [maskingSuggestions, setMaskingSuggestions] = useState<Record<string, string>>({});
 
   const examplePrompts = [
     "Mask emails by keeping the domain but replacing the username with asterisks. Replace all digits in credit cards with X except the last 4. For names, keep first initial only.",
@@ -440,6 +437,53 @@ const PiiHandling = () => {
     setPerFieldMaskingOptions(updatedOptions);
   };
 
+  React.useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (!apiKey || !originalData.length) return;
+      let fields: string[] = [];
+      if (piiDetectionResult && piiDetectionResult.detectedFields.length > 0) {
+        fields = piiDetectionResult.detectedFields.map(f => f.fieldName);
+      } else {
+        fields = Object.keys(originalData[0] || {}).filter(k => k !== 'id');
+      }
+      if (!fields.length) return;
+
+      const sampleRecords = originalData.slice(0, 5);
+      // Generate one prompt string per field ("Suggest a masking technique for the field 'X' given the following examples: ...")
+      const fieldToSuggestion: Record<string, string> = {};
+
+      await Promise.all(fields.map(async (field) => {
+        // Take up to 3 examples
+        const examples = sampleRecords.map(rec => rec[field]).filter(Boolean).slice(0, 3);
+        if (examples.length === 0) {
+          fieldToSuggestion[field] = "No data available to suggest masking.";
+          return;
+        }
+        // Call OpenAI via the analyzePiiData or a custom prompt for each field
+        try {
+          const message = `Given the following sample values for the field "${field}", suggest the best data masking technique to protect privacy while preserving utility for analytics. Give a single concise sentence. Example values:\n${examples.map(e => `- ${e}`).join('\n')}`;
+          // Reuse the analyzePiiWithAI/OpenAI API via our service layer
+          // (Assume analyzePiiWithAI returns { identifiedPii: string[], suggestions: string })
+          const { suggestions } = await analyzePiiData(
+            [{ [field]: examples[0] } as any], // minimal valid shape
+            apiKey
+          );
+          // We'll use the 'suggestions' as the masking suggestion
+          fieldToSuggestion[field] = suggestions || "No suggestion.";
+        } catch (err) {
+          fieldToSuggestion[field] = "Could not generate suggestion.";
+        }
+      }));
+
+      setMaskingSuggestions(fieldToSuggestion);
+    };
+
+    // Debounce, so that rapid file changes or field changes don't spam requests
+    const timer = setTimeout(fetchSuggestions, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line
+  }, [originalData, piiDetectionResult, apiKey]);
+
   const PiiHandlingContent = () => {
     return (
       <div className="container mx-auto py-6">
@@ -734,7 +778,7 @@ const PiiHandling = () => {
                           
                           {config.enabled && (
                             <div className="mt-2 text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-                              <p>Suggestion: {getFieldMaskingSuggestion(field)}</p>
+                              <p>Suggestion: {maskingSuggestions[field] || "Analyzing..."}</p>
                             </div>
                           )}
                         </div>
@@ -766,6 +810,44 @@ const PiiHandling = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-sm">Export Format:</Label>
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className={`px-3 py-1 text-xs rounded-l-md cursor-pointer ${exportFormat === 'json' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => setExportFormat('json')}
+                      >
+                        JSON
+                      </div>
+                      <div
+                        className={`px-3 py-1 text-xs rounded-r-md cursor-pointer ${exportFormat === 'csv' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                        onClick={() => setExportFormat('csv')}
+                      >
+                        CSV
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => handleExport(maskedData)} 
+                      className="w-fit"
+                      disabled={maskedData.length === 0}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Masked Data
+                    </Button>
+                    <Button 
+                      onClick={() => copyToClipboard(maskedData)} 
+                      variant="outline" 
+                      className="w-fit"
+                      disabled={maskedData.length === 0}
+                    >
+                      <Clipboard className="h-4 w-4 mr-2" />
+                      Copy to Clipboard
+                    </Button>
+                  </div>
+                </div>
                 {viewMode === 'tabbed' ? (
                   <Tabs defaultValue="original">
                     <TabsList>
