@@ -305,16 +305,17 @@ export const analyzePiiWithAI = async (
       role: 'system',
       content: `You are an expert in personally identifiable information (PII) detection.
       Analyze the provided data sample and identify any PII fields.
-      Also provide specific suggestions for how each type of PII should be masked.
+      Even if you're uncertain, make educated guesses based on field names and data patterns.
+      Always provide at least some suggestions for common fields like names, emails, addresses, etc.
       Return your analysis in a valid JSON format according to this structure:
       {
-        "identifiedPii": ["array of field names that contain PII"],
+        "identifiedPii": ["array of field names that may contain PII"],
         "suggestions": "detailed suggestions for masking each PII type"
       }`
     },
     {
       role: 'user',
-      content: `Please analyze this data sample and identify PII fields:\n\n${sampleData}`
+      content: `Please analyze this data sample and identify potential PII fields:\n\n${sampleData}`
     }
   ];
 
@@ -325,17 +326,66 @@ export const analyzePiiWithAI = async (
     });
 
     try {
-      return JSON.parse(response);
+      const result = JSON.parse(response);
+      
+      if (!result.identifiedPii || result.identifiedPii.length === 0) {
+        const sampleObject = JSON.parse(sampleData);
+        const sampleFields = Array.isArray(sampleObject) && sampleObject.length > 0 
+          ? Object.keys(sampleObject[0]) 
+          : Object.keys(sampleObject || {});
+        
+        const commonPiiFields = {
+          name: ['name', 'first_name', 'firstname', 'last_name', 'lastname', 'full_name', 'fullname'],
+          email: ['email', 'email_address', 'emailaddress', 'mail'],
+          phone: ['phone', 'telephone', 'mobile', 'cell', 'phone_number', 'phonenumber'],
+          address: ['address', 'street', 'city', 'state', 'zip', 'postal', 'country'],
+          id: ['ssn', 'social', 'national_id', 'nationalid', 'passport', 'license'],
+          financial: ['credit_card', 'creditcard', 'card', 'account', 'bank', 'payment'],
+          dob: ['birth', 'dob', 'date_of_birth', 'dateofbirth', 'birthdate']
+        };
+        
+        const potentialPiiFields = [];
+        
+        sampleFields.forEach(field => {
+          const fieldLower = field.toLowerCase();
+          
+          for (const [category, keywords] of Object.entries(commonPiiFields)) {
+            if (keywords.some(keyword => fieldLower.includes(keyword))) {
+              potentialPiiFields.push(field);
+              break;
+            }
+          }
+        });
+        
+        if (potentialPiiFields.length === 0) {
+          sampleFields.forEach(field => {
+            const fieldLower = field.toLowerCase();
+            if (fieldLower !== 'id' && fieldLower !== 'index' && fieldLower !== '_id') {
+              potentialPiiFields.push(field);
+            }
+          });
+        }
+        
+        return {
+          identifiedPii: potentialPiiFields.length > 0 ? potentialPiiFields : ["No PII fields automatically detected"],
+          suggestions: "Based on field names, consider masking any fields containing personal information such as names, emails, phone numbers, addresses, or identification numbers. Review your data carefully to identify sensitive information."
+        };
+      }
+      
+      return result;
     } catch (error) {
       console.error("Error parsing PII analysis result:", error);
       return {
-        identifiedPii: [],
-        suggestions: "Unable to generate suggestions. Please check the data format."
+        identifiedPii: ["Error parsing analysis results"],
+        suggestions: "Unable to parse analysis results. Please try again with different data or check the OpenAI API connection."
       };
     }
   } catch (error) {
     console.error("Error in PII analysis:", error);
-    throw error;
+    return {
+      identifiedPii: ["Error during analysis"],
+      suggestions: "An error occurred while analyzing the data. Please check your API key and try again later."
+    };
   }
 };
 

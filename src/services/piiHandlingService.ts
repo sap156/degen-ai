@@ -364,11 +364,95 @@ const applyStandardMasking = (data: PiiData[], perFieldMaskingOptions: PerFieldM
 
 // Enhanced PII detection using AI
 export const detectPiiInData = async (data: PiiData[], apiKey: string | null): Promise<PiiDetectionResult> => {
-  if (!apiKey) {
+  if (!apiKey || data.length === 0) {
+    // Create a reasonable fallback when API key is missing or data is empty
+    const fallbackFields = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'id') : [];
+    
+    // Generate potential PII fields based on common field names
+    const potentialPiiFields: DetectedPiiField[] = [];
+    
+    if (data.length > 0) {
+      const commonPiiPatterns: Record<string, { confidence: 'high' | 'medium' | 'low', technique: MaskingTechnique }> = {
+        // Names
+        name: { confidence: 'high', technique: 'character-masking' },
+        first: { confidence: 'high', technique: 'character-masking' },
+        last: { confidence: 'high', technique: 'character-masking' },
+        // Contact
+        email: { confidence: 'high', technique: 'character-masking' },
+        phone: { confidence: 'high', technique: 'character-masking' },
+        mobile: { confidence: 'high', technique: 'character-masking' },
+        // Location
+        address: { confidence: 'high', technique: 'redaction' },
+        street: { confidence: 'high', technique: 'redaction' },
+        city: { confidence: 'medium', technique: 'redaction' },
+        zip: { confidence: 'high', technique: 'character-masking' },
+        postal: { confidence: 'high', technique: 'character-masking' },
+        // IDs
+        ssn: { confidence: 'high', technique: 'character-masking' },
+        social: { confidence: 'high', technique: 'character-masking' },
+        license: { confidence: 'high', technique: 'character-masking' },
+        passport: { confidence: 'high', technique: 'character-masking' },
+        // Financial
+        card: { confidence: 'high', technique: 'character-masking' },
+        credit: { confidence: 'high', technique: 'character-masking' },
+        account: { confidence: 'high', technique: 'character-masking' },
+        // Date of birth
+        birth: { confidence: 'high', technique: 'character-masking' },
+        dob: { confidence: 'high', technique: 'character-masking' }
+      };
+      
+      // Check each field in the data for potential PII
+      Object.keys(data[0]).forEach(fieldName => {
+        if (fieldName === 'id') return;
+        
+        const fieldLower = fieldName.toLowerCase();
+        
+        // Check if field name contains common PII patterns
+        for (const [pattern, details] of Object.entries(commonPiiPatterns)) {
+          if (fieldLower.includes(pattern)) {
+            potentialPiiFields.push({
+              fieldName: fieldName,
+              confidence: details.confidence,
+              suggestedMaskingTechnique: details.technique,
+              examples: data.slice(0, 2).map(item => item[fieldName]).filter(Boolean)
+            });
+            break;
+          }
+        }
+        
+        // If not matched by name, check if data looks like PII
+        // This is a very simplified check - in a real system you'd want more sophisticated pattern matching
+        if (!potentialPiiFields.some(f => f.fieldName === fieldName)) {
+          const sampleValues = data.slice(0, 5).map(item => item[fieldName]).filter(Boolean);
+          
+          // Check for email pattern
+          if (sampleValues.some(val => typeof val === 'string' && val.includes('@'))) {
+            potentialPiiFields.push({
+              fieldName: fieldName,
+              confidence: 'medium',
+              suggestedMaskingTechnique: 'character-masking',
+              examples: sampleValues.slice(0, 2)
+            });
+          }
+          // Check for phone pattern (simplified)
+          else if (sampleValues.some(val => typeof val === 'string' && /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(val))) {
+            potentialPiiFields.push({
+              fieldName: fieldName,
+              confidence: 'medium',
+              suggestedMaskingTechnique: 'character-masking',
+              examples: sampleValues.slice(0, 2)
+            });
+          }
+        }
+      });
+    }
+    
     return {
-      detectedFields: [],
-      suggestedPrompt: "Please set your OpenAI API key to use AI-powered PII detection.",
-      undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+      detectedFields: potentialPiiFields,
+      suggestedPrompt: potentialPiiFields.length > 0 
+        ? "Mask sensitive fields while preserving format. Replace characters with asterisks except for first/last characters where appropriate."
+        : "Please select fields to mask manually or set your OpenAI API key for AI-powered PII detection.",
+      undetectedFields: fallbackFields.filter(f => !potentialPiiFields.some(pf => pf.fieldName === f))
     };
   }
   
@@ -381,56 +465,117 @@ export const detectPiiInData = async (data: PiiData[], apiKey: string | null): P
     const detectionResult = await detectPiiFields(apiKey, sampleData);
     
     // If the OpenAI detection didn't return the expected format, prepare a fallback
-    if (!detectionResult.detectedFields) {
+    if (!detectionResult.detectedFields || detectionResult.detectedFields.length === 0) {
+      // Create a basic detection result based on field names
+      const potentialPiiFields: DetectedPiiField[] = [];
+      
+      if (data.length > 0) {
+        Object.keys(data[0]).filter(k => k !== 'id').forEach(fieldName => {
+          const fieldLower = fieldName.toLowerCase();
+          
+          // Check for common PII patterns in field names
+          if (fieldLower.includes('name') || fieldLower.includes('email') || 
+              fieldLower.includes('phone') || fieldLower.includes('address') ||
+              fieldLower.includes('ssn') || fieldLower.includes('birth') ||
+              fieldLower.includes('dob') || fieldLower.includes('card')) {
+            
+            const technique: MaskingTechnique = 
+              fieldLower.includes('address') ? 'redaction' : 'character-masking';
+            
+            potentialPiiFields.push({
+              fieldName: fieldName,
+              confidence: 'medium',
+              suggestedMaskingTechnique: technique,
+              examples: data.slice(0, 2).map(item => item[fieldName])
+            });
+          }
+        });
+      }
+      
       return {
-        detectedFields: [],
-        suggestedPrompt: "Use character masking for sensitive fields while preserving format.",
-        undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+        detectedFields: potentialPiiFields,
+        suggestedPrompt: "Mask sensitive PII fields while preserving the overall data format.",
+        undetectedFields: data.length > 0 
+          ? Object.keys(data[0]).filter(k => k !== 'id' && !potentialPiiFields.some(f => f.fieldName === k))
+          : []
       };
     }
     
     return detectionResult;
   } catch (error) {
     console.error("Error detecting PII in data:", error);
+    
+    // Create a basic fallback based on field names
+    const fallbackFields = data.length > 0 
+      ? Object.keys(data[0]).filter(k => k !== 'id').map(fieldName => {
+          return {
+            fieldName,
+            confidence: 'low' as const,
+            suggestedMaskingTechnique: 'character-masking' as MaskingTechnique,
+            examples: data.slice(0, 2).map(item => item[fieldName])
+          };
+        })
+      : [];
+    
     return {
-      detectedFields: [],
-      suggestedPrompt: "An error occurred during PII detection. Please try again.",
-      undetectedFields: Object.keys(data[0] || {}).filter(k => k !== 'id')
+      detectedFields: fallbackFields,
+      suggestedPrompt: "An error occurred during PII detection. Manually select fields containing personal information to mask.",
+      undetectedFields: []
     };
   }
 };
 
-// Analyze PII data using AI
-export const analyzePiiData = async (data: PiiData[], apiKey: string | null): Promise<PiiAnalysisResult> => {
-  if (!apiKey) {
-    return {
-      identifiedPii: ["Unable to analyze - API key not set"],
-      suggestions: "Please set up your OpenAI API key to use AI-powered PII analysis."
-    };
+// Improve generateMaskingSuggestions function to provide better suggestions
+export const generateMaskingSuggestions = (fieldName: string, sampleValues: string[]): string => {
+  // Simple rules-based suggestions
+  const fieldNameLower = fieldName.toLowerCase();
+  
+  // First check if we have sample values to analyze
+  if (sampleValues.length > 0) {
+    const firstValue = String(sampleValues[0] || '');
+    
+    // Check for email pattern
+    if (firstValue.includes('@') || fieldNameLower.includes('email')) {
+      return "Mask the username portion of email addresses but keep the domain (e.g., ****@example.com).";
+    } 
+    
+    // Check for phone number pattern (simplified)
+    else if (/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(firstValue) || fieldNameLower.includes('phone')) {
+      return "Mask all digits except the last 4 (e.g., (XXX) XXX-1234).";
+    } 
+    
+    // Check for SSN pattern
+    else if (/\d{3}-\d{2}-\d{4}/.test(firstValue) || fieldNameLower.includes('ssn')) {
+      return "Fully mask except for last 4 digits (e.g., XXX-XX-1234).";
+    } 
+    
+    // Check for credit card pattern
+    else if (/\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}/.test(firstValue) || 
+             fieldNameLower.includes('credit') || fieldNameLower.includes('card')) {
+      return "Replace digits with X except the last 4 (e.g., XXXX-XXXX-XXXX-1234).";
+    }
   }
   
-  try {
-    const sampleData = JSON.stringify(data.slice(0, 3), null, 2);
-    
-    const result = await analyzePiiWithAI(apiKey, sampleData);
-    
-    // If we got an empty array, provide a more helpful message
-    if (result.identifiedPii.length === 0 || 
-        (result.identifiedPii.length === 1 && result.identifiedPii[0].includes('Error'))) {
-      return {
-        identifiedPii: ["No PII detected or analysis failed"],
-        suggestions: "The analysis couldn't detect PII fields. Try adding more sample data or check if your sample data contains PII information."
-      };
-    }
-    
-    return result;
-    
-  } catch (error) {
-    console.error("Error analyzing PII data:", error);
-    return {
-      identifiedPii: ["Error during analysis"],
-      suggestions: "An error occurred while analyzing the data. Please check the console for details and try again later."
-    };
+  // If no pattern detected in values, fall back to field name analysis
+  if (fieldNameLower.includes('email')) {
+    return "Mask the username portion of email addresses but keep the domain (e.g., ****@example.com).";
+  } else if (fieldNameLower.includes('phone') || fieldNameLower.includes('mobile')) {
+    return "Mask all digits except the last 4 (e.g., (XXX) XXX-1234).";
+  } else if (fieldNameLower.includes('ssn') || fieldNameLower.includes('social')) {
+    return "Fully mask except for last 4 digits (e.g., XXX-XX-1234).";
+  } else if (fieldNameLower.includes('credit') || fieldNameLower.includes('card') || fieldNameLower.includes('cc')) {
+    return "Replace digits with X except the last 4 (e.g., XXXX-XXXX-XXXX-1234).";
+  } else if (fieldNameLower.includes('name')) {
+    return "Keep first initial, mask the rest (e.g., J*** D**).";
+  } else if (fieldNameLower.includes('address')) {
+    return "Keep street number, mask street name, keep city and state (e.g., 123 **** St, New York, NY).";
+  } else if (fieldNameLower.includes('dob') || fieldNameLower.includes('birth')) {
+    return "Keep month and day, mask year (e.g., 01/15/XXXX).";
+  } else if (fieldNameLower.includes('zip') || fieldNameLower.includes('postal')) {
+    return "Mask all but last two digits (e.g., XXX12).";
+  } else {
+    // Generic suggestion that accounts for the potential PII nature of the field
+    return "Consider masking this field if it contains personal information. Typical approach: keep first and last characters, mask the middle (e.g., A***Z).";
   }
 };
 
@@ -466,31 +611,4 @@ export const downloadData = (data: string, filename: string, type: 'json' | 'csv
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-};
-
-// Generate masking suggestions based on field name and sample values
-export const generateMaskingSuggestions = (fieldName: string, sampleValues: string[]): string => {
-  // Simple rules-based suggestions
-  const fieldNameLower = fieldName.toLowerCase();
-  
-  if (fieldNameLower.includes('email')) {
-    return "Mask the username portion of email addresses but keep the domain (e.g., ****@example.com).";
-  } else if (fieldNameLower.includes('phone') || fieldNameLower.includes('mobile')) {
-    return "Mask all digits except the last 4 (e.g., (XXX) XXX-1234).";
-  } else if (fieldNameLower.includes('ssn') || fieldNameLower.includes('social')) {
-    return "Fully mask except for last 4 digits (e.g., XXX-XX-1234).";
-  } else if (fieldNameLower.includes('credit') || fieldNameLower.includes('card') || fieldNameLower.includes('cc')) {
-    return "Replace digits with X except the last 4 (e.g., XXXX-XXXX-XXXX-1234).";
-  } else if (fieldNameLower.includes('name')) {
-    return "Keep first initial, mask the rest (e.g., J*** D**).";
-  } else if (fieldNameLower.includes('address')) {
-    return "Keep street number, mask street name, keep city and state (e.g., 123 **** St, New York, NY).";
-  } else if (fieldNameLower.includes('dob') || fieldNameLower.includes('birth')) {
-    return "Keep month and day, mask year (e.g., 01/15/XXXX).";
-  } else if (fieldNameLower.includes('zip') || fieldNameLower.includes('postal')) {
-    return "Mask all but last two digits (e.g., XXX12).";
-  } else {
-    // Generic masking suggestion
-    return "Mask all characters except first and last (e.g., A***Z).";
-  }
 };
