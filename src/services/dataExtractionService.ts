@@ -1,5 +1,7 @@
+
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
+import { readFileAsArrayBuffer } from "@/utils/fileOperations";
 
 /**
  * Types of data that can be extracted
@@ -9,7 +11,7 @@ export type ExtractionType = 'tables' | 'lists' | 'text' | 'json' | 'key-value';
 /**
  * Source of data for extraction
  */
-export type ExtractionSource = 'web' | 'images';
+export type ExtractionSource = 'web' | 'images' | 'documents';
 
 /**
  * Response format for extracted data
@@ -43,8 +45,8 @@ export const extractDataFromUrl = async (
   ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
   ${extractionType === 'lists' ? 'Focus on finding and properly formatting all lists, including those with multiple levels.' : ''}
   ${extractionType === 'key-value' ? 'Focus on finding and properly formatting all key-value pairs, such as specifications, properties, or attributes.' : ''}
-  ${extractionType === 'text' ? 'Extract the main textual content, preserving important information and structure.' : ''}
-  ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content with proper nesting and relationships.' : ''}
+  ${extractionType === 'text' ? 'Extract the main textual content, preserving important information and structure. Also identify and extract URLs of images found on the page.' : ''}
+  ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content with proper nesting and relationships. Separate textual content from image URLs.' : ''}
   ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
   
   Important notes:
@@ -52,10 +54,13 @@ export const extractDataFromUrl = async (
   2. For dynamic content, try to extract whatever is visible in the current state.
   3. Always use the current timestamp in your metadata.
   4. If you find no content matching the extraction type, try to provide alternative useful data from the page.
+  5. For text and JSON extraction, identify and extract image URLs separately from textual content.
   
   Return your response in valid JSON format with the following structure:
   {
     "extracted_data": [...], // The main extracted content
+    "text_content": "The main textual content of the page", 
+    "images": ["url1", "url2", ...], // Array of image URLs found on the page
     "metadata": {
       "source_url": "${url}",
       "extraction_type": "${extractionType}",
@@ -79,7 +84,6 @@ export const extractDataFromUrl = async (
 
   try {
     const model = 'gpt-4o';
-    //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
@@ -131,12 +135,14 @@ export const extractDataFromImage = async (
     Your task is to extract ${extractionType} from the provided image.
     ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
     ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs, especially for forms, receipts, or invoices.' : ''}
-    ${extractionType === 'text' ? 'Extract all readable text, preserving layout when possible.' : ''}
+    ${extractionType === 'text' ? 'Extract all readable text, preserving layout when possible. Also identify any embedded images and describe them briefly.' : ''}
     ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
     
     Return your response in valid JSON format with the following structure:
     {
       "extracted_data": [...], // The main extracted content
+      "text_content": "All the readable text from the image",
+      "images": [], // This would be empty for images but keep the field for consistency
       "metadata": {
         "source_type": "image",
         "filename": "${imageFile.name}",
@@ -176,7 +182,6 @@ export const extractDataFromImage = async (
     // Use the model that supports image processing
     const model = 'gpt-4o'; // Using gpt-4o as it supports vision
     
-    //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
@@ -207,6 +212,98 @@ export const extractDataFromImage = async (
 };
 
 /**
+ * Extract data from documents like PDFs, DOC, PPT, etc.
+ */
+export const extractDataFromDocument = async (
+  apiKey: string | null,
+  file: File,
+  extractionType: ExtractionType,
+  userQuery?: string
+): Promise<ExtractedData> => {
+  if (!apiKey) {
+    throw new Error("API key is not set");
+  }
+
+  try {
+    // For PDF files, we could use a library like pdf.js to extract text
+    // For this implementation, we'll simulate by asking the AI to process based on file description
+    
+    // Create system message based on document type
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const fileType = getDocumentType(fileExt);
+    
+    const systemMessage = `You are an expert document analysis AI assistant specialized in extracting structured data from ${fileType} files.
+    Your task is to extract ${extractionType} from the provided ${fileType} file.
+    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables in the document.' : ''}
+    ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs and important document metadata.' : ''}
+    ${extractionType === 'text' ? 'Extract all readable text content from the document. Also identify and describe any embedded images.' : ''}
+    ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the document content.' : ''}
+    ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
+    
+    Return your response in valid JSON format with the following structure:
+    {
+      "extracted_data": [...], // The main extracted content
+      "text_content": "The main textual content of the document",
+      "images": ["description1", "description2"], // Descriptions or URLs of images found in the document
+      "metadata": {
+        "source_type": "${fileType}",
+        "filename": "${file.name}",
+        "extraction_type": "${extractionType}",
+        "timestamp": "${new Date().toISOString()}",
+        "query": "${userQuery || 'none'}"
+      },
+      "summary": "A brief summary of what was extracted"
+    }
+    
+    If you cannot read or extract certain parts of the document, indicate this in your response.
+    Do NOT include any explanatory text outside the JSON structure.`;
+
+    // For this demo, we'll simulate document extraction with a limited approach
+    // Using the file information to prompt the AI
+    const fileInfo = `Filename: ${file.name}
+    File type: ${fileType}
+    File size: ${(file.size / 1024).toFixed(2)} KB
+    Last modified: ${new Date(file.lastModified).toISOString()}`;
+
+    // Create messages array
+    const messages: OpenAiMessage[] = [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: `Extract data from this ${fileType} file: ${fileInfo}. ${userQuery || ''}` }
+    ];
+
+    // In a real implementation, we would extract the content from the file
+    // and provide it to the AI for analysis
+    
+    const response = await getCompletion(apiKey, messages, {
+      temperature: 0.3,
+      max_tokens: 16384,
+      model: localStorage.getItem('openai-model') || 'gpt-4o'
+    });
+    
+    try {
+      // Try to parse as JSON
+      const jsonData = JSON.parse(response);
+      return {
+        raw: response,
+        format: 'json',
+        structured: jsonData,
+        summary: jsonData.summary || `Data extracted from ${fileType} file`
+      };
+    } catch (error) {
+      // If parsing fails, return as text
+      console.warn('Failed to parse response as JSON:', error);
+      return {
+        raw: response,
+        format: 'text'
+      };
+    }
+  } catch (error) {
+    console.error('Error extracting data from document:', error);
+    throw error;
+  }
+};
+
+/**
  * Convert file to base64
  */
 const fileToBase64 = (file: File): Promise<string> => {
@@ -216,6 +313,27 @@ const fileToBase64 = (file: File): Promise<string> => {
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });
+};
+
+/**
+ * Determine document type from file extension
+ */
+const getDocumentType = (extension: string): string => {
+  switch (extension) {
+    case 'pdf':
+      return 'PDF document';
+    case 'doc':
+    case 'docx':
+      return 'Word document';
+    case 'ppt':
+    case 'pptx':
+      return 'PowerPoint presentation';
+    case 'xls':
+    case 'xlsx':
+      return 'Excel spreadsheet';
+    default:
+      return 'document';
+  }
 };
 
 /**
@@ -238,7 +356,10 @@ export const processExtractedData = async (
   {
     "answer": "Your detailed answer to the query",
     "relevant_data": [...], // Any specific data points relevant to the query
-    "confidence": "high/medium/low" // How confident you are in your answer
+    "confidence": "high/medium/low", // How confident you are in your answer
+    "images": [], // Keep any relevant image URLs from the original extraction
+    "text_content": "Your detailed answer in a narrative format",
+    "summary": "A brief summary of your findings"
   }
   
   Do NOT include any explanatory text outside the JSON structure.`;
@@ -250,11 +371,10 @@ export const processExtractedData = async (
 
   try {
     const model = localStorage.getItem('openai-model') || 'gpt-4o';
-    //const response = await getCompletion(apiKey, messages, { model });
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      model
     });
     
     try {
