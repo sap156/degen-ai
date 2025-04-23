@@ -10,7 +10,11 @@ import {
 } from "@/components/ui/toast";
 import { useToast as useToastPrimitive } from "@/components/ui/use-toast";
 
-export const ToastContext = React.createContext(useToastPrimitive());
+export const ToastContext = React.createContext({
+  toast: () => {},
+  toasts: [],
+  dismiss: (toastId?: string) => {}
+});
 
 export const useToast = () => {
   const context = React.useContext(ToastContext);
@@ -20,4 +24,5 @@ export const useToast = () => {
   return context;
 };
 
+// Now we can safely export this after it's been initialized
 export const toast = useToastPrimitive().toast;
