@@ -51,8 +51,12 @@ const AuthRequirement: React.FC<AuthRequirementProps> = ({
         </Card>
       </motion.div>
       
-      {/* Show only user guide if provided when not authenticated */}
-      {showUserGuide}
+      {/* Always render the user guide if provided - removed condition to make it always visible */}
+      {showUserGuide && (
+        <div>
+          {showUserGuide}
+        </div>
+      )}
     </div>
   );
 };
