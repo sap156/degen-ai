@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -981,7 +982,7 @@ const PiiHandling = () => {
     <div className="bg-background min-h-screen pb-12">
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 gap-6">
-          <ApiKeyRequirement>
+          <ApiKeyRequirement showUserGuide={<UserGuidePiiHandling />}>
             <PiiHandlingContent />
           </ApiKeyRequirement>
         </div>

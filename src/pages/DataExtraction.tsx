@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -19,20 +20,21 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   Download,
   Globe,
-  FileType,
+  File,
+  FileText,
   Image,
   Table,
   Brackets,
-  FileText,
   Copy,
-  ExternalLink,
   Search,
   List,
-  KeyRound
+  KeyRound,
+  FileImage
 } from 'lucide-react';
 import { 
   extractDataFromUrl, 
-  extractDataFromImage, 
+  extractDataFromImage,
+  extractDataFromDocument,
   processExtractedData, 
   ExtractedData, 
   ExtractionType 
@@ -41,6 +43,7 @@ import ApiKeyRequirement from '@/components/ApiKeyRequirement';
 import UserGuideDataExtraction from '@/components/ui/UserGuideDataExtraction';
 import { useAuth } from '@/hooks/useAuth';
 import AuthRequirement from '@/components/AuthRequirement';
+import { Separator } from '@/components/ui/separator';
 
 const DataExtraction: React.FC = () => {
   const { apiKey, isKeySet } = useApiKey();
@@ -49,12 +52,16 @@ const DataExtraction: React.FC = () => {
   const [extractionType, setExtractionType] = useState<ExtractionType>('tables');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
-  const [images, setImages] = useState<{ file: File, preview: string }[]>([]);
+  const [extractedTextContent, setExtractedTextContent] = useState<string>('');
+  const [extractedImages, setExtractedImages] = useState<string[]>([]);
+  const [files, setFiles] = useState<{ file: File, preview: string }[]>([]);
   const [activeTab, setActiveTab] = useState<string>('web');
   const [question, setQuestion] = useState<string>('');
-  const [imageQuestion, setImageQuestion] = useState<string>('');
+  const [fileQuestion, setFileQuestion] = useState<string>('');
   const [followUpQuestion, setFollowUpQuestion] = useState<string>('');
   const [isProcessingFollowUp, setIsProcessingFollowUp] = useState<boolean>(false);
+  const [showResults, setShowResults] = useState<'text' | 'images' | 'all'>('all');
+  const [contentProcessed, setContentProcessed] = useState<boolean>(false);
 
   if (!user) {
     return (
@@ -120,6 +127,9 @@ const DataExtraction: React.FC = () => {
     
     try {
       setIsLoading(true);
+      setContentProcessed(false);
+      setExtractedImages([]);
+      setExtractedTextContent('');
       
       const result = await extractDataFromUrl(
         apiKey, 
@@ -129,6 +139,31 @@ const DataExtraction: React.FC = () => {
       );
       
       setExtractedData(result);
+      
+      if (result.structured) {
+        // Extract text content
+        let textContent = '';
+        if (extractionType === 'text' || extractionType === 'json') {
+          if (typeof result.structured === 'string') {
+            textContent = result.structured;
+          } else if (result.structured.text_content) {
+            textContent = result.structured.text_content;
+          } else if (result.structured.extracted_data) {
+            textContent = JSON.stringify(result.structured.extracted_data, null, 2);
+          }
+        }
+        
+        // Extract images
+        const images: string[] = [];
+        if (result.structured.images) {
+          images.push(...result.structured.images);
+        }
+        
+        setExtractedTextContent(textContent);
+        setExtractedImages(images);
+        setContentProcessed(true);
+      }
+      
       toast.success('Data extracted successfully');
     } catch (error) {
       console.error('Error extracting data:', error);
@@ -138,43 +173,83 @@ const DataExtraction: React.FC = () => {
     }
   };
 
-  const handleImageUpload = (file: File) => {
+  const handleFileUpload = (file: File) => {
     const preview = URL.createObjectURL(file);
-    
-    setImages(prev => [...prev, { file, preview }]);
-    
-    toast.success(`Image uploaded: ${file.name}`);
+    setFiles(prev => [...prev, { file, preview }]);
+    toast.success(`File uploaded: ${file.name}`);
   };
 
-  const handleExtractFromImages = async () => {
-    if (images.length === 0) {
-      toast.error('Please upload at least one image');
+  const handleExtractFromFiles = async () => {
+    if (files.length === 0) {
+      toast.error('Please upload at least one file');
       return;
     }
     
     try {
       setIsLoading(true);
+      setContentProcessed(false);
+      setExtractedImages([]);
+      setExtractedTextContent('');
       
-      const result = await extractDataFromImage(
-        apiKey,
-        images[0].file,
-        extractionType === 'tables' ? 'key-value' : extractionType,
-        imageQuestion.trim() || undefined
-      );
+      let result;
+      const file = files[0].file;
+      const fileType = file.type.split('/')[0];
+      
+      if (fileType === 'image') {
+        result = await extractDataFromImage(
+          apiKey,
+          file,
+          extractionType === 'tables' ? 'key-value' : extractionType,
+          fileQuestion.trim() || undefined
+        );
+      } else {
+        // Handle PDF, DOC, PPT, etc.
+        result = await extractDataFromDocument(
+          apiKey,
+          file,
+          extractionType,
+          fileQuestion.trim() || undefined
+        );
+      }
       
       setExtractedData(result);
+      
+      if (result.structured) {
+        // Extract text content
+        let textContent = '';
+        if (typeof result.structured === 'string') {
+          textContent = result.structured;
+        } else if (result.structured.text_content) {
+          textContent = result.structured.text_content;
+        } else if (result.structured.extracted_data) {
+          textContent = JSON.stringify(result.structured.extracted_data, null, 2);
+        }
+        
+        // Extract images
+        const images: string[] = [];
+        if (result.structured.images) {
+          images.push(...result.structured.images);
+        }
+        
+        setExtractedTextContent(textContent);
+        setExtractedImages(images);
+        setContentProcessed(true);
+      }
+      
       toast.success('Analysis completed successfully');
     } catch (error) {
-      console.error('Error extracting from images:', error);
-      toast.error('Failed to extract information from images');
+      console.error('Error extracting from files:', error);
+      toast.error('Failed to extract information from files');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleFollowUpQuestion = async () => {
-    if (!extractedData || !followUpQuestion.trim()) {
-      toast.error('Please extract data and enter a follow-up question');
+    if (!extractedData || !followUpQuestion.trim() || !contentProcessed) {
+      toast.error(contentProcessed 
+        ? 'Please enter a follow-up question' 
+        : 'Please extract data first before asking follow-up questions');
       return;
     }
     
@@ -188,6 +263,11 @@ const DataExtraction: React.FC = () => {
       );
       
       setExtractedData(result);
+      
+      if (result.structured && result.structured.answer) {
+        setExtractedTextContent(result.structured.answer);
+      }
+      
       toast.success('Follow-up analysis completed');
     } catch (error) {
       console.error('Error processing follow-up question:', error);
@@ -206,23 +286,32 @@ const DataExtraction: React.FC = () => {
     try {
       let filename = '';
       let mimeType = '';
+      let content = '';
       
-      switch (extractedData.format) {
-        case 'json':
-          filename = 'extracted_data.json';
-          mimeType = 'application/json';
-          break;
-        case 'html':
-          filename = 'extracted_data.html';
-          mimeType = 'text/html';
-          break;
-        case 'text':
-        default:
-          filename = 'extracted_data.txt';
-          mimeType = 'text/plain';
+      if (showResults === 'text') {
+        content = extractedTextContent;
+        filename = 'extracted_text.txt';
+        mimeType = 'text/plain';
+      } else {
+        content = extractedData.raw;
+        
+        switch (extractedData.format) {
+          case 'json':
+            filename = 'extracted_data.json';
+            mimeType = 'application/json';
+            break;
+          case 'html':
+            filename = 'extracted_data.html';
+            mimeType = 'text/html';
+            break;
+          case 'text':
+          default:
+            filename = 'extracted_data.txt';
+            mimeType = 'text/plain';
+        }
       }
       
-      const blob = new Blob([extractedData.raw], { type: mimeType });
+      const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -244,14 +333,27 @@ const DataExtraction: React.FC = () => {
       return;
     }
     
-    navigator.clipboard.writeText(extractedData.raw)
+    const contentToCopy = showResults === 'text' ? extractedTextContent : extractedData.raw;
+    
+    navigator.clipboard.writeText(contentToCopy)
       .then(() => toast.success('Copied to clipboard'))
       .catch(() => toast.error('Failed to copy to clipboard'));
   };
 
-  const clearImages = () => {
-    images.forEach(image => URL.revokeObjectURL(image.preview));
-    setImages([]);
+  const clearFiles = () => {
+    files.forEach(file => URL.revokeObjectURL(file.preview));
+    setFiles([]);
+  };
+
+  const handleDownloadImage = (imageUrl: string, index: number) => {
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `extracted_image_${index}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    toast.success('Image downloaded');
   };
 
   const renderExtractionTypeOptions = () => {
@@ -264,7 +366,7 @@ const DataExtraction: React.FC = () => {
         ]
       : [
           { value: 'key-value', label: 'Key-Value Pairs', icon: <KeyRound className="h-4 w-4 mr-2" /> },
-          { value: 'text', label: 'Full Text (OCR)', icon: <FileText className="h-4 w-4 mr-2" /> },
+          { value: 'text', label: 'Full Text', icon: <FileText className="h-4 w-4 mr-2" /> },
           { value: 'json', label: 'Structured Content', icon: <Brackets className="h-4 w-4 mr-2" /> }
         ];
 
@@ -318,7 +420,7 @@ const DataExtraction: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsList className="grid w-full grid-cols-3 mb-6">
                   <TabsTrigger value="web">
                     <Globe className="h-4 w-4 mr-2" />
                     Web
@@ -326,6 +428,10 @@ const DataExtraction: React.FC = () => {
                   <TabsTrigger value="images">
                     <Image className="h-4 w-4 mr-2" />
                     Images
+                  </TabsTrigger>
+                  <TabsTrigger value="documents">
+                    <File className="h-4 w-4 mr-2" />
+                    Others
                   </TabsTrigger>
                 </TabsList>
                 
@@ -380,23 +486,23 @@ const DataExtraction: React.FC = () => {
                   <div>
                     <Label className="mb-2 block">Upload Images</Label>
                     <FileUploader
-                      onFileUpload={handleImageUpload}
-                      accept=".jpg,.jpeg,.png,.webp,.tiff,.pdf"
+                      onFileUpload={handleFileUpload}
+                      accept=".jpg,.jpeg,.png,.webp,.tiff"
                       maxSize={10}
                       title="Upload Images"
                       description="Upload images to extract text using OCR"
                     />
                   </div>
                   
-                  {images.length > 0 && (
+                  {files.length > 0 && (
                     <div className="space-y-4 mt-4">
                       <div>
-                        <Label htmlFor="imageQuestion">Ask a specific question (optional)</Label>
+                        <Label htmlFor="fileQuestion">Ask a specific question (optional)</Label>
                         <Textarea
-                          id="imageQuestion"
+                          id="fileQuestion"
                           placeholder="E.g., Extract text from this image. What objects are in this image?"
-                          value={imageQuestion}
-                          onChange={(e) => setImageQuestion(e.target.value)}
+                          value={fileQuestion}
+                          onChange={(e) => setFileQuestion(e.target.value)}
                           className="mt-1.5"
                         />
                       </div>
@@ -404,16 +510,16 @@ const DataExtraction: React.FC = () => {
                       {renderExtractionTypeOptions()}
                       
                       <div className="grid grid-cols-2 gap-2">
-                        {images.map((image, index) => (
+                        {files.map((file, index) => (
                           <div key={index} className="relative group">
                             <img
-                              src={image.preview}
+                              src={file.preview}
                               alt={`Uploaded ${index}`}
                               className="object-cover w-full h-32 rounded-md border"
                             />
                             <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
                               <span className="text-white text-xs">
-                                {image.file.name}
+                                {file.file.name}
                               </span>
                             </div>
                           </div>
@@ -422,7 +528,7 @@ const DataExtraction: React.FC = () => {
                       
                       <div className="flex space-x-2">
                         <Button
-                          onClick={handleExtractFromImages}
+                          onClick={handleExtractFromFiles}
                           disabled={isLoading}
                           className="flex-1"
                         >
@@ -441,7 +547,76 @@ const DataExtraction: React.FC = () => {
                         
                         <Button
                           variant="outline"
-                          onClick={clearImages}
+                          onClick={clearFiles}
+                          disabled={isLoading}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="documents" className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Upload Documents</Label>
+                    <FileUploader
+                      onFileUpload={handleFileUpload}
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                      maxSize={15}
+                      title="Upload Documents"
+                      description="Upload PDFs, Word docs, or other document types"
+                    />
+                  </div>
+                  
+                  {files.length > 0 && (
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <Label htmlFor="fileQuestion">Ask a specific question (optional)</Label>
+                        <Textarea
+                          id="fileQuestion"
+                          placeholder="E.g., Extract key information. Summarize this document."
+                          value={fileQuestion}
+                          onChange={(e) => setFileQuestion(e.target.value)}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      
+                      {renderExtractionTypeOptions()}
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {files.map((file, index) => (
+                          <div key={index} className="relative group border rounded-md p-2 bg-muted/30">
+                            <FileText className="h-8 w-8 mx-auto mb-1" />
+                            <div className="text-center text-xs truncate">
+                              {file.file.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={handleExtractFromFiles}
+                          disabled={isLoading}
+                          className="flex-1"
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin mr-2" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="h-4 w-4 mr-2" />
+                              Analyze Documents
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          onClick={clearFiles}
                           disabled={isLoading}
                         >
                           Clear All
@@ -454,7 +629,7 @@ const DataExtraction: React.FC = () => {
             </CardContent>
           </Card>
           
-          {extractedData && (
+          {extractedData && contentProcessed && (
             <Card>
               <CardHeader>
                 <CardTitle>Follow-up Analysis</CardTitle>
@@ -520,21 +695,99 @@ const DataExtraction: React.FC = () => {
                   ? extractedData.summary
                   : "View and download extracted data"}
               </CardDescription>
+              
+              {extractedData && contentProcessed && (
+                <div className="flex mt-4 space-x-2">
+                  <Button 
+                    size="sm" 
+                    variant={showResults === 'all' ? 'default' : 'outline'}
+                    onClick={() => setShowResults('all')}
+                  >
+                    All Results
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant={showResults === 'text' ? 'default' : 'outline'}
+                    onClick={() => setShowResults('text')}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Text Content
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant={showResults === 'images' ? 'default' : 'outline'}
+                    onClick={() => setShowResults('images')}
+                    disabled={extractedImages.length === 0}
+                  >
+                    <FileImage className="h-4 w-4 mr-2" />
+                    Images
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {extractedData ? (
-                <div className="relative">
-                  <div className="absolute top-2 right-2 flex space-x-1">
-                    <div className="bg-muted text-muted-foreground px-2 py-1 rounded-md text-xs">
-                      {extractedData.format.toUpperCase()}
+                <div className="relative space-y-4">
+                  {(showResults === 'all' || showResults === 'text') && (
+                    <div>
+                      {showResults === 'all' && <h3 className="text-lg font-medium mb-2">Text Content</h3>}
+                      <div className="bg-muted/30 p-4 rounded-md overflow-auto max-h-[500px]">
+                        {extractedTextContent ? (
+                          <pre className="text-xs font-mono whitespace-pre-wrap">{extractedTextContent}</pre>
+                        ) : (
+                          <p className="text-muted-foreground text-center py-4">No text content extracted</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
-                  <pre className="bg-muted/30 p-4 rounded-md overflow-auto min-h-[500px] max-h-[500px] text-xs font-mono whitespace-pre-wrap">
-                    {extractedData.format === 'json' && extractedData.structured 
-                      ? JSON.stringify(extractedData.structured, null, 2)
-                      : extractedData.raw}
-                  </pre>
+                  {showResults === 'all' && extractedImages.length > 0 && (
+                    <Separator className="my-4" />
+                  )}
+                  
+                  {(showResults === 'all' || showResults === 'images') && extractedImages.length > 0 && (
+                    <div>
+                      {showResults === 'all' && <h3 className="text-lg font-medium mb-2">Extracted Images</h3>}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {extractedImages.map((imageUrl, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={imageUrl}
+                              alt={`Extracted ${index}`}
+                              className="object-cover w-full h-32 rounded-md border"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-white"
+                                onClick={() => handleDownloadImage(imageUrl, index)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!contentProcessed && (
+                    <div className="absolute top-2 right-2 flex space-x-1">
+                      <div className="bg-muted text-muted-foreground px-2 py-1 rounded-md text-xs">
+                        {extractedData.format.toUpperCase()}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!contentProcessed && (
+                    <pre className="bg-muted/30 p-4 rounded-md overflow-auto min-h-[500px] max-h-[500px] text-xs font-mono whitespace-pre-wrap">
+                      {extractedData.format === 'json' && extractedData.structured 
+                        ? JSON.stringify(extractedData.structured, null, 2)
+                        : extractedData.raw}
+                    </pre>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-[500px] text-muted-foreground">
