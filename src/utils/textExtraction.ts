@@ -1,17 +1,11 @@
-
 /**
  * Utilities for extracting text from various file types
  */
 import { getFileType } from './fileOperations';
 import { readFileContent } from './fileOperations';
 import { FileProcessingResult } from './fileTypes';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-// Create Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * Extract text content from a file using appropriate method based on file type
