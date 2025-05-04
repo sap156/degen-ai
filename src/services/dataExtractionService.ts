@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 import { readFileAsArrayBuffer } from "@/utils/fileOperations";
@@ -11,7 +12,7 @@ export type ExtractionType = 'tables' | 'lists' | 'text' | 'json' | 'key-value';
 /**
  * Source of data for extraction
  */
-export type ExtractionSource = 'web' | 'images' | 'documents';
+export type ExtractionSource = 'web' | 'images';
 
 /**
  * Response format for extracted data
@@ -241,102 +242,6 @@ export const extractDataFromImage = async (
 };
 
 /**
- * Extract data from documents like PDFs, DOC, PPT, etc.
- */
-export const extractDataFromDocument = async (
-  apiKey: string | null,
-  file: File,
-  extractionType: ExtractionType,
-  userQuery?: string
-): Promise<ExtractedData> => {
-  if (!apiKey) {
-    throw new Error("API key is not set");
-  }
-
-  try {
-    // For PDF files, we could use a library like pdf.js to extract text
-    // For this implementation, we'll simulate by asking the AI to process based on file description
-    
-    // Create system message based on document type
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-    const fileType = getDocumentType(fileExt);
-    
-    const systemMessage = `You are an expert document analysis AI assistant specialized in extracting structured data from ${fileType} files.
-    Your task is to extract ${extractionType} from the provided ${fileType} file.
-    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables in the document.' : ''}
-    ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs and important document metadata.' : ''}
-    ${extractionType === 'text' ? 'Extract all readable text content from the document. Also identify and describe any embedded images.' : ''}
-    ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the document content.' : ''}
-    ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
-    
-    IMPORTANT: Do NOT hallucinate or make up information. Only extract data that actually exists in the document.
-    If you cannot extract portions of the document, indicate this clearly.
-    
-    Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
-    Use this structure:
-    {
-      "extracted_data": [...], // The main extracted content
-      "text_content": "The main textual content of the document",
-      "images": ["description1", "description2"], // Descriptions or URLs of images found in the document
-      "metadata": {
-        "source_type": "${fileType}",
-        "filename": "${file.name}",
-        "extraction_type": "${extractionType}",
-        "timestamp": "${new Date().toISOString()}",
-        "query": "${userQuery || 'none'}"
-      },
-      "summary": "A brief summary of what was extracted"
-    }`;
-
-    // For this demo, we'll simulate document extraction with a limited approach
-    // Using the file information to prompt the AI
-    const fileInfo = `Filename: ${file.name}
-    File type: ${fileType}
-    File size: ${(file.size / 1024).toFixed(2)} KB
-    Last modified: ${new Date(file.lastModified).toISOString()}`;
-
-    // Create messages array
-    const messages: OpenAiMessage[] = [
-      { role: 'system', content: systemMessage },
-      { role: 'user', content: `Extract data from this ${fileType} file: ${fileInfo}. ${userQuery || ''}` }
-    ];
-
-    // In a real implementation, we would extract the content from the file
-    // and provide it to the AI for analysis
-    
-    const response = await getCompletion(apiKey, messages, {
-      temperature: 0.3,
-      max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
-    });
-    
-    try {
-      // Clean the response if it contains markdown code blocks
-      const cleanedResponse = stripMarkdownCodeBlocks(response);
-      
-      // Try to parse as JSON
-      const jsonData = JSON.parse(cleanedResponse);
-      return {
-        raw: cleanedResponse,
-        format: 'json',
-        structured: jsonData,
-        summary: jsonData.summary || `Data extracted from ${fileType} file`
-      };
-    } catch (error) {
-      // If parsing fails, return as text
-      console.warn('Failed to parse response as JSON:', error);
-      return {
-        raw: response,
-        format: 'text'
-      };
-    }
-  } catch (error) {
-    console.error('Error extracting data from document:', error);
-    throw error;
-  }
-};
-
-/**
  * Convert file to base64
  */
 const fileToBase64 = (file: File): Promise<string> => {
@@ -346,27 +251,6 @@ const fileToBase64 = (file: File): Promise<string> => {
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });
-};
-
-/**
- * Determine document type from file extension
- */
-const getDocumentType = (extension: string): string => {
-  switch (extension) {
-    case 'pdf':
-      return 'PDF document';
-    case 'doc':
-    case 'docx':
-      return 'Word document';
-    case 'ppt':
-    case 'pptx':
-      return 'PowerPoint presentation';
-    case 'xls':
-    case 'xlsx':
-      return 'Excel spreadsheet';
-    default:
-      return 'document';
-  }
 };
 
 /**

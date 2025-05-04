@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Globe, Image, FileJson, FileText, Wand2, Download, MessageSquare, Search } from 'lucide-react';
+import { Globe, Image, FileJson, FileText, Search, Download, MessageSquare } from 'lucide-react';
 
 const UserGuideDataExtraction = () => {
   return (
@@ -24,16 +24,16 @@ const UserGuideDataExtraction = () => {
               <div>
                 <h3 className="text-lg font-semibold mb-2">What is Data Extraction?</h3>
                 <p className="text-sm text-muted-foreground">
-                  Data extraction is the process of retrieving structured information from websites, documents, or images.
-                  This service helps you extract data using AI to identify and structure the content.
+                  Data extraction is the process of retrieving structured information from websites or images.
+                  This service helps you extract data using CrewAI tools to identify and structure the content.
                 </p>
               </div>
               
               <div>
                 <h3 className="text-lg font-semibold mb-2">Key Features</h3>
                 <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                  <li>Extract tables, lists, and text from web pages</li>
-                  <li>Extract text and data from images using OCR</li>
+                  <li>Extract tables, lists, and text from web pages using CrewAI's ScrapeElementFromWebsiteTool</li>
+                  <li>Extract text and data from images using CrewAI's VisionTool</li>
                   <li>Structured JSON output for easy integration</li>
                   <li>Ask follow-up questions about extracted data</li>
                   <li>Download extracted data in various formats</li>
@@ -101,7 +101,6 @@ const UserGuideDataExtraction = () => {
                   <li>PNG - Lossless image format, good for screenshots</li>
                   <li>WebP - Modern image format with good compression</li>
                   <li>TIFF - High-quality image format often used for scans</li>
-                  <li>PDF - Document format that can contain text and images</li>
                 </ul>
               </div>
               
