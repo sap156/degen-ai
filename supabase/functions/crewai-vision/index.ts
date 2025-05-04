@@ -28,15 +28,59 @@ serve(async (req) => {
       );
     }
 
-    // In a real implementation, we would either:
-    // 1. Save the uploaded file to a temporary location and pass its path to the Python script, or
-    // 2. Pass the image URL directly to the Python script
-    
     console.log(`Processing ${imageFile ? 'uploaded image' : 'image URL: ' + imageUrl}`);
     
-    // Simulate the Python script execution
-    // In production, you would replace this with actual Python script execution
-    const result = await simulateVisionProcessing(imageFile, imageUrl);
+    // Set up paths and commands
+    const scriptPath = Deno.env.get('VISION_SCRIPT_PATH') || '/app/scripts/vision_tool_runner.py';
+    const pythonPath = Deno.env.get('PYTHON_PATH') || 'python3';
+    const tempDir = Deno.env.get('TEMP_DIR') || '/tmp';
+    
+    let imagePath;
+    let command;
+    
+    if (imageFile) {
+      // Save the uploaded file to a temporary location
+      const buffer = await imageFile.arrayBuffer();
+      const tempFilePath = `${tempDir}/upload_${Date.now()}_${imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      
+      console.log(`Saving uploaded file to: ${tempFilePath}`);
+      await Deno.writeFile(tempFilePath, new Uint8Array(buffer));
+      
+      imagePath = tempFilePath;
+      command = `${pythonPath} ${scriptPath} "${imagePath}"`;
+    } else {
+      // Use the image URL
+      imagePath = imageUrl;
+      command = `${pythonPath} ${scriptPath} "${imagePath}"`;
+    }
+    
+    console.log(`Executing command: ${command}`);
+    
+    let result;
+    try {
+      // Execute the Python script
+      const { stdout, stderr } = await exec(command);
+      
+      if (stderr) {
+        console.error("Script stderr:", stderr);
+      }
+      
+      result = stdout.trim();
+      console.log("Script execution successful");
+      
+      // Clean up the temporary file if it was created
+      if (imageFile) {
+        try {
+          await Deno.remove(imagePath);
+          console.log(`Temporary file ${imagePath} removed`);
+        } catch (removeError) {
+          console.error(`Failed to remove temporary file: ${removeError.message}`);
+        }
+      }
+    } catch (execError) {
+      console.error("Error executing Python script:", execError);
+      throw new Error(`Failed to execute script: ${execError.message}`);
+    }
     
     return new Response(
       JSON.stringify({ 
@@ -46,6 +90,7 @@ serve(async (req) => {
           source: imageFile ? imageFile.name : imageUrl,
           type: imageFile ? "upload" : "url",
           timestamp: new Date().toISOString(),
+          executionMethod: 'CrewAI VisionTool'
         }
       }),
       { 
@@ -55,7 +100,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in vision processing function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: "There was an error running the CrewAI VisionTool. Make sure the Python environment is properly set up with the required dependencies."
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -63,34 +111,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Simulate vision processing function
-// In production, this would be replaced with actual Python script execution
-async function simulateVisionProcessing(imageFile?: File, imageUrl?: string): Promise<string> {
-  try {
-    // This is where you would call the Python script in production
-    // const command = await exec(`python vision_tool_runner.py "${imageFile ? '/tmp/uploaded_image' : imageUrl}"`);
-    // return command.output;
-
-    // For this demo, we'll return a simulated response
-    if (imageFile) {
-      const fileType = imageFile.type.split('/')[1] || 'unknown';
-      const fileSize = (imageFile.size / 1024).toFixed(1) + ' KB';
-      
-      return `Text extracted from uploaded image (${fileType} format, ${fileSize}):\n\nThis is simulated OCR content from the image. In a production environment, this would be the actual text extracted from the image using CrewAI's VisionTool.`;
-    } else if (imageUrl) {
-      if (imageUrl.includes('receipt') || imageUrl.includes('invoice')) {
-        return `Text extracted from receipt/invoice image:\n\nDate: 2023-05-15\nMerchant: ABC Store\nItems:\n- Product A: $12.99\n- Product B: $24.50\nTotal: $37.49\nPayment Method: Credit Card`;
-      } else if (imageUrl.includes('document') || imageUrl.includes('text')) {
-        return `Text extracted from document image:\n\nThis is a sample document text extracted using OCR technology. The document appears to contain multiple paragraphs of text with formatting that has been preserved during the extraction process.`;
-      } else {
-        return `Text extracted from image URL (${imageUrl}):\n\nThis is simulated OCR content from the image. In a production environment, this would be the actual text extracted from the image using CrewAI's VisionTool.`;
-      }
-    } else {
-      return "No image provided for text extraction";
-    }
-  } catch (error) {
-    console.error("Error simulating vision processing:", error);
-    throw new Error(`Failed to extract text from image: ${error.message}`);
-  }
-}

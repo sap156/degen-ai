@@ -26,13 +26,30 @@ serve(async (req) => {
       );
     }
 
-    // In a real implementation, we would call the Python script directly
-    // For this demo, we'll simulate the response with a mock implementation
-    console.log(`Attempting to scrape ${url} with selector ${cssSelector || 'body'}`);
+    console.log(`Executing CrewAI ScrapeElementFromWebsiteTool for URL: ${url} with selector: ${cssSelector || 'body'}`);
     
-    // Simulate the Python script execution
-    // In production, you would replace this with actual Python script execution
-    const result = await simulateScraping(url, cssSelector || 'body');
+    // Execute the Python script
+    const scriptPath = Deno.env.get('SCRIPT_PATH') || '/app/scripts/scrape_tool_runner.py';
+    const pythonPath = Deno.env.get('PYTHON_PATH') || 'python3';
+    const command = `${pythonPath} ${scriptPath} "${url}" "${cssSelector || 'body'}"`;
+    
+    console.log(`Executing command: ${command}`);
+    
+    let result;
+    try {
+      // Execute the Python script
+      const { stdout, stderr } = await exec(command);
+      
+      if (stderr) {
+        console.error("Script stderr:", stderr);
+      }
+      
+      result = stdout.trim();
+      console.log("Script execution successful");
+    } catch (execError) {
+      console.error("Error executing Python script:", execError);
+      throw new Error(`Failed to execute script: ${execError.message}`);
+    }
     
     return new Response(
       JSON.stringify({ 
@@ -42,6 +59,7 @@ serve(async (req) => {
           url,
           cssSelector: cssSelector || 'body',
           timestamp: new Date().toISOString(),
+          executionMethod: 'CrewAI ScrapeElementFromWebsiteTool'
         }
       }),
       { 
@@ -51,7 +69,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in web scraping function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: "There was an error running the CrewAI ScrapeElementFromWebsiteTool. Make sure the Python environment is properly set up with the required dependencies."
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -59,25 +80,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Simulate web scraping function
-// In production, this would be replaced with actual Python script execution
-async function simulateScraping(url: string, cssSelector: string): Promise<string> {
-  try {
-    // This is where you would call the Python script in production
-    // const command = await exec(`python scrape_tool_runner.py "${url}" "${cssSelector}"`);
-    // return command.output;
-
-    // For this demo, we'll return a simulated response
-    if (url.includes('wikipedia')) {
-      return `Content extracted from Wikipedia using selector '${cssSelector}':\n\nWikipedia is a free online encyclopedia, created and edited by volunteers around the world and hosted by the Wikimedia Foundation.`;
-    } else if (url.includes('github')) {
-      return `Content extracted from GitHub using selector '${cssSelector}':\n\nGitHub is where over 100 million developers shape the future of software, together. Contribute to the open source community, manage your Git repositories, review code, and more.`;
-    } else {
-      return `Content extracted from ${url} using selector '${cssSelector}':\n\nThis is simulated content from the webpage. In a production environment, this would be the actual content scraped from the website using CrewAI's ScrapeElementFromWebsiteTool.`;
-    }
-  } catch (error) {
-    console.error("Error simulating web scraping:", error);
-    throw new Error(`Failed to scrape content: ${error.message}`);
-  }
-}
