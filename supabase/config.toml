@@ -1,5 +1,9 @@
 
-project_id = "zdbzhlrmpiowsnbhxlyi"
+project_id = "placeholder-project-id"
 
-[functions.snowflake-query]
+[functions]
+[functions.crewai-web-scrape]
+verify_jwt = true
+
+[functions.crewai-vision]
 verify_jwt = true

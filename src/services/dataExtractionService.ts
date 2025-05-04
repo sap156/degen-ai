@@ -1,7 +1,7 @@
-
 import { toast } from "sonner";
 import { getCompletion, OpenAiMessage } from "./openAiService";
 import { readFileAsArrayBuffer } from "@/utils/fileOperations";
+import { extractTextFromUrl, extractTextFromImageUrl, extractTextFromFile } from "@/utils/textExtraction";
 
 /**
  * Types of data that can be extracted
@@ -44,7 +44,7 @@ const stripMarkdownCodeBlocks = (text: string): string => {
 };
 
 /**
- * Extract data from a URL using OpenAI
+ * Extract data from a URL using CrewAI's ScrapeElementFromWebsiteTool
  */
 export const extractDataFromUrl = async (
   apiKey: string | null,
@@ -56,54 +56,67 @@ export const extractDataFromUrl = async (
     throw new Error("API key is not set");
   }
 
-  // Get current date and time in ISO format
-  const currentTimestamp = new Date().toISOString();
-
-  // Create system message based on extraction type with enhanced instructions
-  const systemMessage = `You are an expert data extraction AI assistant specialized in extracting structured data from web content.
-  Your task is to extract ${extractionType} from the provided URL content.
-  ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
-  ${extractionType === 'lists' ? 'Focus on finding and properly formatting all lists, including those with multiple levels.' : ''}
-  ${extractionType === 'key-value' ? 'Focus on finding and properly formatting all key-value pairs, such as specifications, properties, or attributes.' : ''}
-  ${extractionType === 'text' ? 'Extract the main textual content, preserving important information and structure. Also identify and extract URLs of images found on the page.' : ''}
-  ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the page content with proper nesting and relationships. Separate textual content from image URLs.' : ''}
-  ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
-  
-  IMPORTANT: Do NOT hallucinate or make up information. Only extract data that actually exists on the page.
-  If you cannot access the content or if the URL is invalid, clearly state this in your response.
-  If there is no content matching the extraction type, state this explicitly rather than inventing data.
-  
-  Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
-  Use this structure:
-  {
-    "extracted_data": [...], // The main extracted content
-    "text_content": "The main textual content of the page", 
-    "images": ["url1", "url2", ...], // Array of image URLs found on the page
-    "metadata": {
-      "source_url": "${url}",
-      "extraction_type": "${extractionType}",
-      "timestamp": "${currentTimestamp}",
-      "query": "${userQuery || 'none'}"
-    },
-    "summary": "A brief summary of what was extracted"
-  }`;
-
-  // Create user message with the URL
-  const userMessage = userQuery 
-    ? `Extract data from ${url}. Specifically, I need information about: ${userQuery}`
-    : `Extract ${extractionType} from ${url}`;
-
-  const messages: OpenAiMessage[] = [
-    { role: 'system', content: systemMessage },
-    { role: 'user', content: userMessage }
-  ];
-
   try {
-    const model = 'gpt-4o';
+    // Get CSS selector based on extraction type
+    let cssSelector = 'body'; // Default to entire body
+    if (extractionType === 'tables') {
+      cssSelector = 'table';
+    } else if (extractionType === 'lists') {
+      cssSelector = 'ul, ol';
+    }
+    
+    // Use the CrewAI web scraping tool to extract content
+    const result = await extractTextFromUrl(url, cssSelector);
+    const extractedText = result.text;
+    
+    // Now analyze and structure the extracted content using OpenAI
+    // Get current date and time in ISO format
+    const currentTimestamp = new Date().toISOString();
+
+    // Create system message based on extraction type with enhanced instructions
+    const systemMessage = `You are an expert data extraction AI assistant specialized in extracting structured data from web content.
+    I've already scraped content from ${url} using CSS selector '${cssSelector}' and will provide you with the raw extracted text.
+    Your task is to analyze and structure this content as ${extractionType}.
+    ${extractionType === 'tables' ? 'Focus on properly formatting all tables, preserving their structure.' : ''}
+    ${extractionType === 'lists' ? 'Focus on properly formatting all lists, including those with multiple levels.' : ''}
+    ${extractionType === 'key-value' ? 'Focus on finding and properly formatting all key-value pairs, such as specifications, properties, or attributes.' : ''}
+    ${extractionType === 'text' ? 'Structure the main textual content, preserving important information.' : ''}
+    ${extractionType === 'json' ? 'Create a comprehensive JSON representation of the content with proper nesting and relationships.' : ''}
+    ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
+    
+    IMPORTANT: Only use the data I provide. Do NOT hallucinate or make up information.
+    If there is no content matching the extraction type, state this explicitly rather than inventing data.
+    
+    Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
+    Use this structure:
+    {
+      "extracted_data": [...], // The main extracted content
+      "text_content": "The main textual content of the page", 
+      "images": [], // Array of image URLs found (if any)
+      "metadata": {
+        "source_url": "${url}",
+        "extraction_type": "${extractionType}",
+        "timestamp": "${currentTimestamp}",
+        "query": "${userQuery || 'none'}"
+      },
+      "summary": "A brief summary of what was extracted"
+    }`;
+
+    // Create user message with the extracted content
+    const userMessage = `Here is the content extracted from ${url} using CSS selector '${cssSelector}':\n\n${extractedText}\n\n${
+      userQuery ? `Please analyze this content with focus on: ${userQuery}` : 'Please analyze this content'
+    }`;
+
+    const messages: OpenAiMessage[] = [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
+    ];
+
+    const model = localStorage.getItem('openai-model') || 'gpt-4o';
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      model
     });
     
     try {
@@ -133,7 +146,7 @@ export const extractDataFromUrl = async (
 };
 
 /**
- * Extract data from an image using OpenAI
+ * Extract data from an image using CrewAI's VisionTool
  */
 export const extractDataFromImage = async (
   apiKey: string | null,
@@ -146,19 +159,25 @@ export const extractDataFromImage = async (
   }
 
   try {
-    // Convert image to base64
+    // Convert image to base64 for the VisionTool
     const base64Image = await fileToBase64(imageFile);
+    
+    // Extract text from the image using CrewAI VisionTool
+    const { text: extractedText, metadata } = await extractTextFromFile(imageFile, apiKey);
+    
+    // Now process the extracted text with OpenAI to structure it according to the extraction type
     
     // Create system message based on extraction type
     const systemMessage = `You are an expert OCR and data extraction AI assistant specialized in extracting structured data from images.
-    Your task is to extract ${extractionType} from the provided image.
-    ${extractionType === 'tables' ? 'Focus on finding and properly formatting all tables, including those that might be dynamically generated. Look for table-like structures even if not in traditional HTML table format.' : ''}
+    I've already processed an image using OCR and will provide you with the extracted text.
+    Your task is to analyze and structure this content as ${extractionType}.
+    ${extractionType === 'tables' ? 'Focus on properly formatting all tables, preserving their structure.' : ''}
     ${extractionType === 'key-value' ? 'Focus on identifying key-value pairs, especially for forms, receipts, or invoices.' : ''}
-    ${extractionType === 'text' ? 'Extract all readable text, preserving layout when possible. Also identify any embedded images and describe them briefly.' : ''}
+    ${extractionType === 'text' ? 'Structure all readable text, preserving layout when possible.' : ''}
     ${userQuery ? `Pay special attention to information related to: ${userQuery}` : ''}
     
-    IMPORTANT: Do NOT hallucinate or make up information. Only extract data that you can clearly see in the image.
-    If you cannot read portions of the image, indicate this in your response.
+    IMPORTANT: Only use the data I provide. Do NOT hallucinate or make up information.
+    If there is no content matching the extraction type, state this explicitly rather than inventing data.
     
     Return your response as clean JSON WITHOUT markdown formatting or code blocks. The response should be DIRECTLY parseable by JSON.parse() without any cleanup.
     Use this structure:
@@ -176,36 +195,23 @@ export const extractDataFromImage = async (
       "summary": "A brief summary of what was extracted"
     }`;
 
-    // Create user message with the image query
-    const userMessage = userQuery 
-      ? `Extract data from this image. Specifically, I need information about: ${userQuery}`
-      : `Extract ${extractionType} from this image`;
+    // Create user message with the extracted text
+    const userMessage = `Here is the text extracted from an image using OCR:\n\n${extractedText}\n\n${
+      userQuery ? `Please analyze this text with focus on: ${userQuery}` : 'Please analyze this text'
+    }`;
 
-    // For OpenAI we need to send the image in a specific format
     const messages: OpenAiMessage[] = [
       { role: 'system', content: systemMessage },
-      { 
-        role: 'user', 
-        content: [
-          { type: 'text', text: userMessage },
-          { 
-            type: 'image_url', 
-            image_url: {
-              url: base64Image,
-              detail: 'high'
-            } 
-          }
-        ]
-      }
+      { role: 'user', content: userMessage }
     ];
 
-    // Use the model that supports image processing
-    const model = 'gpt-4o'; // Using gpt-4o as it supports vision
+    // Use the model that supports text processing
+    const model = localStorage.getItem('openai-model') || 'gpt-4o';
     
     const response = await getCompletion(apiKey, messages, {
       temperature: 0.3,
       max_tokens: 16384,
-      model: localStorage.getItem('openai-model') || 'gpt-4o'
+      model
     });
     
     try {
