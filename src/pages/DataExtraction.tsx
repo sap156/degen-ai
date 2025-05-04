@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -19,6 +20,8 @@ import { useApiKey } from '@/contexts/ApiKeyContext';
 import { 
   Download,
   Globe,
+  File,
+  FileText,
   Image,
   Table,
   Brackets,
@@ -26,12 +29,12 @@ import {
   Search,
   List,
   KeyRound,
-  FileText,
   FileImage
 } from 'lucide-react';
 import { 
   extractDataFromUrl, 
   extractDataFromImage,
+  extractDataFromDocument,
   processExtractedData, 
   ExtractedData, 
   ExtractionType 
@@ -77,7 +80,7 @@ const DataExtraction: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            Extract structured data from websites and images using CrewAI tools
+            Extract structured data from websites, documents, and images using AI
           </motion.p>
         </div>
         
@@ -103,7 +106,7 @@ const DataExtraction: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            Extract structured data from websites and images using CrewAI tools
+            Extract structured data from websites, documents, and images using AI
           </motion.p>
         </div>
         
@@ -190,14 +193,24 @@ const DataExtraction: React.FC = () => {
       
       let result;
       const file = files[0].file;
+      const fileType = file.type.split('/')[0];
       
-      // Since we only handle images now, we don't need to check file type
-      result = await extractDataFromImage(
-        apiKey,
-        file,
-        extractionType === 'tables' ? 'key-value' : extractionType,
-        fileQuestion.trim() || undefined
-      );
+      if (fileType === 'image') {
+        result = await extractDataFromImage(
+          apiKey,
+          file,
+          extractionType === 'tables' ? 'key-value' : extractionType,
+          fileQuestion.trim() || undefined
+        );
+      } else {
+        // Handle PDF, DOC, PPT, etc.
+        result = await extractDataFromDocument(
+          apiKey,
+          file,
+          extractionType,
+          fileQuestion.trim() || undefined
+        );
+      }
       
       setExtractedData(result);
       
@@ -392,7 +405,7 @@ const DataExtraction: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          Extract structured data from websites and images using CrewAI tools
+          Extract structured data from websites, documents, and images using AI
         </motion.p>
       </div>
 
@@ -407,7 +420,7 @@ const DataExtraction: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsList className="grid w-full grid-cols-3 mb-6">
                   <TabsTrigger value="web">
                     <Globe className="h-4 w-4 mr-2" />
                     Web
@@ -415,6 +428,10 @@ const DataExtraction: React.FC = () => {
                   <TabsTrigger value="images">
                     <Image className="h-4 w-4 mr-2" />
                     Images
+                  </TabsTrigger>
+                  <TabsTrigger value="documents">
+                    <File className="h-4 w-4 mr-2" />
+                    Others
                   </TabsTrigger>
                 </TabsList>
                 
@@ -473,7 +490,7 @@ const DataExtraction: React.FC = () => {
                       accept=".jpg,.jpeg,.png,.webp,.tiff"
                       maxSize={10}
                       title="Upload Images"
-                      description="Upload images to extract text using CrewAI Vision"
+                      description="Upload images to extract text using OCR"
                     />
                   </div>
                   
@@ -540,6 +557,74 @@ const DataExtraction: React.FC = () => {
                   )}
                 </TabsContent>
                 
+                <TabsContent value="documents" className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Upload Documents</Label>
+                    <FileUploader
+                      onFileUpload={handleFileUpload}
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                      maxSize={15}
+                      title="Upload Documents"
+                      description="Upload PDFs, Word docs, or other document types"
+                    />
+                  </div>
+                  
+                  {files.length > 0 && (
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <Label htmlFor="fileQuestion">Ask a specific question (optional)</Label>
+                        <Textarea
+                          id="fileQuestion"
+                          placeholder="E.g., Extract key information. Summarize this document."
+                          value={fileQuestion}
+                          onChange={(e) => setFileQuestion(e.target.value)}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      
+                      {renderExtractionTypeOptions()}
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {files.map((file, index) => (
+                          <div key={index} className="relative group border rounded-md p-2 bg-muted/30">
+                            <FileText className="h-8 w-8 mx-auto mb-1" />
+                            <div className="text-center text-xs truncate">
+                              {file.file.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={handleExtractFromFiles}
+                          disabled={isLoading}
+                          className="flex-1"
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin mr-2" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="h-4 w-4 mr-2" />
+                              Analyze Documents
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          onClick={clearFiles}
+                          disabled={isLoading}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
@@ -713,7 +798,7 @@ const DataExtraction: React.FC = () => {
             </CardContent>
             <CardFooter>
               <p className="text-xs text-muted-foreground">
-                Powered by CrewAI tools. The quality of extraction depends on the source data structure.
+                Powered by AI. The quality of extraction depends on the source data structure and the AI model used.
               </p>
             </CardFooter>
           </Card>

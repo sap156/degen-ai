@@ -1,9 +1,5 @@
 
 project_id = "zdbzhlrmpiowsnbhxlyi"
 
-[functions]
-[functions.crewai-web-scrape]
-verify_jwt = true
-
-[functions.crewai-vision]
+[functions.snowflake-query]
 verify_jwt = true
